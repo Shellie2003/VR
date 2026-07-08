@@ -5,6 +5,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
     primary = VarotraPrimaryFixedDim,
@@ -51,9 +52,18 @@ private val LightColorScheme = lightColorScheme(
 fun MyApplicationTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
+    primaryColorOverride: Color? = null,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val baseScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = if (primaryColorOverride != null) {
+        baseScheme.copy(
+            primary = primaryColorOverride,
+            primaryContainer = primaryColorOverride.copy(alpha = 0.15f)
+        )
+    } else {
+        baseScheme
+    }
 
     MaterialTheme(
         colorScheme = colorScheme,

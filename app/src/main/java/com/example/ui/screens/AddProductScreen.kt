@@ -9,51 +9,66 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.*
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.data.model.Product
+import com.example.ui.viewmodel.InventoryViewModel
+import com.example.util.LanguageManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddProductScreen(
+    viewModel: InventoryViewModel,
     editingProduct: Product?,
     onSaveProduct: (Product) -> Unit,
     onCancel: () -> Unit
 ) {
+    val activeLang by viewModel.language.collectAsState()
+    val t = { key: String -> LanguageManager.translate(key, activeLang) }
+
     // State holders
     var name by remember(editingProduct) { mutableStateOf(editingProduct?.name ?: "") }
     var priceStr by remember(editingProduct) { mutableStateOf(editingProduct?.price?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "") }
-    var stockStr by remember(editingProduct) { mutableStateOf(editingProduct?.stock?.toString() ?: "") }
+    var stockStr by remember(editingProduct) { mutableStateOf(editingProduct?.stock?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "") }
     var imageUrl by remember(editingProduct) { mutableStateOf(editingProduct?.imageUrl ?: "") }
+    var lowStockThresholdStr by remember(editingProduct) { mutableStateOf(editingProduct?.lowStockThreshold?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "5") }
 
     // Dropdown Categories
-    val standardCategories = listOf("Sakafo", "Legioma", "Voankazo", "Zava-pisotro", "Fitaovana", "Hafa")
+    val standardCategories = listOf("Alimentation", "Légumes", "Boissons", "Épicerie", "Droguerie", "Hafa")
     var selectedCategory by remember(editingProduct) {
-        mutableStateOf(editingProduct?.category ?: "Sakafo")
+        val cat = editingProduct?.category ?: "Alimentation"
+        mutableStateOf(if (standardCategories.contains(cat)) cat else "Hafa")
     }
     var customCategory by remember(editingProduct) {
-        val initialCustom = if (editingProduct != null && !standardCategories.contains(editingProduct.category)) {
-            editingProduct.category
-        } else ""
-        mutableStateOf(initialCustom)
+        val cat = editingProduct?.category ?: ""
+        mutableStateOf(if (!standardCategories.contains(cat)) cat else "")
     }
 
-    var showDropdown by remember { mutableStateOf(false) }
+    // Units
+    val units = listOf("Pièce", "Litre", "Kilogramme", "Paquet", "Tasse/Kapoaka")
+    var selectedUnit by remember(editingProduct) {
+        mutableStateOf(editingProduct?.unit ?: "Pièce")
+    }
 
-    // Form errors
+    var showCategoryDropdown by remember { mutableStateOf(false) }
+    var showUnitDropdown by remember { mutableStateOf(false) }
+
+    // Form validation states
     var nameError by remember { mutableStateOf(false) }
     var priceError by remember { mutableStateOf(false) }
     var stockError by remember { mutableStateOf(false) }
+    var thresholdError by remember { mutableStateOf(false) }
 
     val isEditing = editingProduct != null
 
@@ -66,65 +81,61 @@ fun AddProductScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 96.dp), // Avoid bottom navigation overlap
+                .padding(bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Header
+            // Screen title
             Text(
-                text = if (isEditing) "Hanova ny Entana" else "Manampy Entana Vaovao",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
+                text = if (isEditing) t("edit_product_title") else t("add_product_title"),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Black,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 4.dp)
             )
 
-            // Name Field
+            // Name input
             OutlinedTextField(
                 value = name,
                 onValueChange = {
                     name = it
                     nameError = it.isBlank()
                 },
-                label = { Text("Anaran'ny entana") },
+                label = { Text(t("product_name")) },
                 isError = nameError,
-                supportingText = { if (nameError) Text("Tsy maintsy fenoina ny anarana", color = MaterialTheme.colorScheme.error) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("product_name_input"),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(12.dp)
             )
 
-            // Category Selection Dropdown
+            // Category select drop down
             Box(modifier = Modifier.fillMaxWidth()) {
                 ExposedDropdownMenuBox(
-                    expanded = showDropdown,
-                    onExpandedChange = { showDropdown = !showDropdown },
-                    modifier = Modifier.fillMaxWidth()
+                    expanded = showCategoryDropdown,
+                    onExpandedChange = { showCategoryDropdown = !showCategoryDropdown }
                 ) {
                     OutlinedTextField(
                         value = selectedCategory,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Karazany (Sokajy)") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showDropdown) },
+                        label = { Text(t("category_label")) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showCategoryDropdown) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
                             .testTag("product_category_select"),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                        shape = RoundedCornerShape(12.dp)
                     )
-
                     ExposedDropdownMenu(
-                        expanded = showDropdown,
-                        onDismissRequest = { showDropdown = false }
+                        expanded = showCategoryDropdown,
+                        onDismissRequest = { showCategoryDropdown = false }
                     ) {
-                        standardCategories.forEach { category ->
+                        standardCategories.forEach { cat ->
                             DropdownMenuItem(
-                                text = { Text(category) },
+                                text = { Text(cat) },
                                 onClick = {
-                                    selectedCategory = category
-                                    showDropdown = false
+                                    selectedCategory = cat
+                                    showCategoryDropdown = false
                                 }
                             )
                         }
@@ -132,121 +143,232 @@ fun AddProductScreen(
                 }
             }
 
-            // Custom category input if selectedCategory is "Hafa (Other)"
+            // Custom category input if "Hafa"
             if (selectedCategory == "Hafa") {
                 OutlinedTextField(
                     value = customCategory,
                     onValueChange = { customCategory = it },
-                    label = { Text("Famaritana ny sokajy hafa") },
-                    placeholder = { Text("Ex: Fitafiana, Boky, ...") },
+                    label = { Text(t("custom_category_label")) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("product_custom_category_input"),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(12.dp)
                 )
             }
 
-            // Price Input
+            // Unit of Measure selection drop down
+            Box(modifier = Modifier.fillMaxWidth()) {
+                ExposedDropdownMenuBox(
+                    expanded = showUnitDropdown,
+                    onExpandedChange = { showUnitDropdown = !showUnitDropdown }
+                ) {
+                    OutlinedTextField(
+                        value = when (selectedUnit) {
+                            "Pièce" -> t("unit_piece")
+                            "Litre" -> t("unit_litre")
+                            "Kilogramme" -> t("unit_kg")
+                            "Paquet" -> t("unit_paquet")
+                            "Tasse/Kapoaka" -> t("unit_kapoaka")
+                            else -> selectedUnit
+                        },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(t("unit_label")) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showUnitDropdown) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable, true)
+                            .testTag("product_unit_select"),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = showUnitDropdown,
+                        onDismissRequest = { showUnitDropdown = false }
+                    ) {
+                        units.forEach { u ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        when (u) {
+                                            "Pièce" -> t("unit_piece")
+                                            "Litre" -> t("unit_litre")
+                                            "Kilogramme" -> t("unit_kg")
+                                            "Paquet" -> t("unit_paquet")
+                                            "Tasse/Kapoaka" -> t("unit_kapoaka")
+                                            else -> u
+                                        }
+                                    )
+                                },
+                                onClick = {
+                                    selectedUnit = u
+                                    showUnitDropdown = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Price unit input
             OutlinedTextField(
                 value = priceStr,
                 onValueChange = {
                     priceStr = it
                     priceError = it.toDoubleOrNull() == null || it.toDouble() <= 0
                 },
-                label = { Text("Vidiny amin'ny Ariary (Ar)") },
+                label = { Text(t("unit_price")) },
+                prefix = { Text("Ar ") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 isError = priceError,
-                supportingText = { if (priceError) Text("Tsy maintsy isa mbola lehibe noho ny aotra", color = MaterialTheme.colorScheme.error) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("product_price_input"),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(12.dp)
             )
 
-            // Stock Input
+            // Initial Stock Input (Double for decimal/deciliter/kilograms bulk)
             OutlinedTextField(
                 value = stockStr,
                 onValueChange = {
                     stockStr = it
-                    stockError = it.toIntOrNull() == null || it.toInt() < 0
+                    stockError = it.toDoubleOrNull() == null || it.toDouble() < 0
                 },
-                label = { Text("Isan'ny entana ao amin'ny tahiry (Stock)") },
+                label = { Text(t("initial_stock")) },
+                supportingText = { Text("Ex: 1.5, 20.0, 100") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 isError = stockError,
-                supportingText = { if (stockError) Text("Tsy maintsy isa tsy latsaky ny aotra", color = MaterialTheme.colorScheme.error) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("product_stock_input"),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(12.dp)
             )
 
-            // Image URL (optional)
+            // Low Stock Threshold Input (Double)
+            OutlinedTextField(
+                value = lowStockThresholdStr,
+                onValueChange = {
+                    lowStockThresholdStr = it
+                    thresholdError = it.toDoubleOrNull() == null || it.toDouble() < 0
+                },
+                label = { Text("Low Stock Alert Seuil (Alerte)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = thresholdError,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("product_threshold_input"),
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            // Image URL option
             OutlinedTextField(
                 value = imageUrl,
                 onValueChange = { imageUrl = it },
-                label = { Text("Sarin'ny entana (rohy / URL) - azo latsaka") },
-                placeholder = { Text("https://example.com/sary.jpg") },
+                label = { Text(t("img_url_label")) },
+                placeholder = { Text("https://example.com/photo.png") },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("product_image_url_input"),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(12.dp)
             )
+
+            // Simulated Camera and Gallery selections
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = "Sary / Photo :",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                // Simulate quick camera snapshot by inserting a beautiful placeholder image URL
+                                imageUrl = "https://images.unsplash.com/photo-1542838132-92c53300491e?w=500"
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.CameraAlt, contentDescription = null)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Caméra", fontSize = 11.sp)
+                        }
+
+                        Button(
+                            onClick = {
+                                // Simulate image gallery selection
+                                imageUrl = "https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=500"
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Image, contentDescription = null)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Galerie", fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Action Buttons Row
+            // Action CTAs
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Cancel
                 OutlinedButton(
                     onClick = onCancel,
                     modifier = Modifier
                         .weight(1f)
-                        .height(50.dp)
+                        .height(48.dp)
                         .testTag("cancel_product_button"),
-                     shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Hanafo")
+                    Text(t("cancel_btn"))
                 }
 
-                // Save
                 Button(
                     onClick = {
                         val finalName = name.trim()
                         val finalPrice = priceStr.toDoubleOrNull() ?: 0.0
-                        val finalStock = stockStr.toIntOrNull() ?: 0
+                        val finalStock = stockStr.toDoubleOrNull() ?: 0.0
+                        val finalThreshold = lowStockThresholdStr.toDoubleOrNull() ?: 5.0
                         val finalCategory = if (selectedCategory == "Hafa") customCategory.trim().ifEmpty { "Hafa" } else selectedCategory
 
-                        // Validations
                         nameError = finalName.isEmpty()
-                        priceError = finalPrice <= 0
-                        stockError = stockStr.toIntOrNull() == null || finalStock < 0
+                        priceError = finalPrice <= 0.0
+                        stockError = stockStr.toDoubleOrNull() == null || finalStock < 0.0
+                        thresholdError = lowStockThresholdStr.toDoubleOrNull() == null || finalThreshold < 0.0
 
-                        if (!nameError && !priceError && !stockError) {
-                            val product = Product(
+                        if (!nameError && !priceError && !stockError && !thresholdError) {
+                            val saved = Product(
                                 id = editingProduct?.id ?: 0,
                                 name = finalName,
                                 price = finalPrice,
                                 category = finalCategory,
                                 stock = finalStock,
+                                lowStockThreshold = finalThreshold,
+                                unit = selectedUnit,
                                 imageUrl = imageUrl.trim()
                             )
-                            onSaveProduct(product)
+                            onSaveProduct(saved)
                         }
                     },
                     modifier = Modifier
                         .weight(1f)
-                        .height(50.dp)
+                        .height(48.dp)
                         .testTag("save_product_button"),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(if (isEditing) "Hanova" else "Tehirizina")
+                    Text(t("save_btn").substring(0, t("save_btn").length.coerceAtMost(16)), fontWeight = FontWeight.Bold)
                 }
             }
         }

@@ -15,160 +15,234 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.data.model.Product
 import com.example.ui.viewmodel.InventoryViewModel
+import com.example.util.FormatUtil
+import com.example.util.LanguageManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InventoryListScreen(
     viewModel: InventoryViewModel,
-    onEditProduct: (Product) -> Unit
+    onEditProduct: (Product) -> Unit,
+    onNavigateToAddProduct: () -> Unit
 ) {
     val filteredProducts by viewModel.filteredProducts.collectAsState()
     val allProducts by viewModel.allProducts.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val activeLang by viewModel.language.collectAsState()
 
-    // Determine category list to display as Chips
+    // Translation helper
+    val t = { key: String -> LanguageManager.translate(key, activeLang) }
+
+    // Categories list as Filter Chips
     val categoriesList = listOf("All") + allProducts.map { it.category }.distinct().sorted()
 
-    // Delete Confirmation dialog state
+    // Confirmation delete state
     var productToDelete by remember { mutableStateOf<Product?>(null) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        // Search input
-        TextField(
-            value = searchQuery,
-            onValueChange = { viewModel.searchQuery.value = it },
-            placeholder = { Text("Fikarohana amin'ny anarana...", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-            leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.outline) },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { viewModel.searchQuery.value = "" }) {
-                        Icon(imageVector = Icons.Default.Clear, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            },
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onNavigateToAddProduct,
+                containerColor = Color(0xFFFFB300), // Beautiful central yellow/orange color matching the bottom bar FAB
+                contentColor = Color.Black,
+                modifier = Modifier.testTag("inventory_add_product_fab")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = t("tab_add")
+                )
+            }
+        },
+        containerColor = Color.Transparent
+    ) { innerPadding ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .testTag("inventory_search_box"),
-            shape = RoundedCornerShape(16.dp),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                disabledIndicatorColor = Color.Transparent
-            ),
-            singleLine = true
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Horizontal Category filtering Chips
-        LazyRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp)
         ) {
-            items(categoriesList) { category ->
-                val isSelected = category.lowercase() == selectedCategory.lowercase()
-                val label = if (category == "All") "rehetra" else category
+            // Search text field
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { viewModel.searchQuery.value = it },
+                placeholder = { Text(t("search_hint"), style = MaterialTheme.typography.bodyMedium) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.outline
+                    )
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.searchQuery.value = "" }) {
+                            Icon(imageVector = Icons.Default.Clear, contentDescription = null)
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp)
+                    .testTag("inventory_search_box"),
+                shape = RoundedCornerShape(16.dp),
+                singleLine = true
+            )
+
+            // Horizontal Category filter chips
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items(categoriesList) { category ->
+                    val isSelected = category.lowercase() == selectedCategory.lowercase()
+                    val label = if (category == "All") t("filter_all") else category
+
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { viewModel.selectedCategory.value = category },
+                        label = { Text(label, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
+                        modifier = Modifier.testTag("category_chip_$category"),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+            }
+
+            // Low stock filter chip
+            val showLowStockOnly by viewModel.showLowStockOnly.collectAsState()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${filteredProducts.size} ${t("tab_inventory").lowercase()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
 
                 FilterChip(
-                    selected = isSelected,
-                    onClick = { viewModel.selectedCategory.value = category },
-                    label = { Text(label, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
+                    selected = showLowStockOnly,
+                    onClick = { viewModel.showLowStockOnly.value = !showLowStockOnly },
+                    label = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = if (showLowStockOnly) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = "Mihavitsy tahiry",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (showLowStockOnly) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
+                    },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        selectedContainerColor = MaterialTheme.colorScheme.error,
+                        selectedLabelColor = MaterialTheme.colorScheme.onError,
+                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+                        labelColor = MaterialTheme.colorScheme.error
                     ),
-                    modifier = Modifier.testTag("category_chip_$category"),
+                    modifier = Modifier.testTag("low_stock_filter_chip"),
                     shape = RoundedCornerShape(12.dp)
                 )
             }
-        }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Product Catalog Count header
-        Text(
-            text = "${filteredProducts.size} entana mifanaraka",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
-        if (filteredProducts.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.Inventory2,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.outlineVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Tsy misy vokatra hita.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            if (filteredProducts.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.Inventory2,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.outlineVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Tsy misy entana mifanaraka amin'ny sivana.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-            }
-        } else {
-            // Main Product LazyColumn
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentPadding = PaddingValues(bottom = 96.dp), // avoids nav block
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(filteredProducts) { product ->
-                    InventoryItemRow(
-                        product = product,
-                        onEdit = { onEditProduct(product) },
-                        onDelete = { productToDelete = product },
-                        onIncrementStock = { viewModel.adjustStock(product, product.stock + 1) },
-                        onDecrementStock = {
-                            if (product.stock > 0) {
-                                viewModel.adjustStock(product, product.stock - 1)
-                            }
+            } else {
+                val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+                val isTablet = configuration.screenWidthDp >= 600
+
+                if (isTablet) {
+                    androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                        columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentPadding = PaddingValues(bottom = 96.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(filteredProducts.size) { index ->
+                            val product = filteredProducts[index]
+                            ProductInventoryCard(
+                                product = product,
+                                viewModel = viewModel,
+                                t = t,
+                                onEditProduct = onEditProduct,
+                                onDeleteProduct = { productToDelete = it }
+                            )
                         }
-                    )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentPadding = PaddingValues(bottom = 96.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(filteredProducts) { product ->
+                            ProductInventoryCard(
+                                product = product,
+                                viewModel = viewModel,
+                                t = t,
+                                onEditProduct = onEditProduct,
+                                onDeleteProduct = { productToDelete = it }
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 
-    // Accidental deletion check Dialog
+    // Confirm deletion dialog
     productToDelete?.let { product ->
         AlertDialog(
             onDismissRequest = { productToDelete = null },
-            title = { Text("Hamafa inona ihany?") },
-            text = { Text("Tena fafanao tokoa ve ny entana '${product.name}' amin'ny lisitrao?") },
+            title = { Text(t("delete_action")) },
+            text = { Text("${t("confirm_delete_msg")}\n\n'${product.name}'") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -177,12 +251,12 @@ fun InventoryListScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Eny, fafao")
+                    Text(t("delete_btn"), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { productToDelete = null }) {
-                    Text("Hanafo")
+                    Text(t("cancel_btn"))
                 }
             }
         )
@@ -190,27 +264,30 @@ fun InventoryListScreen(
 }
 
 @Composable
-fun InventoryItemRow(
+fun ProductInventoryCard(
     product: Product,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-    onIncrementStock: () -> Unit,
-    onDecrementStock: () -> Unit
+    viewModel: InventoryViewModel,
+    t: (String) -> String,
+    onEditProduct: (Product) -> Unit,
+    onDeleteProduct: (Product) -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("inventory_row_${product.id}"),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        colors = CardDefaults.cardColors(
+            containerColor = if (product.isLowStock) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.12f)
+            else MaterialTheme.colorScheme.surface
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            width = if (product.isLowStock) 2.dp else 1.dp,
+            color = if (product.isLowStock) MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        )
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
-        ) {
-            // Header: Name, price & options
+        Column(modifier = Modifier.padding(12.dp)) {
+            // Header detail: Name, category and fast edit/delete
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -221,16 +298,34 @@ fun InventoryItemRow(
                         text = product.name,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = product.category,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = product.category,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (product.isLowStock) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(MaterialTheme.colorScheme.error)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "ALERT",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
                 }
 
                 Row(
@@ -238,94 +333,110 @@ fun InventoryItemRow(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = "Ar ${formatPrice(product.price)}",
+                        text = "${FormatUtil.formatPrice(product.price)} Ar",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Black,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.secondary
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
-                        Icon(imageVector = Icons.Default.Edit, contentDescription = "Hanova", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                    IconButton(
+                        onClick = { onEditProduct(product) },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = t("edit_action"),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
-                    IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
-                        Icon(imageVector = Icons.Default.DeleteOutline, contentDescription = "Hamafa", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                    IconButton(
+                        onClick = { onDeleteProduct(product) },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteOutline,
+                            contentDescription = t("delete_action"),
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Footer / Quick stock controllers
+            // Footer: Stock display and increment/decrement step controllers
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Inline stock status
                 val isAvailable = product.stock > 0
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     Box(
                         modifier = Modifier
-                            .size(10.dp)
+                            .size(8.dp)
                             .clip(CircleShape)
                             .background(
-                                if (isAvailable) MaterialTheme.colorScheme.secondaryContainer
-                                else MaterialTheme.colorScheme.error
+                                when {
+                                    !isAvailable -> MaterialTheme.colorScheme.error
+                                    product.isLowStock -> Color(0xFFFF9800)
+                                    else -> Color(0xFF4CAF50)
+                                }
                             )
                     )
                     Text(
-                        text = if (isAvailable) "Misy ${product.stock} ao amin'ny tahiry" else "Lany tahiry avokoa!",
+                        text = if (isAvailable) {
+                            "${t("initial_stock").substring(0, t("initial_stock").length.coerceAtMost(12))}: ${FormatUtil.formatQty(product.stock, product.unit)}"
+                        } else {
+                            "Lany tahiry!"
+                        },
                         style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isAvailable) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error
+                        fontWeight = FontWeight.Bold,
+                        color = if (!isAvailable) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                     )
                 }
 
-                // Plus / minus controllers
+                // Quick Stock adjust buttons (+/- stepper)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    // Decrease stock
                     IconButton(
-                        onClick = onDecrementStock,
+                        onClick = {
+                            val step = if (product.unit.lowercase() == "litre" || product.unit.lowercase() == "kilogramme") 0.25 else 1.0
+                            val newVal = (product.stock - step).coerceAtLeast(0.0)
+                            viewModel.adjustStock(product, newVal)
+                        },
                         enabled = product.stock > 0,
                         modifier = Modifier
-                            .size(32.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+                            .size(28.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(6.dp))
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Remove,
-                            contentDescription = "Hampihena tahiry",
-                            modifier = Modifier.size(14.dp),
-                            tint = if (product.stock > 0) MaterialTheme.colorScheme.onSurface else Color.LightGray
-                        )
+                        Icon(Icons.Default.Remove, contentDescription = null, modifier = Modifier.size(14.dp))
                     }
 
-                    // Stock figure display
                     Text(
-                        text = product.stock.toString(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 6.dp),
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = FormatUtil.formatQty(product.stock, "").replace(" ", ""),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
                     )
 
-                    // Increase stock
                     IconButton(
-                        onClick = onIncrementStock,
+                        onClick = {
+                            val step = if (product.unit.lowercase() == "litre" || product.unit.lowercase() == "kilogramme") 0.25 else 1.0
+                            viewModel.adjustStock(product, product.stock + step)
+                        },
                         modifier = Modifier
-                            .size(32.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+                            .size(28.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(6.dp))
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Hampitombo tahiry",
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
                     }
                 }
             }

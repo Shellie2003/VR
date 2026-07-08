@@ -6,7 +6,7 @@ import androidx.room.PrimaryKey
 data class SoldItem(
     val productId: Int,
     val name: String,
-    val quantity: Int,
+    val quantity: Double,
     val price: Double
 )
 

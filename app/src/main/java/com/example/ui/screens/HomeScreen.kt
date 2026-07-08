@@ -3,8 +3,10 @@ package com.example.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -20,494 +22,548 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.platform.LocalDensity
+import kotlin.math.roundToInt
 import coil.compose.AsyncImage
 import com.example.data.model.Product
 import com.example.ui.viewmodel.InventoryViewModel
-import java.text.NumberFormat
-import java.util.Locale
+import com.example.util.FormatUtil
+import com.example.util.LanguageManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: InventoryViewModel,
+    onNavigateToAddProduct: () -> Unit,
     onNavigateToList: () -> Unit,
-    onNavigateToCalculator: (Product) -> Unit,
-    onEditProduct: (Product) -> Unit
+    onNavigateToSettings: () -> Unit
 ) {
     val products by viewModel.filteredProducts.collectAsState()
     val allProducts by viewModel.allProducts.collectAsState()
-    val sales by viewModel.allSales.collectAsState()
+    val cart by viewModel.cart.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val activeLang by viewModel.language.collectAsState()
 
-    // Calculate details
-    val totalProducts = allProducts.sumOf { it.stock }
-    val categoriesCount = allProducts.map { it.category.lowercase().trim() }.distinct().size
+    val groceryNameVal by viewModel.groceryName.collectAsState()
+    val themeColor by viewModel.themeColor.collectAsState()
 
-    // Last 4 added products
-    val recentlyAdded = allProducts.take(4)
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
 
-    // Dialog for product detail quick action
-    var selectedProductForDetail by remember { mutableStateOf<Product?>(null) }
+    // Translate helper
+    val t = { key: String -> LanguageManager.translate(key, activeLang) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-    ) {
-        // Search bar
-        TextField(
-            value = searchQuery,
-            onValueChange = { viewModel.searchQuery.value = it },
-            placeholder = { Text("Tadiavo ny vokatra...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "Search icon",
-                    tint = MaterialTheme.colorScheme.outline
-                )
-            },
+    if (allProducts.isEmpty()) {
+        // 1. Static Layout if there are no products (No scrollable grid exists, so we don't collapse)
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp)
-                .testTag("search_input"),
-            shape = RoundedCornerShape(16.dp),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                disabledIndicatorColor = Color.Transparent
-            ),
-            singleLine = true
-        )
-
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 100.dp)
+                .fillMaxSize()
+                .padding(horizontal = if (isTablet) 24.dp else 16.dp)
         ) {
-            // Bento Grid Stats
-            item {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Products Card (Geometric Balance)
                     Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .height(128.dp)
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(MaterialTheme.colorScheme.primaryContainer)
-                            .padding(16.dp)
-                            .testTag("stats_products_card")
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .background(com.example.ui.theme.VarotraPrimaryFixedDim.copy(alpha = 0.2f), RoundedCornerShape(8.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Inventory,
-                                        contentDescription = "Products",
-                                        tint = com.example.ui.theme.VarotraPrimaryFixed,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Text(
-                                    text = "ENTANA",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = com.example.ui.theme.VarotraPrimaryFixed,
-                                    fontWeight = FontWeight.Black
-                                )
-                            }
-                            Text(
-                                text = totalProducts.toString(),
-                                style = MaterialTheme.typography.headlineLarge,
-                                color = Color.White,
-                                fontWeight = FontWeight.Black,
-                                modifier = Modifier.align(Alignment.End)
-                            )
-                        }
-                    }
-
-                    // Categories Card (Geometric Balance)
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(128.dp)
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(MaterialTheme.colorScheme.secondaryContainer)
-                            .padding(16.dp)
-                            .testTag("stats_categories_card")
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(8.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Category,
-                                        contentDescription = "Categories",
-                                        tint = Color(0xFF2A1700),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Text(
-                                    text = "KARAZANA",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = Color(0xFF684000),
-                                    fontWeight = FontWeight.Black
-                                )
-                            }
-                            Text(
-                                text = categoriesCount.toString(),
-                                style = MaterialTheme.typography.headlineLarge,
-                                color = Color(0xFF2A1700),
-                                fontWeight = FontWeight.Black,
-                                modifier = Modifier.align(Alignment.End)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Headings and Recent items list
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Vokatra farany nampidirina",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "Izy rehetra",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.secondary,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .clickable { onNavigateToList() }
-                            .padding(4.dp)
-                    )
-                }
-            }
-
-            if (recentlyAdded.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 32.dp),
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(themeColor),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.FilterList,
-                                contentDescription = "Empty",
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.outlineVariant
-                            )
+                        Icon(
+                            imageVector = Icons.Default.ShoppingBag,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Text(
+                        text = groceryNameVal,
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Black,
+                            color = themeColor,
+                            fontSize = 24.sp
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 180.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = onNavigateToSettings,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(themeColor.copy(alpha = 0.12f))
+                        .testTag("home_settings_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Fikirakirana / Settings",
+                        tint = themeColor,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            // Search Box
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { viewModel.searchQuery.value = it },
+                placeholder = { 
+                    Text(
+                        text = "Tadiavo ny vokatra...", 
+                        color = Color(0xFF94A3B8),
+                        fontSize = 14.sp
+                    ) 
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        tint = Color(0xFF64748B),
+                        modifier = Modifier.size(20.dp)
+                    )
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.searchQuery.value = "" }) {
+                            Icon(imageVector = Icons.Default.Clear, contentDescription = null, tint = Color(0xFF64748B))
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .testTag("search_input"),
+                shape = RoundedCornerShape(24.dp),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFF1F5F9),
+                    unfocusedContainerColor = Color(0xFFF1F5F9),
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    focusedTextColor = Color.Black,
+                    unfocusedTextColor = Color.Black
+                )
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Section Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Vokatra farany nampidirina",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1E293B),
+                        fontSize = 16.sp
+                    )
+                )
+
+                Row(
+                    modifier = Modifier.clickable { onNavigateToList() },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Izy rehetra",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFF57C00)
+                    )
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = Color(0xFFF57C00),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            // Prominent empty state redirect
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ShoppingBag,
+                        contentDescription = null,
+                        modifier = Modifier.size(72.dp),
+                        tint = MaterialTheme.colorScheme.outlineVariant
+                    )
+                    Text(
+                        text = t("no_products"),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Button(
+                        onClick = onNavigateToAddProduct,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.testTag("add_first_product_btn")
+                    ) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(t("add_first_product"), fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    } else {
+        // 2. Dynamic Collapsing App Bar Layout if there are products
+        val density = LocalDensity.current
+        val headerHeightDp = 186.dp
+        val headerHeightPx = with(density) { headerHeightDp.toPx() }
+        var headerOffsetHeightPx by remember { mutableStateOf(0f) }
+
+        val nestedScrollConnection = remember {
+            object : NestedScrollConnection {
+                override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                    val delta = available.y
+                    val newOffset = headerOffsetHeightPx + delta
+                    headerOffsetHeightPx = newOffset.coerceIn(-headerHeightPx, 0f)
+                    return Offset.Zero
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(nestedScrollConnection)
+        ) {
+            // Scrollable Grid Content
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(if (isTablet) 3 else 2),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = if (isTablet) 24.dp else 16.dp),
+                contentPadding = PaddingValues(
+                    top = headerHeightDp + 8.dp,
+                    bottom = if (isTablet) 24.dp else 100.dp
+                ),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                items(products) { product ->
+                    val cartItem = cart.find { it.id == "product_${product.id}" }
+                    val isInCart = cartItem != null
+
+                    // Card matching image 100%
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.addToCart(product, 1.0)
+                            }
+                            .testTag("product_grid_card_${product.id}"),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.White
+                        ),
+                        elevation = CardDefaults.cardElevation(
+                            defaultElevation = 1.dp
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(8.dp)
+                        ) {
+                            // Image area
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(130.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFE2E8F0)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (product.imageUrl.isNotEmpty()) {
+                                    AsyncImage(
+                                        model = product.imageUrl,
+                                        contentDescription = product.name,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color(0xFFECEFF1))
+                                    )
+                                }
+                            }
+
                             Spacer(modifier = Modifier.height(8.dp))
+
+                            // Product Name
                             Text(
-                                "Tsy misy vokatra voatahiry",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = product.name,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1E293B),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // Badge + Stock Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0xFFF1F5F9))
+                                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    Text(
+                                        text = product.category,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF64748B),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(6.dp))
+
+                                val (stockValue, stockUnit) = when (product.unit.lowercase()) {
+                                    "kilogramme", "kg" -> product.stock.toInt().toString() to "kg"
+                                    "litre", "l" -> product.stock.toInt().toString() to "L"
+                                    "pièce", "piece", "pcs" -> product.stock.toInt().toString() to "pcs"
+                                    "paquet" -> product.stock.toInt().toString() to "paq"
+                                    "tasse", "kapoaka" -> product.stock.toInt().toString() to "kap"
+                                    else -> {
+                                        if (product.unit.isEmpty()) {
+                                            "Tahir" to "y"
+                                        } else {
+                                            product.stock.toInt().toString() to product.unit
+                                        }
+                                    }
+                                }
+
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = stockValue,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFF57C00),
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = stockUnit,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFF57C00),
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            // Price
+                            Text(
+                                text = "Ar ${FormatUtil.formatPrice(product.price)}",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.Black
                             )
                         }
                     }
                 }
-            } else {
-                items(recentlyAdded) { product ->
-                    ProductRowCard(
-                        product = product,
-                        onClick = { selectedProductForDetail = product }
-                    )
-                }
-            }
-        }
-    }
-
-    // Detail Quick Action Dialog
-    selectedProductForDetail?.let { product ->
-        ProductDetailDialog(
-            product = product,
-            onDismiss = { selectedProductForDetail = null },
-            onAddToCart = { qty ->
-                viewModel.addToCart(product, qty)
-                selectedProductForDetail = null
-            },
-            onDelete = {
-                viewModel.deleteProduct(product)
-                selectedProductForDetail = null
-            },
-            onEdit = {
-                onEditProduct(product)
-                selectedProductForDetail = null
-            }
-        )
-    }
-}
-
-@Composable
-fun ProductRowCard(
-    product: Product,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .clickable { onClick() }
-            .testTag("product_card_${product.id}"),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
-        ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Product image
-            ProductImage(product = product, modifier = Modifier.size(56.dp))
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            // Text info
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = product.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                
-                // Unified metadata
-                val inStockText = if (product.stock > 0) "Misy tahiry" else "Lany tahiry"
-                Text(
-                    text = "${product.category} • $inStockText",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Medium
-                )
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Price unit
-            Text(
-                text = "Ar ${formatPrice(product.price)}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-    }
-}
-
-@Composable
-fun ProductImage(
-    product: Product,
-    modifier: Modifier = Modifier
-) {
-    if (product.imageUrl.isNotEmpty()) {
-        AsyncImage(
-            model = product.imageUrl,
-            contentDescription = product.name,
-            modifier = modifier
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentScale = ContentScale.Crop
-        )
-    } else {
-        // Aesthetic category based fallback
-        val icon = when (product.category.lowercase().trim()) {
-            "sakafo" -> Icons.Default.Restaurant
-            "legioma", "voankazo" -> Icons.Default.Park
-            "zava-pisotro" -> Icons.Default.LocalHospital // fallback for drinks
-            else -> Icons.Default.ShoppingBasket
-        }
-        Box(
-            modifier = modifier
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun ProductDetailDialog(
-    product: Product,
-    onDismiss: () -> Unit,
-    onAddToCart: (Int) -> Unit,
-    onDelete: () -> Unit,
-    onEdit: () -> Unit
-) {
-    var quantity by remember { mutableStateOf(1) }
-    val maxStock = product.stock
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = product.name,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-        },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // Info Section
+            // Pinned/Collapsing Top App Bar Container
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(headerHeightDp)
+                    .offset { IntOffset(x = 0, y = headerOffsetHeightPx.roundToInt()) }
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(horizontal = if (isTablet) 24.dp else 16.dp)
+            ) {
+                // 1. Brand Logo & Settings Row
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(66.dp)
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    ProductImage(product = product, modifier = Modifier.size(100.dp))
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text("Karazana: ${product.category}", style = MaterialTheme.typography.bodyMedium)
-                        Text("Tahiry (Stock): ${product.stock} sisa", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(themeColor),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ShoppingBag,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                         Text(
-                            text = "Ar ${formatPrice(product.price)}",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.secondary
+                            text = groceryNameVal,
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.Black,
+                                color = themeColor,
+                                fontSize = 24.sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 180.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onNavigateToSettings,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(themeColor.copy(alpha = 0.12f))
+                            .testTag("home_settings_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Fikirakirana / Settings",
+                            tint = themeColor,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
+
+                // 2. Search Box
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { viewModel.searchQuery.value = it },
+                    placeholder = { 
+                        Text(
+                            text = "Tadiavo ny vokatra...", 
+                            color = Color(0xFF94A3B8),
+                            fontSize = 14.sp
+                        ) 
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            tint = Color(0xFF64748B),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.searchQuery.value = "" }) {
+                                Icon(imageVector = Icons.Default.Clear, contentDescription = null, tint = Color(0xFF64748B))
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .testTag("search_input"),
+                    shape = RoundedCornerShape(24.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFFF1F5F9),
+                        unfocusedContainerColor = Color(0xFFF1F5F9),
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black
+                    )
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                if (maxStock > 0) {
-                    Text("Hividy firy?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = { if (quantity > 1) quantity-- },
-                            modifier = Modifier.padding(horizontal = 4.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.Remove, contentDescription = "Latsaka")
-                        }
-                        Text(
-                            text = quantity.toString(),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
-                        IconButton(
-                            onClick = { if (quantity < maxStock) quantity++ },
-                            modifier = Modifier.padding(horizontal = 4.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.Add, contentDescription = "Ampiana")
-                        }
-                    }
-                } else {
-                    Text(
-                        text = "Tsy misy tahiry azo amidy intsony!",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Edit and Delete small buttons
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    IconButton(onClick = onEdit) {
-                        Icon(imageVector = Icons.Default.Edit, contentDescription = "Hanova", tint = MaterialTheme.colorScheme.primary)
-                    }
-                    IconButton(onClick = onDelete) {
-                        Icon(imageVector = Icons.Default.Delete, contentDescription = "Hamafa", tint = MaterialTheme.colorScheme.error)
-                    }
-                }
-
-                // Add to Cart
-                Button(
-                    onClick = { onAddToCart(quantity) },
-                    enabled = maxStock > 0,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
+                // 3. Section Header Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Icon(imageVector = Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Hividy")
+                    Text(
+                        text = "Vokatra farany nampidirina",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1E293B),
+                            fontSize = 16.sp
+                        )
+                    )
+
+                    Row(
+                        modifier = Modifier.clickable { onNavigateToList() },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Izy rehetra",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFF57C00)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = Color(0xFFF57C00),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Hakatona", color = MaterialTheme.colorScheme.outline)
+                
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
-    )
-}
-
-fun formatPrice(amount: Double): String {
-    return try {
-        val formatter = NumberFormat.getNumberInstance(Locale.FRANCE) // spaces for thousands separator
-        formatter.format(amount)
-    } catch (e: Exception) {
-        String.format(Locale.getDefault(), "%.0f", amount)
     }
 }

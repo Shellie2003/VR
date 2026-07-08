@@ -9,8 +9,11 @@ data class Product(
     val name: String,
     val price: Double,
     val category: String,
-    val stock: Int,
-    val imageUrl: String = ""
+    val stock: Double,
+    val imageUrl: String = "",
+    val lowStockThreshold: Double = 5.0,
+    val unit: String = "Pièce"
 ) {
     val isAvailable: Boolean get() = stock > 0
+    val isLowStock: Boolean get() = stock < lowStockThreshold
 }
