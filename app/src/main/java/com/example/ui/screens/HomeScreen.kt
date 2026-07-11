@@ -49,6 +49,7 @@ fun HomeScreen(
     val cart by viewModel.cart.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val activeLang by viewModel.language.collectAsState()
+    val shopMode by viewModel.shopMode.collectAsState()
 
     val groceryNameVal by viewModel.groceryName.collectAsState()
     val themeColor by viewModel.themeColor.collectAsState()
@@ -369,6 +370,10 @@ fun HomeScreen(
                                     "litre", "l" -> product.stock.toInt().toString() to "L"
                                     "pièce", "piece", "pcs" -> product.stock.toInt().toString() to "pcs"
                                     "paquet" -> product.stock.toInt().toString() to "paq"
+                                    "carton" -> product.stock.toInt().toString() to "ctn"
+                                    "sac" -> product.stock.toInt().toString() to "sac"
+                                    "boîte", "boite" -> product.stock.toInt().toString() to "bt"
+                                    "bouteille" -> product.stock.toInt().toString() to "btl"
                                     "tasse", "kapoaka" -> product.stock.toInt().toString() to "kap"
                                     else -> {
                                         if (product.unit.isEmpty()) {
@@ -403,12 +408,38 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.height(6.dp))
 
                             // Price
-                            Text(
-                                text = "Ar ${FormatUtil.formatPrice(product.price)}",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Black,
-                                color = Color.Black
-                            )
+                            val isWholesaleActive = shopMode == "wholesale" && product.wholesalePrice != null && product.wholesalePrice > 0.0
+                            val displayedPrice = if (isWholesaleActive) product.wholesalePrice!! else product.price
+                            
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "Ar ${FormatUtil.formatPrice(displayedPrice)}",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = if (isWholesaleActive) themeColor else Color.Black
+                                )
+                                if (isWholesaleActive) {
+                                    Box(
+                                        modifier = Modifier
+                                            .background(themeColor.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = when(activeLang) {
+                                                "mg" -> "Gros"
+                                                "fr" -> "Gros"
+                                                else -> "Gros"
+                                            },
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = themeColor
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }

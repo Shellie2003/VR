@@ -16,6 +16,14 @@ class InventoryRepository(
     val allProducts: Flow<List<Product>> = productDao.getAllProducts()
     val allSales: Flow<List<Sale>> = saleDao.getAllSales()
     val allDebts: Flow<List<Debt>> = debtDao.getAllDebts()
+    val allCategories: Flow<List<String>> = productDao.getAllCategories()
+
+    fun getLimitedProducts(limit: Int): Flow<List<Product>> = productDao.getLimitedProducts(limit)
+    fun searchProducts(query: String, category: String, showLowStockOnly: Boolean): Flow<List<Product>> = 
+        productDao.searchProducts(query, category, showLowStockOnly)
+    fun hasProducts(): Flow<Boolean> = productDao.hasProducts()
+    fun getProductsWithBarcodes(): Flow<List<Product>> = productDao.getProductsWithBarcodes()
+    suspend fun getProductByBarcode(barcode: String): Product? = productDao.getProductByBarcode(barcode)
 
     suspend fun insertProduct(product: Product) = productDao.insertProduct(product)
     suspend fun updateProduct(product: Product) = productDao.updateProduct(product)

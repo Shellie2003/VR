@@ -13,11 +13,16 @@ class AppPreferences(context: Context) {
         private const val KEY_TRIAL_START = "key_trial_start"
         private const val KEY_GROCERY_NAME = "key_grocery_name"
         private const val KEY_COLOR_THEME = "key_color_theme"
+        private const val KEY_SHOP_MODE = "key_shop_mode"
     }
 
     var language: String
         get() = prefs.getString(KEY_LANG, "mg") ?: "mg"
         set(value) = prefs.edit().putString(KEY_LANG, value).apply()
+
+    var shopMode: String
+        get() = prefs.getString(KEY_SHOP_MODE, "retail") ?: "retail"
+        set(value) = prefs.edit().putString(KEY_SHOP_MODE, value).apply()
 
     var groceryName: String
         get() = prefs.getString(KEY_GROCERY_NAME, "Varotra") ?: "Varotra"

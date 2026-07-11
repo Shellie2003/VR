@@ -18,10 +18,13 @@ import java.util.UUID
 data class CartItem(
     val id: String, // "product_<id>" or "misc_<uuid>"
     val name: String,
-    val price: Double,
+    val price: Double, // active price
     val quantity: Double,
     val unit: String,
-    val productId: Int? = null // null for misc items
+    val productId: Int? = null, // null for misc items
+    val maxStock: Double = 99999.0,
+    val regularPrice: Double = price,
+    val wholesalePrice: Double? = null
 ) {
     val totalPrice: Double get() = price * quantity
 }
@@ -40,6 +43,7 @@ class InventoryViewModel(
 
     val groceryName = MutableStateFlow(appPreferences.groceryName)
     val colorTheme = MutableStateFlow(appPreferences.colorTheme)
+    val shopMode = MutableStateFlow(appPreferences.shopMode)
 
     val themeColor: StateFlow<androidx.compose.ui.graphics.Color> = colorTheme.map {
         when (it) {
@@ -60,6 +64,25 @@ class InventoryViewModel(
         colorTheme.value = theme
     }
 
+    fun updateShopMode(mode: String) {
+        appPreferences.shopMode = mode
+        shopMode.value = mode
+        // Recalculate cart item prices based on the new mode
+        val current = _cart.value.map { item ->
+            if (item.productId != null) {
+                val activePrice = if (mode == "wholesale" && item.wholesalePrice != null && item.wholesalePrice > 0.0) {
+                    item.wholesalePrice
+                } else {
+                    item.regularPrice
+                }
+                item.copy(price = activePrice)
+            } else {
+                item
+            }
+        }
+        _cart.value = current
+    }
+
     // Real-time trial remaining updates
     private val _trialTimeRemaining = MutableStateFlow(appPreferences.trialTimeRemainingMs)
     val trialTimeRemaining: StateFlow<Long> = _trialTimeRemaining.asStateFlow()
@@ -74,7 +97,7 @@ class InventoryViewModel(
     val debtFilter = MutableStateFlow("Toutes") // Toutes, Non payées, Payées
 
     // Database Flows
-    val allProducts: StateFlow<List<Product>> = repository.allProducts
+    val allProducts: StateFlow<List<Product>> = repository.getLimitedProducts(100)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allSales: StateFlow<List<Sale>> = repository.allSales
@@ -83,20 +106,19 @@ class InventoryViewModel(
     val allDebts: StateFlow<List<Debt>> = repository.allDebts
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Combined Flow for searched & filtered products
+    val categories: StateFlow<List<String>> = repository.allCategories
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Combined Flow for searched & filtered products using database-level search
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val filteredProducts: StateFlow<List<Product>> = combine(
-        allProducts,
         searchQuery,
         selectedCategory,
         showLowStockOnly
-    ) { products, query, cat, lowStockOnly ->
-        products.filter { product ->
-            val matchesQuery = product.name.contains(query, ignoreCase = true) || 
-                               product.category.contains(query, ignoreCase = true)
-            val matchesCategory = cat == "All" || product.category.equals(cat, ignoreCase = true)
-            val matchesLowStock = !lowStockOnly || product.isLowStock
-            matchesQuery && matchesCategory && matchesLowStock
-        }
+    ) { query, cat, lowStockOnly ->
+        Triple(query, cat, lowStockOnly)
+    }.flatMapLatest { (query, cat, lowStockOnly) ->
+        repository.searchProducts(query, cat, lowStockOnly)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Combined Flow for searched & filtered debts
@@ -125,8 +147,8 @@ class InventoryViewModel(
     // Seeding products on empty state
     init {
         viewModelScope.launch {
-            allProducts.take(1).collect { products ->
-                if (products.isEmpty()) {
+            repository.hasProducts().take(1).collect { hasProducts ->
+                if (!hasProducts) {
                     seedSampleProducts()
                 }
             }
@@ -209,11 +231,20 @@ class InventoryViewModel(
         val itemId = "product_${product.id}"
         val existingIndex = current.indexOfFirst { it.id == itemId }
         
+        val activePrice = if (shopMode.value == "wholesale" && product.wholesalePrice != null && product.wholesalePrice > 0.0) {
+            product.wholesalePrice
+        } else {
+            product.price
+        }
+        
         if (existingIndex != -1) {
             val updatedQty = current[existingIndex].quantity + quantity
             val cappedQty = updatedQty.coerceAtMost(product.stock)
             if (cappedQty > 0) {
-                current[existingIndex] = current[existingIndex].copy(quantity = cappedQty)
+                current[existingIndex] = current[existingIndex].copy(
+                    quantity = cappedQty,
+                    price = activePrice
+                )
             }
         } else {
             val cappedQty = quantity.coerceAtMost(product.stock)
@@ -222,10 +253,13 @@ class InventoryViewModel(
                     CartItem(
                         id = itemId,
                         name = product.name,
-                        price = product.price,
+                        price = activePrice,
                         quantity = cappedQty,
                         unit = product.unit,
-                        productId = product.id
+                        productId = product.id,
+                        maxStock = product.stock,
+                        regularPrice = product.price,
+                        wholesalePrice = product.wholesalePrice
                     )
                 )
             }
@@ -254,12 +288,7 @@ class InventoryViewModel(
         val index = current.indexOfFirst { it.id == itemId }
         if (index != -1) {
             val item = current[index]
-            val maxStock = if (item.productId != null) {
-                allProducts.value.find { it.id == item.productId }?.stock ?: 99999.0
-            } else {
-                99999.0
-            }
-            val capped = quantity.coerceIn(0.01, maxStock)
+            val capped = quantity.coerceIn(0.01, item.maxStock)
             current[index] = item.copy(quantity = capped)
             _cart.value = current
         }
@@ -274,12 +303,7 @@ class InventoryViewModel(
             if (updatedQty <= 0.0) {
                 current.removeAt(index)
             } else {
-                val maxStock = if (item.productId != null) {
-                    allProducts.value.find { it.id == item.productId }?.stock ?: 99999.0
-                } else {
-                    99999.0
-                }
-                val capped = updatedQty.coerceAtMost(maxStock)
+                val capped = updatedQty.coerceAtMost(item.maxStock)
                 current[index] = item.copy(quantity = capped)
             }
             _cart.value = current
@@ -328,7 +352,7 @@ class InventoryViewModel(
             // 2. Decrement product stock helper for real products
             for (cartItem in cartSnapshot) {
                 if (cartItem.productId != null) {
-                    val matchingProduct = allProducts.value.find { it.id == cartItem.productId }
+                    val matchingProduct = repository.getProductById(cartItem.productId)
                     if (matchingProduct != null) {
                         val currentStock = matchingProduct.stock
                         val updatedStock = (currentStock - cartItem.quantity).coerceAtLeast(0.0)
@@ -347,6 +371,19 @@ class InventoryViewModel(
             clearCart()
         }
         return true
+    }
+
+    // Robust searching methods
+    fun searchProductsInDb(query: String): Flow<List<Product>> {
+        return repository.searchProducts(query, "All", false)
+    }
+
+    fun getProductsWithBarcodes(): Flow<List<Product>> {
+        return repository.getProductsWithBarcodes()
+    }
+
+    suspend fun getProductByBarcode(barcode: String): Product? {
+        return repository.getProductByBarcode(barcode)
     }
 
     // Actions for Products

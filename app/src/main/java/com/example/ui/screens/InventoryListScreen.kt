@@ -43,7 +43,8 @@ fun InventoryListScreen(
     val t = { key: String -> LanguageManager.translate(key, activeLang) }
 
     // Categories list as Filter Chips
-    val categoriesList = listOf("All") + allProducts.map { it.category }.distinct().sorted()
+    val dbCategories by viewModel.categories.collectAsState()
+    val categoriesList = listOf("All") + dbCategories
 
     // Confirmation delete state
     var productToDelete by remember { mutableStateOf<Product?>(null) }

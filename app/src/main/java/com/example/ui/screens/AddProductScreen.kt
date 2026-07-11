@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,6 +12,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.foundation.BorderStroke
+import com.example.ui.components.BarcodeScannerView
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -43,6 +48,10 @@ fun AddProductScreen(
     var stockStr by remember(editingProduct) { mutableStateOf(editingProduct?.stock?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "") }
     var imageUrl by remember(editingProduct) { mutableStateOf(editingProduct?.imageUrl ?: "") }
     var lowStockThresholdStr by remember(editingProduct) { mutableStateOf(editingProduct?.lowStockThreshold?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "5") }
+    var barcode by remember(editingProduct) { mutableStateOf(editingProduct?.barcode ?: "") }
+    var wholesalePriceStr by remember(editingProduct) { mutableStateOf(editingProduct?.wholesalePrice?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "") }
+    var wholesalePriceError by remember { mutableStateOf(false) }
+    var showLiveScanner by remember { mutableStateOf(false) }
 
     // Dropdown Categories
     val standardCategories = listOf("Alimentation", "Légumes", "Boissons", "Épicerie", "Droguerie", "Hafa")
@@ -56,9 +65,47 @@ fun AddProductScreen(
     }
 
     // Units
-    val units = listOf("Pièce", "Litre", "Kilogramme", "Paquet", "Tasse/Kapoaka")
+    val units = listOf("Pièce", "Litre", "Kilogramme", "Paquet", "Carton", "Sac", "Boîte", "Bouteille", "Tasse/Kapoaka")
     var selectedUnit by remember(editingProduct) {
         mutableStateOf(editingProduct?.unit ?: "Pièce")
+    }
+
+    var hasManuallyChangedUnit by remember { mutableStateOf(false) }
+    var hasManuallyChangedCategory by remember { mutableStateOf(false) }
+
+    // Smart prediction effect
+    LaunchedEffect(name) {
+        if (name.isBlank() || editingProduct != null) return@LaunchedEffect
+        val lower = name.lowercase()
+        
+        if (!hasManuallyChangedCategory) {
+            val predictedCat = when {
+                lower.contains("vary") || lower.contains("bary") || lower.contains("rice") || lower.contains("menaka") || lower.contains("oil") || lower.contains("huile") || lower.contains("sira") || lower.contains("sel") || lower.contains("saka") || lower.contains("sukra") || lower.contains("sucre") || lower.contains("biski") || lower.contains("biscuit") || lower.contains("koba") || lower.contains("farine") || lower.contains("lafarina") -> "Alimentation"
+                lower.contains("karoty") || lower.contains("pataty") || lower.contains("voatabia") || lower.contains("tongolo") || lower.contains("oignon") || lower.contains("legume") || lower.contains("tsaramaso") -> "Légumes"
+                lower.contains("rano") || lower.contains("eau") || lower.contains("jus") || lower.contains("cola") || lower.contains("beer") || lower.contains("biera") || lower.contains("fanta") || lower.contains("boisson") || lower.contains("sprite") -> "Boissons"
+                lower.contains("savony") || lower.contains("soap") || lower.contains("omipitika") || lower.contains("detergent") || lower.contains("shampoo") || lower.contains("odifitra") -> "Droguerie"
+                lower.contains("chocolat") || lower.contains("bonbon") || lower.contains("chewing") || lower.contains("kafe") || lower.contains("cafe") || lower.contains("the") -> "Épicerie"
+                else -> null
+            }
+            if (predictedCat != null) {
+                selectedCategory = predictedCat
+            }
+        }
+        
+        if (!hasManuallyChangedUnit) {
+            val predictedUnit = when {
+                lower.contains("vary") || lower.contains("bary") || lower.contains("rice") || lower.contains("sira") || lower.contains("sel") || lower.contains("sukra") || lower.contains("sucre") || lower.contains("lafarina") || lower.contains("farine") || lower.contains("karoty") || lower.contains("voatabia") || lower.contains("pataty") || lower.contains("legume") || lower.contains("tongolo") || lower.contains("oignon") -> "Kilogramme"
+                lower.contains("menaka") || lower.contains("oil") || lower.contains("huile") || lower.contains("rano") || lower.contains("eau") || lower.contains("ronono") || lower.contains("lait") -> "Litre"
+                lower.contains("carton") || lower.contains("baoritra") || lower.contains("boite de") -> "Carton"
+                lower.contains("sac") || lower.contains("gony") -> "Sac"
+                lower.contains("paquet") || lower.contains("fonosana") || lower.contains("biski") || lower.contains("biscuit") -> "Paquet"
+                lower.contains("boite") || lower.contains("boatina") || lower.contains("can") -> "Boîte"
+                lower.contains("bouteille") || lower.contains("tavoahangy") || lower.contains("cola") || lower.contains("fanta") || lower.contains("biera") || lower.contains("beer") || lower.contains("sprite") -> "Bouteille"
+                lower.contains("kapoaka") || lower.contains("tasse") -> "Tasse/Kapoaka"
+                else -> "Pièce"
+            }
+            selectedUnit = predictedUnit
+        }
     }
 
     var showCategoryDropdown by remember { mutableStateOf(false) }
@@ -135,6 +182,7 @@ fun AddProductScreen(
                                 text = { Text(cat) },
                                 onClick = {
                                     selectedCategory = cat
+                                    hasManuallyChangedCategory = true
                                     showCategoryDropdown = false
                                 }
                             )
@@ -147,7 +195,10 @@ fun AddProductScreen(
             if (selectedCategory == "Hafa") {
                 OutlinedTextField(
                     value = customCategory,
-                    onValueChange = { customCategory = it },
+                    onValueChange = { 
+                        customCategory = it 
+                        hasManuallyChangedCategory = true
+                    },
                     label = { Text(t("custom_category_label")) },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -168,6 +219,10 @@ fun AddProductScreen(
                             "Litre" -> t("unit_litre")
                             "Kilogramme" -> t("unit_kg")
                             "Paquet" -> t("unit_paquet")
+                            "Carton" -> t("unit_carton")
+                            "Sac" -> t("unit_sac")
+                            "Boîte" -> t("unit_boite")
+                            "Bouteille" -> t("unit_bouteille")
                             "Tasse/Kapoaka" -> t("unit_kapoaka")
                             else -> selectedUnit
                         },
@@ -194,6 +249,10 @@ fun AddProductScreen(
                                             "Litre" -> t("unit_litre")
                                             "Kilogramme" -> t("unit_kg")
                                             "Paquet" -> t("unit_paquet")
+                                            "Carton" -> t("unit_carton")
+                                            "Sac" -> t("unit_sac")
+                                            "Boîte" -> t("unit_boite")
+                                            "Bouteille" -> t("unit_bouteille")
                                             "Tasse/Kapoaka" -> t("unit_kapoaka")
                                             else -> u
                                         }
@@ -201,6 +260,7 @@ fun AddProductScreen(
                                 },
                                 onClick = {
                                     selectedUnit = u
+                                    hasManuallyChangedUnit = true
                                     showUnitDropdown = false
                                 }
                             )
@@ -226,22 +286,283 @@ fun AddProductScreen(
                 shape = RoundedCornerShape(12.dp)
             )
 
-            // Initial Stock Input (Double for decimal/deciliter/kilograms bulk)
+            // Wholesale Price Input
+            val wholesaleLabel = when (activeLang) {
+                "mg" -> "Vidiny Ambongadiny (Wholesale Price)"
+                "fr" -> "Prix de gros"
+                else -> "Wholesale Price"
+            }
             OutlinedTextField(
-                value = stockStr,
+                value = wholesalePriceStr,
                 onValueChange = {
-                    stockStr = it
-                    stockError = it.toDoubleOrNull() == null || it.toDouble() < 0
+                    wholesalePriceStr = it
+                    wholesalePriceError = it.isNotEmpty() && (it.toDoubleOrNull() == null || it.toDouble() < 0)
                 },
-                label = { Text(t("initial_stock")) },
-                supportingText = { Text("Ex: 1.5, 20.0, 100") },
+                label = { Text(wholesaleLabel) },
+                prefix = { Text("Ar ") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                isError = stockError,
+                isError = wholesalePriceError,
+                supportingText = { Text("Ampiasaina amin'ny fomba 'Grossiste'") },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("product_stock_input"),
+                    .testTag("product_wholesale_price_input"),
                 shape = RoundedCornerShape(12.dp)
             )
+
+            // Barcode Input
+            val barcodeLabel = when (activeLang) {
+                "mg" -> "Kaody Bar (Barcode)"
+                "fr" -> "Code-barres"
+                else -> "Barcode"
+            }
+            
+            val barcodeSupportText = when (activeLang) {
+                "mg" -> "Tsindrio ny fakantsary handinihana kaody, na ny bokotra rafraîchir hamoronana kaody"
+                "fr" -> "Appuyez sur l'appareil photo pour scanner, ou sur l'icône rafraîchir pour générer un code"
+                else -> "Tap camera to scan, or refresh icon to generate a random code"
+            }
+
+            OutlinedTextField(
+                value = barcode,
+                onValueChange = { barcode = it },
+                label = { Text(barcodeLabel) },
+                trailingIcon = {
+                    Row(
+                        modifier = Modifier.padding(end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = {
+                            showLiveScanner = true
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = "Scan Barcode",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        IconButton(onClick = {
+                            // Generate a random high-quality barcode
+                            val randomPrefix = listOf("611", "301", "325", "400").random()
+                            val randomDigits = (1000000000..9999999999).random().toString()
+                            barcode = randomPrefix + randomDigits.take(10)
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Generate Barcode",
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
+                },
+                supportingText = { Text(barcodeSupportText) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("product_barcode_input"),
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            // Initial Stock Input & Unit Selector card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = when(activeLang) {
+                            "mg" -> "Tahiry & Karazana Refy"
+                            "fr" -> "Stock & Type de mesure"
+                            else -> "Stock & Measurement Unit"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    OutlinedTextField(
+                        value = stockStr,
+                        onValueChange = {
+                            stockStr = it
+                            stockError = it.toDoubleOrNull() == null || it.toDouble() < 0
+                        },
+                        label = { Text(t("initial_stock")) },
+                        supportingText = { Text("Ex: 1.5, 20.0, 100") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = stockError,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("product_stock_input"),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    // Quick unit selection chips
+                    Text(
+                        text = when(activeLang) {
+                            "mg" -> "Hifidy ny refy mivantana amin'ny tahiry :"
+                            "fr" -> "Sélectionner l'unité pour ce stock :"
+                            else -> "Select unit for this stock:"
+                        },
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF64748B)
+                    )
+
+                    // Group 1 of units (first 5)
+                    val row1Units = units.take(5)
+                    // Group 2 of units (remaining 4)
+                    val row2Units = units.drop(5)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        row1Units.forEach { u ->
+                            val isSelected = selectedUnit == u
+                            val uLabel = when (u) {
+                                "Pièce" -> t("unit_piece")
+                                "Litre" -> t("unit_litre")
+                                "Kilogramme" -> t("unit_kg")
+                                "Paquet" -> t("unit_paquet")
+                                "Carton" -> t("unit_carton")
+                                "Sac" -> t("unit_sac")
+                                "Boîte" -> t("unit_boite")
+                                "Bouteille" -> t("unit_bouteille")
+                                "Tasse/Kapoaka" -> t("unit_kapoaka")
+                                else -> u
+                            }
+
+                            val chipBg = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+                            val chipTextCol = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                            val chipBorder = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(chipBg)
+                                    .border(1.dp, chipBorder, RoundedCornerShape(20.dp))
+                                    .clickable {
+                                        selectedUnit = u
+                                        hasManuallyChangedUnit = true
+                                    }
+                                    .padding(vertical = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = chipTextCol,
+                                            modifier = Modifier.size(10.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = uLabel,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = chipTextCol
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // Placeholders to balance weight if needed, or expand to fill
+                        row2Units.forEach { u ->
+                            val isSelected = selectedUnit == u
+                            val uLabel = when (u) {
+                                "Pièce" -> t("unit_piece")
+                                "Litre" -> t("unit_litre")
+                                "Kilogramme" -> t("unit_kg")
+                                "Paquet" -> t("unit_paquet")
+                                "Carton" -> t("unit_carton")
+                                "Sac" -> t("unit_sac")
+                                "Boîte" -> t("unit_boite")
+                                "Bouteille" -> t("unit_bouteille")
+                                "Tasse/Kapoaka" -> t("unit_kapoaka")
+                                else -> u
+                            }
+
+                            val chipBg = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+                            val chipTextCol = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                            val chipBorder = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(chipBg)
+                                    .border(1.dp, chipBorder, RoundedCornerShape(20.dp))
+                                    .clickable {
+                                        selectedUnit = u
+                                        hasManuallyChangedUnit = true
+                                    }
+                                    .padding(vertical = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = chipTextCol,
+                                            modifier = Modifier.size(10.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = uLabel,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = chipTextCol
+                                    )
+                                }
+                            }
+                        }
+                        
+                        // Add an empty spacer to balance the weights perfectly (row 2 has 4 elements, row 1 has 5)
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+
+                    // Show hint based on selected unit
+                    val hintMsg = when (selectedUnit) {
+                        "Carton", "Sac" -> when(activeLang) {
+                            "mg" -> "💡 Tsara ampiasaina amin'ny fivarotana ambongadiny (Grossiste)"
+                            "fr" -> "💡 Idéal pour la vente en gros (Wholesale)"
+                            else -> "💡 Ideal for wholesale / bulk sales"
+                        }
+                        "Litre", "Kilogramme" -> when(activeLang) {
+                            "mg" -> "💡 Afaka mampiasa fehezana desimaly (ohatra: 1.5 kg, 0.5 litra)"
+                            "fr" -> "💡 Supporte les stocks décimaux (ex: 1.5 kg, 0.5 litre)"
+                            else -> "💡 Supports decimal stocks (e.g. 1.5 kg, 0.5 liter)"
+                        }
+                        else -> null
+                    }
+                    if (hintMsg != null) {
+                        Text(
+                            text = hintMsg,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
+            }
 
             // Low Stock Threshold Input (Double)
             OutlinedTextField(
@@ -348,6 +669,8 @@ fun AddProductScreen(
                         stockError = stockStr.toDoubleOrNull() == null || finalStock < 0.0
                         thresholdError = lowStockThresholdStr.toDoubleOrNull() == null || finalThreshold < 0.0
 
+                        val finalWholesalePrice = wholesalePriceStr.toDoubleOrNull()
+
                         if (!nameError && !priceError && !stockError && !thresholdError) {
                             val saved = Product(
                                 id = editingProduct?.id ?: 0,
@@ -357,7 +680,9 @@ fun AddProductScreen(
                                 stock = finalStock,
                                 lowStockThreshold = finalThreshold,
                                 unit = selectedUnit,
-                                imageUrl = imageUrl.trim()
+                                imageUrl = imageUrl.trim(),
+                                barcode = barcode.trim(),
+                                wholesalePrice = finalWholesalePrice
                             )
                             onSaveProduct(saved)
                         }
@@ -370,6 +695,32 @@ fun AddProductScreen(
                 ) {
                     Text(t("save_btn").substring(0, t("save_btn").length.coerceAtMost(16)), fontWeight = FontWeight.Bold)
                 }
+            }
+        }
+    }
+
+    if (showLiveScanner) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showLiveScanner = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = true,
+                dismissOnClickOutside = false,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                BarcodeScannerView(
+                    onBarcodeScanned = { scannedCode ->
+                        android.util.Log.d("AddProductScreen", "onBarcodeScanned triggered: scannedCode='$scannedCode'")
+                        barcode = scannedCode
+                        showLiveScanner = false
+                    },
+                    onClose = {
+                        showLiveScanner = false
+                    },
+                    language = activeLang,
+                    themeColor = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }

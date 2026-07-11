@@ -10,8 +10,33 @@ interface ProductDao {
     @Query("SELECT * FROM products ORDER BY name ASC")
     fun getAllProducts(): Flow<List<Product>>
 
+    @Query("SELECT * FROM products ORDER BY name ASC LIMIT :limit")
+    fun getLimitedProducts(limit: Int): Flow<List<Product>>
+
+    @Query("SELECT DISTINCT category FROM products WHERE category != '' ORDER BY category ASC")
+    fun getAllCategories(): Flow<List<String>>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM products LIMIT 1)")
+    fun hasProducts(): Flow<Boolean>
+
+    @Query("""
+        SELECT * FROM products 
+        WHERE (:category = 'All' OR category = :category)
+        AND (:showLowStockOnly = 0 OR stock < lowStockThreshold)
+        AND (:query = '' OR name LIKE '%' || :query || '%' OR category LIKE '%' || :query || '%' OR barcode LIKE '%' || :query || '%')
+        ORDER BY name ASC 
+        LIMIT 100
+    """)
+    fun searchProducts(query: String, category: String, showLowStockOnly: Boolean): Flow<List<Product>>
+
     @Query("SELECT * FROM products WHERE id = :id")
     suspend fun getProductById(id: Int): Product?
+
+    @Query("SELECT * FROM products WHERE barcode != '' ORDER BY name ASC LIMIT 50")
+    fun getProductsWithBarcodes(): Flow<List<Product>>
+
+    @Query("SELECT * FROM products WHERE barcode = :barcode LIMIT 1")
+    suspend fun getProductByBarcode(barcode: String): Product?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertProduct(product: Product)

@@ -37,6 +37,7 @@ fun SettingsScreen(
     val groceryNameVal by viewModel.groceryName.collectAsState()
     val currentThemeKey by viewModel.colorTheme.collectAsState()
     val themeColor by viewModel.themeColor.collectAsState()
+    val shopModeVal by viewModel.shopMode.collectAsState()
 
     // Local state for grocery name editing
     var nameInput by remember(groceryNameVal) { mutableStateOf(groceryNameVal) }
@@ -55,6 +56,24 @@ fun SettingsScreen(
         "mg" -> "Anaran'ny Tsena"
         "fr" -> "Nom de l'épicerie"
         else -> "Grocery Store Name"
+    }
+
+    val shopModeLabel = when (activeLang) {
+        "mg" -> "Fomba fivarotana (Shop Mode)"
+        "fr" -> "Mode de vente"
+        else -> "Shop Scale / Pricing Mode"
+    }
+
+    val retailLabel = when (activeLang) {
+        "mg" -> "Mpaninjara (Retail/Détail)"
+        "fr" -> "Détail / Épicerie"
+        else -> "Retail (Grocery/Small)"
+    }
+
+    val wholesaleLabel = when (activeLang) {
+        "mg" -> "Ambongadiny (Grossiste/Bulk)"
+        "fr" -> "Gros / Grossiste"
+        else -> "Wholesale (Bulk/Gros)"
     }
 
     val themeLabel = when (activeLang) {
@@ -361,6 +380,94 @@ fun SettingsScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            // 4.5. CARD FOR SHOP MODE SELECTION
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Storefront,
+                            contentDescription = null,
+                            tint = themeColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = shopModeLabel,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1E293B)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Retail Option
+                        val isRetail = shopModeVal == "retail"
+                        Button(
+                            onClick = { viewModel.updateShopMode("retail") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isRetail) themeColor else Color.White,
+                                contentColor = if (isRetail) Color.White else Color(0xFF475569)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                width = 1.dp,
+                                color = if (isRetail) Color.Transparent else Color(0xFFE2E8F0)
+                            ),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text(
+                                text = retailLabel,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // Wholesale Option
+                        val isWholesale = shopModeVal == "wholesale"
+                        Button(
+                            onClick = { viewModel.updateShopMode("wholesale") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isWholesale) themeColor else Color.White,
+                                contentColor = if (isWholesale) Color.White else Color(0xFF475569)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                width = 1.dp,
+                                color = if (isWholesale) Color.Transparent else Color(0xFFE2E8F0)
+                            ),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text(
+                                text = wholesaleLabel,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }

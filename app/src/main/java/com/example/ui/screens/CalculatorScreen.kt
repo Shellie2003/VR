@@ -33,10 +33,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.Product
+import com.example.ui.components.BarcodeScannerView
 import com.example.ui.viewmodel.CartItem
 import com.example.ui.viewmodel.InventoryViewModel
 import com.example.util.FormatUtil
 import com.example.util.LanguageManager
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -51,6 +53,7 @@ fun CalculatorScreen(
     val totalAmount by viewModel.cartTotal.collectAsState(0.0)
     val activeLang by viewModel.language.collectAsState()
     val themeColor by viewModel.themeColor.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
 
     // UI Translation helper
     val t = { key: String -> LanguageManager.translate(key, activeLang) }
@@ -79,6 +82,8 @@ fun CalculatorScreen(
 
     var showClearConfirm by remember { mutableStateOf(false) }
     var showAddedMiscDialog by remember { mutableStateOf(false) }
+    var showBarcodeScanner by remember { mutableStateOf(false) }
+    var showRealCameraScanner by remember { mutableStateOf(false) }
 
     // New state variables for QuickMiscPage sub-tabs and multiplier inputs
     var quickMiscSubTab by remember { mutableStateOf(0) }
@@ -124,6 +129,15 @@ fun CalculatorScreen(
                             onValueChange = { pickerSearchQuery = it },
                             placeholder = { Text(t("search_placeholder"), fontSize = 12.sp) },
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                            trailingIcon = {
+                                IconButton(onClick = { showBarcodeScanner = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.CameraAlt,
+                                        contentDescription = "Scan Barcode",
+                                        tint = themeColor
+                                    )
+                                }
+                            },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                                 unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
@@ -141,11 +155,9 @@ fun CalculatorScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    val filteredProducts = allProducts.filter { product ->
-                        pickerSearchQuery.isEmpty() ||
-                                product.name.contains(pickerSearchQuery, ignoreCase = true) ||
-                                product.category.contains(pickerSearchQuery, ignoreCase = true)
-                    }
+                    val filteredProducts by remember(pickerSearchQuery) {
+                        viewModel.searchProductsInDb(pickerSearchQuery)
+                    }.collectAsState(initial = emptyList())
 
                     if (filteredProducts.isEmpty()) {
                         Box(
@@ -461,8 +473,7 @@ fun CalculatorScreen(
                                 contentPadding = PaddingValues(vertical = 4.dp)
                             ) {
                                 items(cart) { item ->
-                                    val product = allProducts.find { it.id == item.productId }
-                                    val maxStock = product?.stock ?: 99999.0
+                                    val maxStock = item.maxStock
                                     val step = if (item.unit.lowercase().contains("litre") || 
                                                    item.unit.lowercase().contains("kilo") || 
                                                    item.unit == "L" || 
@@ -960,8 +971,7 @@ fun CalculatorScreen(
                         contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
                         items(cart) { item ->
-                            val product = allProducts.find { it.id == item.productId }
-                            val maxStock = product?.stock ?: 99999.0
+                            val maxStock = item.maxStock
                             val step = if (item.unit.lowercase().contains("litre") || 
                                            item.unit.lowercase().contains("kilo") || 
                                            item.unit == "L" || 
@@ -1089,6 +1099,15 @@ fun CalculatorScreen(
                         onValueChange = { pickerSearchQuery = it },
                         placeholder = { Text(t("search_placeholder"), fontSize = 12.sp) },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(14.dp)) },
+                        trailingIcon = {
+                            IconButton(onClick = { showBarcodeScanner = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.CameraAlt,
+                                    contentDescription = "Scan Barcode",
+                                    tint = themeColor
+                                )
+                            }
+                        },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
@@ -1107,11 +1126,9 @@ fun CalculatorScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 // Scrollable Horizontal Product List
-                val filteredProducts = allProducts.filter { product ->
-                    pickerSearchQuery.isEmpty() ||
-                            product.name.contains(pickerSearchQuery, ignoreCase = true) ||
-                            product.category.contains(pickerSearchQuery, ignoreCase = true)
-                }
+                val filteredProducts by remember(pickerSearchQuery) {
+                    viewModel.searchProductsInDb(pickerSearchQuery)
+                }.collectAsState(initial = emptyList())
 
                 Box(
                     modifier = Modifier
@@ -2443,6 +2460,345 @@ fun CalculatorScreen(
                 }
             }
         )
+    }
+
+    if (showBarcodeScanner) {
+        val scannerTitle = when (activeLang) {
+            "mg" -> "Scanner Code-barres mavitrika"
+            "fr" -> "Scanner de code-barres"
+            else -> "Simulated Barcode Scanner"
+        }
+        val scannerHint = when (activeLang) {
+            "mg" -> "Asio ny kaody eo anelanelan'ny tsipika maitso"
+            "fr" -> "Placez le code-barres dans le cadre vert"
+            else -> "Place the barcode inside the green frame"
+        }
+        val scanSimulationTitle = when (activeLang) {
+            "mg" -> "Vokatra misy kaody bar (Hanahaka scan) :"
+            "fr" -> "Sélectionner un produit pour simuler :"
+            else -> "Select a product to simulate scan:"
+        }
+        val manualEntryLabel = when (activeLang) {
+            "mg" -> "Na soraty eto :"
+            "fr" -> "Ou saisir manuellement le code-barres :"
+            else -> "Or type barcode manually:"
+        }
+        val scanBtnLabel = when (activeLang) {
+            "mg" -> "Scan"
+            "fr" -> "Scanner"
+            else -> "Scan"
+        }
+        val scanCloseLabel = when (activeLang) {
+            "mg" -> "Hanakatona"
+            "fr" -> "Fermer"
+            else -> "Close"
+        }
+
+        var manualBarcode by remember { mutableStateOf("") }
+        var scanNotification by remember { mutableStateOf<String?>(null) }
+
+        var laserYPercent by remember { mutableStateOf(0.1f) }
+        var movingDown by remember { mutableStateOf(true) }
+        LaunchedEffect(movingDown) {
+            while (true) {
+                kotlinx.coroutines.delay(40)
+                if (movingDown) {
+                    laserYPercent += 0.05f
+                    if (laserYPercent >= 0.9f) {
+                        movingDown = false
+                    }
+                } else {
+                    laserYPercent -= 0.05f
+                    if (laserYPercent <= 0.1f) {
+                        movingDown = true
+                    }
+                }
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { showBarcodeScanner = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CameraAlt,
+                        contentDescription = null,
+                        tint = themeColor
+                    )
+                    Text(
+                        text = scannerTitle,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = scannerHint,
+                        fontSize = 13.sp,
+                        color = Color(0xFF64748B)
+                    )
+
+                    val realScanLabel = when (activeLang) {
+                        "mg" -> "📷 Hanomboka scan mivantana (Fakantsary)"
+                        "fr" -> "📷 Scanner en direct avec Caméra"
+                        else -> "📷 Launch Live Scanner (Camera)"
+                    }
+
+                    Button(
+                        onClick = {
+                            showRealCameraScanner = true
+                            showBarcodeScanner = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = themeColor),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                        Text(realScanLabel, fontWeight = FontWeight.Bold)
+                    }
+
+                    // Viewfinder Screen Simulation
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.Black)
+                            .border(2.dp, themeColor.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                            .clickable {
+                                showRealCameraScanner = true
+                                showBarcodeScanner = false
+                            }
+                    ) {
+                        // Corner borders guides
+                        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                            val w = size.width
+                            val h = size.height
+                            val cornerSize = 24.dp.toPx()
+                            val strokeW = 4.dp.toPx()
+
+                            // Top Left
+                            drawRect(color = themeColor, topLeft = androidx.compose.ui.geometry.Offset(0f, 0f), size = androidx.compose.ui.geometry.Size(cornerSize, strokeW))
+                            drawRect(color = themeColor, topLeft = androidx.compose.ui.geometry.Offset(0f, 0f), size = androidx.compose.ui.geometry.Size(strokeW, cornerSize))
+
+                            // Top Right
+                            drawRect(color = themeColor, topLeft = androidx.compose.ui.geometry.Offset(w - cornerSize, 0f), size = androidx.compose.ui.geometry.Size(cornerSize, strokeW))
+                            drawRect(color = themeColor, topLeft = androidx.compose.ui.geometry.Offset(w - strokeW, 0f), size = androidx.compose.ui.geometry.Size(strokeW, cornerSize))
+
+                            // Bottom Left
+                            drawRect(color = themeColor, topLeft = androidx.compose.ui.geometry.Offset(0f, h - strokeW), size = androidx.compose.ui.geometry.Size(cornerSize, strokeW))
+                            drawRect(color = themeColor, topLeft = androidx.compose.ui.geometry.Offset(0f, h - cornerSize), size = androidx.compose.ui.geometry.Size(strokeW, cornerSize))
+
+                            // Bottom Right
+                            drawRect(color = themeColor, topLeft = androidx.compose.ui.geometry.Offset(w - cornerSize, h - strokeW), size = androidx.compose.ui.geometry.Size(cornerSize, strokeW))
+                            drawRect(color = themeColor, topLeft = androidx.compose.ui.geometry.Offset(w - strokeW, h - cornerSize), size = androidx.compose.ui.geometry.Size(strokeW, cornerSize))
+                        }
+
+                        // Animated Glowing Laser line
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(3.dp)
+                                .align(Alignment.TopCenter)
+                                .offset(y = (180 * laserYPercent).dp)
+                                .background(Color(0xFF22C55E))
+                        )
+
+                        // Notification feedback
+                        if (scanNotification != null) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color(0xCC1E293B)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = Color(0xFF4ADE80),
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                    Text(
+                                        text = scanNotification ?: "",
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 16.dp)
+                                    )
+                                }
+                            }
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = null,
+                                tint = themeColor.copy(alpha = 0.25f),
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .align(Alignment.Center)
+                            )
+                        }
+                    }
+
+                    // Simulation List
+                    val productsWithBarcodes by viewModel.getProductsWithBarcodes().collectAsState(initial = emptyList())
+                    Text(
+                        text = scanSimulationTitle,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Color(0xFF334155)
+                    )
+
+                    if (productsWithBarcodes.isEmpty()) {
+                        Text(
+                            text = "❌ " + when(activeLang) {
+                                "mg" -> "Tsy misy vokatra misy kaody bar voasoratra aloha."
+                                "fr" -> "Aucun produit avec code-barres enregistré."
+                                else -> "No barcode products in system."
+                            },
+                            fontSize = 12.sp,
+                            color = Color(0xFFEF4444)
+                        )
+                    } else {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(productsWithBarcodes) { product ->
+                                Card(
+                                    onClick = {
+                                        viewModel.addToCart(product, 1.0)
+                                        scanNotification = "${product.name} (Ar ${product.price})\nBarcode: ${product.barcode}"
+                                    },
+                                    colors = CardDefaults.cardColors(containerColor = themeColor.copy(alpha = 0.08f)),
+                                    border = BorderStroke(1.dp, themeColor.copy(alpha = 0.3f)),
+                                    shape = RoundedCornerShape(20.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CameraAlt,
+                                            contentDescription = null,
+                                            tint = themeColor,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = "${product.name} [${product.barcode}]",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = themeColor
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = manualEntryLabel,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Color(0xFF334155)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = manualBarcode,
+                            onValueChange = { manualBarcode = it },
+                            placeholder = { Text("Ex: 6111222333444", fontSize = 12.sp) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    val match = viewModel.getProductByBarcode(manualBarcode.trim())
+                                    if (match != null) {
+                                        viewModel.addToCart(match, 1.0)
+                                        scanNotification = "${match.name} (Ar ${match.price})\nBarcode: ${match.barcode}"
+                                    } else {
+                                        scanNotification = when(activeLang) {
+                                            "mg" -> "Tsy hita : ${manualBarcode.trim()}"
+                                            "fr" -> "Non trouvé : ${manualBarcode.trim()}"
+                                            else -> "Not found: ${manualBarcode.trim()}"
+                                        }
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = themeColor),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(scanBtnLabel, fontSize = 12.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showBarcodeScanner = false
+                    }
+                ) {
+                    Text(scanCloseLabel)
+                }
+            }
+        )
+
+        if (scanNotification != null) {
+            LaunchedEffect(scanNotification) {
+                kotlinx.coroutines.delay(1800)
+                scanNotification = null
+                manualBarcode = ""
+            }
+        }
+    }
+
+    if (showRealCameraScanner) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showRealCameraScanner = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = true,
+                dismissOnClickOutside = false,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                BarcodeScannerView(
+                    onBarcodeScanned = { scannedCode ->
+                        // Managed directly in continuous mode
+                    },
+                    onClose = {
+                        showRealCameraScanner = false
+                    },
+                    language = activeLang,
+                    themeColor = themeColor,
+                    continuousMode = true,
+                    viewModel = viewModel
+                )
+            }
+        }
     }
 
     if (showAddedMiscDialog) {

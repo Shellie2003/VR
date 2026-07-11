@@ -215,6 +215,26 @@ object LanguageManager {
             "fr" to "Paquet",
             "en" to "Packet"
         ),
+        "unit_carton" to mapOf(
+            "mg" to "Carton / Baoritra",
+            "fr" to "Carton",
+            "en" to "Carton"
+        ),
+        "unit_sac" to mapOf(
+            "mg" to "Sac / Gony",
+            "fr" to "Sac",
+            "en" to "Sac"
+        ),
+        "unit_boite" to mapOf(
+            "mg" to "Boîte / Boatina",
+            "fr" to "Boîte",
+            "en" to "Box/Boîte"
+        ),
+        "unit_bouteille" to mapOf(
+            "mg" to "Bouteille / Tavoahangy",
+            "fr" to "Bouteille",
+            "en" to "Bottle"
+        ),
         "unit_kapoaka" to mapOf(
             "mg" to "Tasse / Kapoaka",
             "fr" to "Kapoaka / Tasse",
