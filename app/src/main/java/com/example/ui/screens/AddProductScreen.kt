@@ -52,6 +52,9 @@ fun AddProductScreen(
     var wholesalePriceStr by remember(editingProduct) { mutableStateOf(editingProduct?.wholesalePrice?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "") }
     var wholesalePriceError by remember { mutableStateOf(false) }
     var showLiveScanner by remember { mutableStateOf(false) }
+    var sku by remember(editingProduct) { mutableStateOf(editingProduct?.sku ?: "") }
+    var stockQuantityStr by remember(editingProduct) { mutableStateOf(editingProduct?.stock_quantity?.toString() ?: "0") }
+    var stockQuantityError by remember { mutableStateOf(false) }
 
     // Dropdown Categories
     val standardCategories = listOf("Alimentation", "Légumes", "Boissons", "Épicerie", "Droguerie", "Hafa")
@@ -361,6 +364,28 @@ fun AddProductScreen(
                 shape = RoundedCornerShape(12.dp)
             )
 
+            // SKU Input
+            val skuLabel = when (activeLang) {
+                "mg" -> "Kaody SKU (Stock Keeping Unit)"
+                "fr" -> "Code SKU (Stock Keeping Unit)"
+                else -> "SKU (Stock Keeping Unit)"
+            }
+            val skuSupportText = when (activeLang) {
+                "mg" -> "ID manokana ho an'ny fitantanana tahiry"
+                "fr" -> "Identifiant unique pour la gestion des stocks"
+                else -> "Unique identifier for inventory tracking"
+            }
+            OutlinedTextField(
+                value = sku,
+                onValueChange = { sku = it },
+                label = { Text(skuLabel) },
+                supportingText = { Text(skuSupportText) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("product_sku_input"),
+                shape = RoundedCornerShape(12.dp)
+            )
+
             // Initial Stock Input & Unit Selector card
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -396,6 +421,33 @@ fun AddProductScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("product_stock_input"),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    // Stock Quantity field
+                    val stockQtyLabel = when (activeLang) {
+                        "mg" -> "Isan'ny Tahiry (Stock Quantity - Int)"
+                        "fr" -> "Quantité de stock (Entier)"
+                        else -> "Stock Quantity (Integer)"
+                    }
+                    val stockQtySupportText = when (activeLang) {
+                        "mg" -> "Isan'ny entana eo am-pelatanana (Tsy misy faingo)"
+                        "fr" -> "Nombre de produits disponibles (Entier)"
+                        else -> "Number of items on hand (Integer)"
+                    }
+                    OutlinedTextField(
+                        value = stockQuantityStr,
+                        onValueChange = {
+                            stockQuantityStr = it
+                            stockQuantityError = it.toIntOrNull() == null || it.toInt() < 0
+                        },
+                        label = { Text(stockQtyLabel) },
+                        supportingText = { Text(stockQtySupportText) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = stockQuantityError,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("product_stock_quantity_input"),
                         shape = RoundedCornerShape(12.dp)
                     )
 
@@ -669,9 +721,12 @@ fun AddProductScreen(
                         stockError = stockStr.toDoubleOrNull() == null || finalStock < 0.0
                         thresholdError = lowStockThresholdStr.toDoubleOrNull() == null || finalThreshold < 0.0
 
+                        val finalStockQuantity = stockQuantityStr.toIntOrNull() ?: 0
+                        stockQuantityError = stockQuantityStr.toIntOrNull() == null || finalStockQuantity < 0
+
                         val finalWholesalePrice = wholesalePriceStr.toDoubleOrNull()
 
-                        if (!nameError && !priceError && !stockError && !thresholdError) {
+                        if (!nameError && !priceError && !stockError && !thresholdError && !stockQuantityError) {
                             val saved = Product(
                                 id = editingProduct?.id ?: 0,
                                 name = finalName,
@@ -682,7 +737,9 @@ fun AddProductScreen(
                                 unit = selectedUnit,
                                 imageUrl = imageUrl.trim(),
                                 barcode = barcode.trim(),
-                                wholesalePrice = finalWholesalePrice
+                                wholesalePrice = finalWholesalePrice,
+                                sku = sku.trim(),
+                                stock_quantity = finalStockQuantity
                             )
                             onSaveProduct(saved)
                         }

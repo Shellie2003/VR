@@ -11,6 +11,9 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ProcessLifecycleOwner
 import java.util.concurrent.ExecutorService
+import androidx.camera.camera2.interop.Camera2Interop
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop
+import android.hardware.camera2.CaptureRequest
 
 object CameraManager {
     private const val TAG = "CameraManager"
@@ -51,19 +54,52 @@ object CameraManager {
                     .build()
 
                 // Create the Preview use case
-                val preview = Preview.Builder()
+                val previewBuilder = Preview.Builder()
                     .setResolutionSelector(resolutionSelector)
-                    .build()
-                    .also {
-                        it.setSurfaceProvider(previewView.surfaceProvider)
-                    }
+
+                // Enable continuous auto-focus using Camera2Interop
+                try {
+                    @OptIn(ExperimentalCamera2Interop::class)
+                    val extender = Camera2Interop.Extender(previewBuilder)
+                    extender.setCaptureRequestOption(
+                        CaptureRequest.CONTROL_AF_MODE,
+                        CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+                    )
+                    Log.d(TAG, "Configured CONTROL_AF_MODE_CONTINUOUS_PICTURE on Preview via Camera2Interop.")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to apply Camera2Interop autofocus option on Preview", e)
+                }
+
+                val preview = previewBuilder.build().also {
+                    it.setSurfaceProvider(previewView.surfaceProvider)
+                }
 
                 // Create the ImageAnalysis use case with STRATEGY_KEEP_ONLY_LATEST for smooth frame rates
-                val imageAnalysis = ImageAnalysis.Builder()
+                val imageAnalysisBuilder = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setResolutionSelector(resolutionSelector)
-                    .build()
 
+                // Force standard format YUV_420_888 for ML Kit, with try-catch fallback
+                try {
+                    imageAnalysisBuilder.setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
+                    Log.d(TAG, "Configured OUTPUT_IMAGE_FORMAT_YUV_420_888 on ImageAnalysis.")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to set ImageAnalysis output format to YUV_420_888, falling back to default.", e)
+                }
+
+                // Enable continuous auto-focus on ImageAnalysis capture requests as well
+                try {
+                    @OptIn(ExperimentalCamera2Interop::class)
+                    val extender = Camera2Interop.Extender(imageAnalysisBuilder)
+                    extender.setCaptureRequestOption(
+                        CaptureRequest.CONTROL_AF_MODE,
+                        CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+                    )
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to apply Camera2Interop autofocus option on ImageAnalysis", e)
+                }
+
+                val imageAnalysis = imageAnalysisBuilder.build()
                 imageAnalysis.setAnalyzer(cameraExecutor, analyzer)
 
                 val cameraSelector = CameraSelector.Builder()

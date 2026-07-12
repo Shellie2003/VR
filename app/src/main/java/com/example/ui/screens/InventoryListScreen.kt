@@ -311,6 +311,14 @@ fun ProductInventoryCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary
                         )
+                        if (product.sku.isNotEmpty()) {
+                            Text(
+                                text = "•  SKU: ${product.sku}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                         if (product.isLowStock) {
                             Box(
                                 modifier = Modifier
@@ -320,6 +328,21 @@ fun ProductInventoryCard(
                             ) {
                                 Text(
                                     text = "ALERT",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                        if (product.stock_quantity < 5) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFFD32F2F))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "LOW QTY",
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Black,
                                     color = Color.White
@@ -391,16 +414,27 @@ fun ProductInventoryCard(
                                 }
                             )
                     )
-                    Text(
-                        text = if (isAvailable) {
-                            "${t("initial_stock").substring(0, t("initial_stock").length.coerceAtMost(12))}: ${FormatUtil.formatQty(product.stock, product.unit)}"
-                        } else {
-                            "Lany tahiry!"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = if (!isAvailable) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-                    )
+                    Column {
+                        Text(
+                            text = if (isAvailable) {
+                                "${t("initial_stock").substring(0, t("initial_stock").length.coerceAtMost(12))}: ${FormatUtil.formatQty(product.stock, product.unit)}"
+                            } else {
+                                "Lany tahiry!"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (!isAvailable) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                        )
+                        if (product.stock_quantity >= 0) {
+                            val isLowQty = product.stock_quantity < 5
+                            Text(
+                                text = "Qty: ${product.stock_quantity}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (isLowQty) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isLowQty) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
 
                 // Quick Stock adjust buttons (+/- stepper)

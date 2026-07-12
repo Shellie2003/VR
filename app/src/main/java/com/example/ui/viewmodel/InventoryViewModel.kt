@@ -182,7 +182,9 @@ class InventoryViewModel(
             stock = 50.0,
             lowStockThreshold = 20.0,
             unit = "Kilogramme",
-            imageUrl = ""
+            imageUrl = "",
+            sku = "SKU-VARY-01",
+            stock_quantity = 50
         )
         val sample2 = Product(
             name = "Karoty vao",
@@ -191,7 +193,9 @@ class InventoryViewModel(
             stock = 20.0,
             lowStockThreshold = 10.0,
             unit = "Kilogramme",
-            imageUrl = ""
+            imageUrl = "",
+            sku = "SKU-KAROTY-02",
+            stock_quantity = 20
         )
         val sample3 = Product(
             name = "Menaka Gasy",
@@ -200,7 +204,9 @@ class InventoryViewModel(
             stock = 20.0,
             lowStockThreshold = 5.0,
             unit = "Litre",
-            imageUrl = ""
+            imageUrl = "",
+            sku = "SKU-MENAKA-03",
+            stock_quantity = 20
         )
         val sample4 = Product(
             name = "Biski / Biscuit",
@@ -209,7 +215,9 @@ class InventoryViewModel(
             stock = 120.0,
             lowStockThreshold = 5.0,
             unit = "Pièce",
-            imageUrl = ""
+            imageUrl = "",
+            sku = "SKU-BISKI-04",
+            stock_quantity = 120
         )
         repository.insertProduct(sample1)
         repository.insertProduct(sample2)

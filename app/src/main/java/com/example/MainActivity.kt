@@ -562,7 +562,7 @@ fun BottomNavBarSection(
 
     val navTabs = listOf(
         NavigationTab(ScreenTab.Fandraisana, t("tab_home"), Icons.Default.Home),
-        NavigationTab(ScreenTab.Caisse, t("tab_pos"), Icons.Default.Calculate),
+        NavigationTab(ScreenTab.Caisse, t("tab_pos"), Icons.Default.Inventory),
         NavigationTab(ScreenTab.Manampy, t("quick_misc_btn"), Icons.Default.Calculate),
         NavigationTab(ScreenTab.Tahiry, t("tab_inventory"), Icons.AutoMirrored.Filled.List),
         NavigationTab(ScreenTab.Dettes, t("tab_debts"), Icons.Default.People)
@@ -680,7 +680,7 @@ fun TabletDrawerSection(
 
     val drawerTabs = listOf(
         NavigationTab(ScreenTab.Fandraisana, t("tab_home"), Icons.Default.Home),
-        NavigationTab(ScreenTab.Caisse, t("tab_pos"), Icons.Default.Calculate),
+        NavigationTab(ScreenTab.Caisse, t("tab_pos"), Icons.Default.Inventory),
         NavigationTab(ScreenTab.Tahiry, t("tab_inventory"), Icons.AutoMirrored.Filled.List),
         NavigationTab(ScreenTab.Dettes, t("tab_debts"), Icons.Default.People),
         NavigationTab(ScreenTab.Manampy, t("tab_add"), Icons.Default.Add),

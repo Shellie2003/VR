@@ -9,7 +9,8 @@ import androidx.room.Index
     indices = [
         Index(value = ["name"]),
         Index(value = ["category"]),
-        Index(value = ["barcode"])
+        Index(value = ["barcode"]),
+        Index(value = ["sku"])
     ]
 )
 data class Product(
@@ -22,7 +23,9 @@ data class Product(
     val lowStockThreshold: Double = 5.0,
     val unit: String = "Pièce",
     val barcode: String = "",
-    val wholesalePrice: Double? = null
+    val wholesalePrice: Double? = null,
+    val sku: String = "",
+    val stock_quantity: Int = 0
 ) {
     val isAvailable: Boolean get() = stock > 0
     val isLowStock: Boolean get() = stock < lowStockThreshold

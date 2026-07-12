@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.Product
+import com.example.data.model.Debt
 import com.example.ui.components.BarcodeScannerView
 import com.example.ui.viewmodel.CartItem
 import com.example.ui.viewmodel.InventoryViewModel
@@ -84,6 +85,9 @@ fun CalculatorScreen(
     var showAddedMiscDialog by remember { mutableStateOf(false) }
     var showBarcodeScanner by remember { mutableStateOf(false) }
     var showRealCameraScanner by remember { mutableStateOf(false) }
+    var showTrosaDialog by remember { mutableStateOf(false) }
+    var trosaDebtorName by remember { mutableStateOf("") }
+    val isTrosaMode = amountReceivedStr.trim().isEmpty()
 
     // New state variables for QuickMiscPage sub-tabs and multiplier inputs
     var quickMiscSubTab by remember { mutableStateOf(0) }
@@ -130,7 +134,7 @@ fun CalculatorScreen(
                             placeholder = { Text(t("search_placeholder"), fontSize = 12.sp) },
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
                             trailingIcon = {
-                                IconButton(onClick = { showBarcodeScanner = true }) {
+                                IconButton(onClick = { showRealCameraScanner = true }) {
                                     Icon(
                                         imageVector = Icons.Default.CameraAlt,
                                         contentDescription = "Scan Barcode",
@@ -380,27 +384,6 @@ fun CalculatorScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        OutlinedButton(
-                            onClick = { subTab = "quick_misc" },
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                            modifier = Modifier.height(32.dp),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Calculate,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = t("quick_misc_btn"),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
                     }
 
                     // Scrollable Quick Misc Chips
@@ -780,7 +763,10 @@ fun CalculatorScreen(
 
                                 ElevatedButton(
                                     onClick = {
-                                        if (amountReceived > 0.0 && amountReceived < totalAmount) {
+                                        if (isTrosaMode) {
+                                            trosaDebtorName = ""
+                                            showTrosaDialog = true
+                                        } else if (amountReceived > 0.0 && amountReceived < totalAmount) {
                                             val errStr = when (activeLang) {
                                                 "mg" -> "Tsy ampy ny vola nomen'ny mpanjifa! Tsy ampy Ar ${FormatUtil.formatPrice(amountMissing)}"
                                                 "fr" -> "Montant insuffisant ! Il manque Ar ${FormatUtil.formatPrice(amountMissing)}"
@@ -800,7 +786,7 @@ fun CalculatorScreen(
                                     enabled = cart.isNotEmpty(),
                                     shape = RoundedCornerShape(12.dp),
                                     colors = ButtonDefaults.elevatedButtonColors(
-                                        containerColor = themeColor,
+                                        containerColor = if (isTrosaMode) Color.Red else themeColor,
                                         contentColor = Color.White
                                     ),
                                     elevation = ButtonDefaults.elevatedButtonElevation(defaultElevation = 2.dp),
@@ -820,7 +806,7 @@ fun CalculatorScreen(
                                             modifier = Modifier.size(18.dp)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        val submitLabel = when (activeLang) {
+                                        val submitLabel = if (isTrosaMode) "Trosa" else when (activeLang) {
                                             "mg" -> "Hamarina"
                                             "fr" -> "Valider"
                                             else -> "Checkout"
@@ -875,27 +861,6 @@ fun CalculatorScreen(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    OutlinedButton(
-                        onClick = { subTab = "quick_misc" },
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        modifier = Modifier.height(32.dp),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Calculate,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = t("quick_misc_btn"),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))
@@ -1100,7 +1065,7 @@ fun CalculatorScreen(
                         placeholder = { Text(t("search_placeholder"), fontSize = 12.sp) },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(14.dp)) },
                         trailingIcon = {
-                            IconButton(onClick = { showBarcodeScanner = true }) {
+                            IconButton(onClick = { showRealCameraScanner = true }) {
                                 Icon(
                                     imageVector = Icons.Default.CameraAlt,
                                     contentDescription = "Scan Barcode",
@@ -1541,7 +1506,10 @@ fun CalculatorScreen(
 
                         ElevatedButton(
                             onClick = {
-                                if (amountReceived > 0.0 && amountReceived < totalAmount) {
+                                if (isTrosaMode) {
+                                    trosaDebtorName = ""
+                                    showTrosaDialog = true
+                                } else if (amountReceived > 0.0 && amountReceived < totalAmount) {
                                     val errStr = when (activeLang) {
                                         "mg" -> "Tsy ampy ny vola nomen'ny mpanjifa! Tsy ampy Ar ${FormatUtil.formatPrice(amountMissing)}"
                                         "fr" -> "Montant insuffisant ! Il manque Ar ${FormatUtil.formatPrice(amountMissing)}"
@@ -1561,8 +1529,8 @@ fun CalculatorScreen(
                             enabled = cart.isNotEmpty(),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.elevatedButtonColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                containerColor = if (isTrosaMode) Color.Red else MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = if (isTrosaMode) Color.White else MaterialTheme.colorScheme.onSecondaryContainer
                             ),
                             elevation = ButtonDefaults.elevatedButtonElevation(defaultElevation = 1.5.dp),
                             modifier = Modifier
@@ -1579,7 +1547,7 @@ fun CalculatorScreen(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                val submitLabel = when (activeLang) {
+                                val submitLabel = if (isTrosaMode) "Trosa" else when (activeLang) {
                                     "mg" -> "Hamarina"
                                     "fr" -> "Valider"
                                     else -> "Checkout"
@@ -2362,7 +2330,7 @@ fun CalculatorScreen(
                         "fr" -> "Retour"
                         else -> "Back"
                     }
-                    val checkoutLabel = when (activeLang) {
+                    val checkoutLabel = if (isTrosaMode) "Trosa" else when (activeLang) {
                         "mg" -> "Hamarina"
                         "fr" -> "Valider"
                         else -> "Checkout"
@@ -2384,7 +2352,10 @@ fun CalculatorScreen(
 
                     Button(
                         onClick = {
-                            if (amountReceived > 0.0 && amountReceived < totalAmount) {
+                            if (isTrosaMode) {
+                                trosaDebtorName = ""
+                                showTrosaDialog = true
+                            } else if (amountReceived > 0.0 && amountReceived < totalAmount) {
                                 val errStr = when (activeLang) {
                                     "mg" -> "Tsy ampy ny vola nomen'ny mpanjifa! Tsy ampy Ar ${FormatUtil.formatPrice(amountMissing)}"
                                     "fr" -> "Montant insuffisant ! Il manque Ar ${FormatUtil.formatPrice(amountMissing)}"
@@ -2403,7 +2374,7 @@ fun CalculatorScreen(
                             }
                         },
                         enabled = cart.isNotEmpty(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (isTrosaMode) Color.Red else Color(0xFF2E7D32)),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .weight(2f)
@@ -2908,6 +2879,100 @@ fun CalculatorScreen(
                         text = closeLabel,
                         fontWeight = FontWeight.Bold
                     )
+                }
+            }
+        )
+    }
+
+    if (showTrosaDialog) {
+        val trosaTitle = when (activeLang) {
+            "mg" -> "Trosa vao vaovao"
+            "fr" -> "Nouvelle dette (Trosa)"
+            else -> "New Debt (Trosa)"
+        }
+        val trosaText = when (activeLang) {
+            "mg" -> "Ampidiro ny anaran'ny mpanjifa mitrosa:"
+            "fr" -> "Entrez le nom du bénéficiaire :"
+            else -> "Enter debtor name:"
+        }
+        val trosaLabel = when (activeLang) {
+            "mg" -> "Anaran'ny mpanjifa"
+            "fr" -> "Nom du bénéficiaire"
+            else -> "Debtor name"
+        }
+        val confirmLabel = when (activeLang) {
+            "mg" -> "Hamarina"
+            "fr" -> "Valider"
+            else -> "Confirm"
+        }
+        val cancelLabel = when (activeLang) {
+            "mg" -> "Hanafoana"
+            "fr" -> "Annuler"
+            else -> "Cancel"
+        }
+
+        AlertDialog(
+            onDismissRequest = { showTrosaDialog = false },
+            title = {
+                Text(
+                    text = trosaTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = trosaText,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedTextField(
+                        value = trosaDebtorName,
+                        onValueChange = { trosaDebtorName = it },
+                        label = { Text(trosaLabel) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val trimmedName = trosaDebtorName.trim()
+                        if (trimmedName.isNotEmpty()) {
+                            val itemsNote = cart.joinToString(", ") { "${it.name} (${if (it.quantity % 1.0 == 0.0) it.quantity.toInt().toString() else it.quantity} x ${FormatUtil.formatPrice(it.price)})" }
+                            val newDebt = Debt(
+                                debtorName = trimmedName,
+                                amount = totalAmount,
+                                balance = totalAmount,
+                                date = System.currentTimeMillis(),
+                                note = itemsNote,
+                                isPaid = false
+                            )
+                            viewModel.saveDebt(newDebt)
+                            val success = viewModel.checkoutCart()
+                            if (success) {
+                                amountReceivedStr = ""
+                                showTrosaDialog = false
+                                Toast.makeText(context, t("checkout_success"), Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, t("checkout_stock_error"), Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    },
+                    enabled = trosaDebtorName.trim().isNotEmpty()
+                ) {
+                    Text(confirmLabel)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showTrosaDialog = false }
+                ) {
+                    Text(cancelLabel)
                 }
             }
         )
