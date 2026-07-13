@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.ShoppingBasket
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -497,7 +498,7 @@ fun SaleListItem(
                 Triple(Color(0xFFF1F5F9), Color(0xFF475569), Icons.Default.LocalDrink)
             }
             else -> {
-                Triple(themeColor.copy(alpha = 0.12f), themeColor, Icons.Default.ShoppingBag)
+                Triple(themeColor.copy(alpha = 0.12f), themeColor, Icons.Rounded.ShoppingBasket)
             }
         }
     }

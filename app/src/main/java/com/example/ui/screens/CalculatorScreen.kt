@@ -94,6 +94,16 @@ fun CalculatorScreen(
     var calcPriceStr by remember { mutableStateOf("0") }
     var calcQtyStr by remember { mutableStateOf("0") }
 
+    val resetAllFields = {
+        amountReceivedStr = ""
+        pickerSearchQuery = ""
+        trosaDebtorName = ""
+        miscUnitPriceStr = ""
+        miscQtyStr = "1"
+        calcPriceStr = "0"
+        calcQtyStr = "0"
+    }
+
     val calcPrice = calcPriceStr.toDoubleOrNull() ?: 0.0
     val calcQty = calcQtyStr.toDoubleOrNull() ?: 0.0
     val calcTotal = calcPrice * calcQty
@@ -188,170 +198,14 @@ fun CalculatorScreen(
                             contentPadding = PaddingValues(bottom = 8.dp)
                         ) {
                             items(filteredProducts) { product ->
-                                val isOutOfStock = product.stock <= 0
-                                val isLiquid = product.unit.lowercase().contains("litre") || 
-                                               product.unit.lowercase().contains("kilo") || 
-                                               product.unit == "L" || 
-                                               product.unit == "kg"
-
-                                Card(
+                                CashRegisterProductCard(
+                                    product = product,
+                                    onAddToCart = { prod, qty -> viewModel.addToCart(prod, qty) },
+                                    themeColor = themeColor,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(145.dp),
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                                    ),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surface
-                                    )
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(6.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(24.dp)
-                                                    .clip(RoundedCornerShape(4.dp))
-                                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                if (product.imageUrl.isNotEmpty()) {
-                                                    AsyncImage(
-                                                        model = product.imageUrl,
-                                                        contentDescription = null,
-                                                        contentScale = ContentScale.Crop,
-                                                        modifier = Modifier.fillMaxSize()
-                                                    )
-                                                } else {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Image,
-                                                        contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                }
-                                            }
-
-                                            Spacer(modifier = Modifier.width(4.dp))
-
-                                            Text(
-                                                text = product.name,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 11.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                        }
-
-                                        Spacer(modifier = Modifier.height(3.dp))
-
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "${FormatUtil.formatPrice(product.price)} Ar",
-                                                color = themeColor,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.weight(1f),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-
-                                            val stockQtyStr = if (product.stock % 1.0 == 0.0) {
-                                                product.stock.toInt().toString()
-                                            } else {
-                                                "%.1f".format(product.stock)
-                                            }
-                                            Text(
-                                                text = "T: $stockQtyStr",
-                                                color = if (isOutOfStock) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-
-                                        Spacer(modifier = Modifier.weight(1f))
-
-                                        if (isLiquid) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                            ) {
-                                                PresetButton(
-                                                    text = "1/4 L",
-                                                    onClick = { viewModel.addToCart(product, 0.25) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                PresetButton(
-                                                    text = "1/2 L",
-                                                    onClick = { viewModel.addToCart(product, 0.5) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                            ) {
-                                                PresetButton(
-                                                    text = "200 Ar",
-                                                    onClick = { viewModel.addToCart(product, 200.0 / product.price) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                PresetButton(
-                                                    text = "500 Ar",
-                                                    onClick = { viewModel.addToCart(product, 500.0 / product.price) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                            }
-                                        } else {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                            ) {
-                                                PresetButton(
-                                                    text = "1 pce",
-                                                    onClick = { viewModel.addToCart(product, 1.0) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                PresetButton(
-                                                    text = "6 pces",
-                                                    onClick = { viewModel.addToCart(product, 6.0) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                            ) {
-                                                PresetButton(
-                                                    text = "12 pces",
-                                                    onClick = { viewModel.addToCart(product, 12.0) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                PresetButton(
-                                                    text = "+1",
-                                                    onClick = { viewModel.addToCart(product, 1.0) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
+                                        .height(175.dp)
+                                )
                             }
                         }
                     }
@@ -776,7 +630,7 @@ fun CalculatorScreen(
                                         } else {
                                             val success = viewModel.checkoutCart()
                                             if (success) {
-                                                amountReceivedStr = ""
+                                                resetAllFields()
                                                 Toast.makeText(context, t("checkout_success"), Toast.LENGTH_SHORT).show()
                                             } else {
                                                 Toast.makeText(context, t("checkout_stock_error"), Toast.LENGTH_LONG).show()
@@ -1098,7 +952,7 @@ fun CalculatorScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(140.dp)
+                        .height(175.dp)
                 ) {
                     if (filteredProducts.isEmpty()) {
                         Box(
@@ -1120,173 +974,14 @@ fun CalculatorScreen(
                             contentPadding = PaddingValues(bottom = 4.dp, top = 4.dp)
                         ) {
                             items(filteredProducts) { product ->
-                                val isOutOfStock = product.stock <= 0
-                                val isLiquid = product.unit.lowercase().contains("litre") || 
-                                               product.unit.lowercase().contains("kilo") || 
-                                               product.unit == "L" || 
-                                               product.unit == "kg"
-
-                                Card(
+                                CashRegisterProductCard(
+                                    product = product,
+                                    onAddToCart = { prod, qty -> viewModel.addToCart(prod, qty) },
+                                    themeColor = themeColor,
                                     modifier = Modifier
-                                        .width(145.dp)
-                                        .fillMaxHeight(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                                    ),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surface
-                                    )
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(4.dp)
-                                    ) {
-                                        // Product top line: photo and title
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(24.dp)
-                                                    .clip(RoundedCornerShape(4.dp))
-                                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                if (product.imageUrl.isNotEmpty()) {
-                                                    AsyncImage(
-                                                        model = product.imageUrl,
-                                                        contentDescription = null,
-                                                        contentScale = ContentScale.Crop,
-                                                        modifier = Modifier.fillMaxSize()
-                                                    )
-                                                } else {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Image,
-                                                        contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                }
-                                            }
-
-                                            Spacer(modifier = Modifier.width(4.dp))
-
-                                            Text(
-                                                text = product.name,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 10.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                        }
-
-                                        Spacer(modifier = Modifier.height(2.dp))
-
-                                        // Product price & stock details
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "${FormatUtil.formatPrice(product.price)} Ar",
-                                                color = MaterialTheme.colorScheme.primary,
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.weight(1f),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-
-                                            val stockQtyStr = if (product.stock % 1.0 == 0.0) {
-                                                product.stock.toInt().toString()
-                                            } else {
-                                                "%.1f".format(product.stock)
-                                            }
-                                            Text(
-                                                text = "T: $stockQtyStr",
-                                                color = if (isOutOfStock) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
-                                                fontSize = 8.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-
-                                        Spacer(modifier = Modifier.weight(1f))
-
-                                        // Preset buttons row
-                                        if (isLiquid) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                            ) {
-                                                PresetButton(
-                                                    text = "1/4 L",
-                                                    onClick = { viewModel.addToCart(product, 0.25) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                PresetButton(
-                                                    text = "1/2 L",
-                                                    onClick = { viewModel.addToCart(product, 0.5) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                            ) {
-                                                PresetButton(
-                                                    text = "200 Ar",
-                                                    onClick = { viewModel.addToCart(product, 200.0 / product.price) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                PresetButton(
-                                                    text = "500 Ar",
-                                                    onClick = { viewModel.addToCart(product, 500.0 / product.price) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                            }
-                                        } else {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                            ) {
-                                                PresetButton(
-                                                    text = "1 pce",
-                                                    onClick = { viewModel.addToCart(product, 1.0) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                PresetButton(
-                                                    text = "6 pces",
-                                                    onClick = { viewModel.addToCart(product, 6.0) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                            ) {
-                                                PresetButton(
-                                                    text = "12 pces",
-                                                    onClick = { viewModel.addToCart(product, 12.0) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                PresetButton(
-                                                    text = "+1",
-                                                    onClick = { viewModel.addToCart(product, 1.0) },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
+                                        .width(155.dp)
+                                        .fillMaxHeight()
+                                )
                             }
                         }
                     }
@@ -1519,7 +1214,7 @@ fun CalculatorScreen(
                                 } else {
                                     val success = viewModel.checkoutCart()
                                     if (success) {
-                                        amountReceivedStr = ""
+                                        resetAllFields()
                                         Toast.makeText(context, t("checkout_success"), Toast.LENGTH_SHORT).show()
                                     } else {
                                         Toast.makeText(context, t("checkout_stock_error"), Toast.LENGTH_LONG).show()
@@ -2365,7 +2060,7 @@ fun CalculatorScreen(
                             } else {
                                 val success = viewModel.checkoutCart()
                                 if (success) {
-                                    amountReceivedStr = ""
+                                    resetAllFields()
                                     subTab = "checkout"
                                     Toast.makeText(context, t("checkout_success"), Toast.LENGTH_SHORT).show()
                                 } else {
@@ -2912,7 +2607,10 @@ fun CalculatorScreen(
         }
 
         AlertDialog(
-            onDismissRequest = { showTrosaDialog = false },
+            onDismissRequest = {
+                trosaDebtorName = ""
+                showTrosaDialog = false
+            },
             title = {
                 Text(
                     text = trosaTitle,
@@ -2955,7 +2653,7 @@ fun CalculatorScreen(
                             viewModel.saveDebt(newDebt)
                             val success = viewModel.checkoutCart()
                             if (success) {
-                                amountReceivedStr = ""
+                                resetAllFields()
                                 showTrosaDialog = false
                                 Toast.makeText(context, t("checkout_success"), Toast.LENGTH_SHORT).show()
                             } else {
@@ -2970,7 +2668,10 @@ fun CalculatorScreen(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { showTrosaDialog = false }
+                    onClick = {
+                        trosaDebtorName = ""
+                        showTrosaDialog = false
+                    }
                 ) {
                     Text(cancelLabel)
                 }
@@ -3000,6 +2701,200 @@ fun PresetButton(
             text = text,
             fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+fun CashRegisterProductCard(
+    product: Product,
+    onAddToCart: (Product, Double) -> Unit,
+    themeColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val isOutOfStock = product.stock <= 0
+    val isLiquid = product.unit.lowercase().contains("litre") || 
+                   product.unit == "L"
+    val isWeight = product.unit.lowercase().contains("kilo") || 
+                   product.unit.lowercase().contains("kg")
+
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(
+            1.dp,
+            Color(0xFFE0E0E0)
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp)
+        ) {
+            // Row with Image on left, Stock & Price on right
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Image Box
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .border(BorderStroke(1.dp, Color(0xFFE5E5E5)), RoundedCornerShape(16.dp))
+                        .background(Color(0xFFF9F9F9)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (product.imageUrl.isNotEmpty()) {
+                        AsyncImage(
+                            model = product.imageUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Image,
+                            contentDescription = null,
+                            tint = Color(0xFFCCCCCC),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Stock and Price Column
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    val stockQtyStr = if (product.stock % 1.0 == 0.0) {
+                        product.stock.toInt().toString()
+                    } else {
+                        "%.1f".format(product.stock)
+                    }
+                    Text(
+                        text = "T : $stockQtyStr",
+                        color = if (isOutOfStock) MaterialTheme.colorScheme.error else Color(0xFF757575),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = "${FormatUtil.formatPrice(product.price)} Ar",
+                        color = Color(0xFF333333),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Product Name
+            Text(
+                text = product.name,
+                color = Color(0xFF333333),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Preset Buttons row (pill style)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (isLiquid) {
+                    // Liquid: 1/4 L, 1/2 L, +1
+                    PillPresetButton(
+                        text = "1/4 L",
+                        onClick = { onAddToCart(product, 0.25) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    PillPresetButton(
+                        text = "1/2 L",
+                        onClick = { onAddToCart(product, 0.5) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    PillPresetButton(
+                        text = "+1",
+                        onClick = { onAddToCart(product, 1.0) },
+                        modifier = Modifier.weight(1f)
+                    )
+                } else if (isWeight) {
+                    // Weight: 1/4 kg, 1/2 kg, +1
+                    PillPresetButton(
+                        text = "1/4 kg",
+                        onClick = { onAddToCart(product, 0.25) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    PillPresetButton(
+                        text = "1/2 kg",
+                        onClick = { onAddToCart(product, 0.5) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    PillPresetButton(
+                        text = "+1",
+                        onClick = { onAddToCart(product, 1.0) },
+                        modifier = Modifier.weight(1f)
+                    )
+                } else {
+                    // Standard: +1, +5, +10 (matching the image exactly)
+                    PillPresetButton(
+                        text = "+1",
+                        onClick = { onAddToCart(product, 1.0) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    PillPresetButton(
+                        text = "+5",
+                        onClick = { onAddToCart(product, 5.0) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    PillPresetButton(
+                        text = "+10",
+                        onClick = { onAddToCart(product, 10.0) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PillPresetButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .height(32.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF8CC1F0)) // Lovely soft blue matching image
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = Color.Black,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
             maxLines = 1
         )
     }

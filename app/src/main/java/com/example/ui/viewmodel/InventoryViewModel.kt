@@ -8,6 +8,7 @@ import com.example.data.model.Product
 import com.example.data.model.Sale
 import com.example.data.model.SoldItem
 import com.example.data.model.Debt
+import com.example.data.model.Fournisseur
 import com.example.data.repository.InventoryRepository
 import com.example.util.AppPreferences
 import com.example.util.NotificationHelper
@@ -339,44 +340,44 @@ class InventoryViewModel(
         if (cartSnapshot.isEmpty()) return false
 
         viewModelScope.launch {
-            val soldItems = cartSnapshot.map {
-                SoldItem(
-                    productId = it.productId ?: 0,
-                    name = it.name,
-                    quantity = it.quantity,
-                    price = it.price
+            try {
+                val soldItems = cartSnapshot.map {
+                    SoldItem(
+                        productId = it.productId ?: 0,
+                        name = it.name,
+                        quantity = it.quantity,
+                        price = it.price
+                    )
+                }
+                val total = cartSnapshot.sumOf { it.totalPrice }
+                val newSale = Sale(
+                    timestamp = System.currentTimeMillis(),
+                    totalAmount = total,
+                    items = soldItems
                 )
-            }
-            val total = cartSnapshot.sumOf { it.totalPrice }
-            val newSale = Sale(
-                timestamp = System.currentTimeMillis(),
-                totalAmount = total,
-                items = soldItems
-            )
 
-            // 1. Insert sale record
-            repository.insertSale(newSale)
+                // 1. Perform atomic transaction
+                repository.checkoutSale(newSale)
 
-            // 2. Decrement product stock helper for real products
-            for (cartItem in cartSnapshot) {
-                if (cartItem.productId != null) {
-                    val matchingProduct = repository.getProductById(cartItem.productId)
-                    if (matchingProduct != null) {
-                        val currentStock = matchingProduct.stock
-                        val updatedStock = (currentStock - cartItem.quantity).coerceAtLeast(0.0)
-                        val updatedProduct = matchingProduct.copy(stock = updatedStock)
-                        repository.updateProduct(updatedProduct)
-
-                        // Alert if it falls into low-stock state
-                        if (updatedProduct.isLowStock) {
-                            NotificationHelper.showLowStockNotification(context, updatedProduct)
+                // 2. Alert if any product fell into low-stock state
+                for (cartItem in cartSnapshot) {
+                    if (cartItem.productId != null) {
+                        val matchingProduct = repository.getProductById(cartItem.productId)
+                        if (matchingProduct != null && matchingProduct.isLowStock) {
+                            try {
+                                NotificationHelper.showLowStockNotification(context, matchingProduct)
+                            } catch (nt: Throwable) {
+                                nt.printStackTrace()
+                            }
                         }
                     }
                 }
-            }
 
-            // 3. Clear cart
-            clearCart()
+                // 3. Clear cart
+                clearCart()
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            }
         }
         return true
     }
@@ -460,6 +461,16 @@ class InventoryViewModel(
     fun deleteDebt(debt: Debt) {
         viewModelScope.launch {
             repository.deleteDebt(debt)
+        }
+    }
+
+    // Fournisseur Management
+    val allFournisseurs: StateFlow<List<Fournisseur>> = repository.fournisseurDao.getAllFournisseurs()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun saveFournisseur(fournisseur: Fournisseur) {
+        viewModelScope.launch {
+            repository.fournisseurDao.insertFournisseur(fournisseur)
         }
     }
 }

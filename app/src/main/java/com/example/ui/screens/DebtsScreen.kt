@@ -201,7 +201,14 @@ fun DebtsScreen(
     // Add Debt Dialog Form
     if (showAddDebtDialog) {
         AlertDialog(
-            onDismissRequest = { showAddDebtDialog = false },
+            onDismissRequest = {
+                debtorName = ""
+                debtAmountStr = ""
+                debtNote = ""
+                nameError = false
+                amountError = false
+                showAddDebtDialog = false
+            },
             title = { Text(t("new_debt"), fontWeight = FontWeight.Black) },
             text = {
                 Column(
@@ -263,6 +270,8 @@ fun DebtsScreen(
                             debtorName = ""
                             debtAmountStr = ""
                             debtNote = ""
+                            nameError = false
+                            amountError = false
                             showAddDebtDialog = false
                         }
                     }
@@ -276,6 +285,8 @@ fun DebtsScreen(
                         debtorName = ""
                         debtAmountStr = ""
                         debtNote = ""
+                        nameError = false
+                        amountError = false
                         showAddDebtDialog = false
                     }
                 ) {
@@ -288,7 +299,11 @@ fun DebtsScreen(
     // Repay Partial Dialog Form
     selectedDebtForRepay?.let { debt ->
         AlertDialog(
-            onDismissRequest = { selectedDebtForRepay = null },
+            onDismissRequest = {
+                repayAmountStr = ""
+                repayError = false
+                selectedDebtForRepay = null
+            },
             title = { Text(t("debt_repay_title"), fontWeight = FontWeight.Black) },
             text = {
                 Column(
@@ -332,6 +347,7 @@ fun DebtsScreen(
                         if (!repayError) {
                             viewModel.updateDebtRepayment(debt.id, valDouble)
                             repayAmountStr = ""
+                            repayError = false
                             selectedDebtForRepay = null
                         }
                     }
@@ -343,6 +359,7 @@ fun DebtsScreen(
                 TextButton(
                     onClick = {
                         repayAmountStr = ""
+                        repayError = false
                         selectedDebtForRepay = null
                     }
                 ) {

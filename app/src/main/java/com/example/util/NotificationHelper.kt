@@ -52,8 +52,8 @@ object NotificationHelper {
             val notificationManager = NotificationManagerCompat.from(context)
             // Use unique ID for each product notification so they don't overwrite each other
             notificationManager.notify(NOTIFICATION_ID_BASE + product.id, builder.build())
-        } catch (e: SecurityException) {
-            // Handle cases where permission is denied
+        } catch (e: Throwable) {
+            // Handle cases where permission is denied or notification manager fails
             e.printStackTrace()
         }
     }

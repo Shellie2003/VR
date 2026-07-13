@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.ShoppingBasket
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -53,7 +54,8 @@ enum class ScreenTab {
     Tahiry,      // Stock listing / Fast edits
     Dettes,      // Client Debts
     Historique,  // Sales history
-    Parametres   // Settings
+    Parametres,  // Settings
+    Commission   // Restocking & supply commission calculator
 }
 
 class MainActivity : ComponentActivity() {
@@ -70,9 +72,22 @@ class MainActivity : ComponentActivity() {
 fun MainLifecycleContainer() {
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
-    // Initialize repository with all 3 DAOs
+    // Initialize repository with all DAOs for robust relational model sync
     val repository = remember { 
-        InventoryRepository(database.productDao(), database.saleDao(), database.debtDao()) 
+        InventoryRepository(
+            database,
+            database.productDao(),
+            database.saleDao(),
+            database.debtDao(),
+            database.produitDao(),
+            database.uniteProduitDao(),
+            database.reglePrixDao(),
+            database.fournisseurDao(),
+            database.mouvementStockDao(),
+            database.lotProduitDao(),
+            database.venteDao(),
+            database.lignesVenteDao()
+        ) 
     }
     
     val viewModel: InventoryViewModel = viewModel(
@@ -146,7 +161,7 @@ fun SplashScreen(t: (String) -> String) {
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.PointOfSale,
+                    imageVector = Icons.Rounded.ShoppingBasket,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(56.dp)
@@ -386,7 +401,12 @@ fun MainAppLayout(
                         ScreenTab.Parametres -> SettingsScreen(
                             viewModel = viewModel,
                             onNavigateToHistory = { currentTab = ScreenTab.Historique },
+                            onNavigateToCommission = { currentTab = ScreenTab.Commission },
                             onNavigateToHome = navigateToHome
+                        )
+                        ScreenTab.Commission -> CommissionScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = { currentTab = ScreenTab.Parametres }
                         )
                     }
                 }
@@ -471,7 +491,12 @@ fun MainAppLayout(
                     ScreenTab.Parametres -> SettingsScreen(
                         viewModel = viewModel,
                         onNavigateToHistory = { currentTab = ScreenTab.Historique },
+                        onNavigateToCommission = { currentTab = ScreenTab.Commission },
                         onNavigateToHome = navigateToHome
+                    )
+                    ScreenTab.Commission -> CommissionScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { currentTab = ScreenTab.Parametres }
                     )
                 }
             }
@@ -515,7 +540,7 @@ fun TopAppBarSection(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.PointOfSale,
+                        imageVector = Icons.Rounded.ShoppingBasket,
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(20.dp)
@@ -715,7 +740,7 @@ fun TabletDrawerSection(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.PointOfSale,
+                            imageVector = Icons.Rounded.ShoppingBasket,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
