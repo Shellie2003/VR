@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -440,7 +441,7 @@ fun ProductInventoryCard(
                 // Quick Stock adjust buttons (+/- stepper)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     IconButton(
                         onClick = {
@@ -450,16 +451,18 @@ fun ProductInventoryCard(
                         },
                         enabled = product.stock > 0,
                         modifier = Modifier
-                            .size(28.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(6.dp))
+                            .size(32.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
                     ) {
-                        Icon(Icons.Default.Remove, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.Remove, contentDescription = null, modifier = Modifier.size(16.dp))
                     }
 
                     Text(
                         text = FormatUtil.formatQty(product.stock, "").replace(" ", ""),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.widthIn(min = 36.dp)
                     )
 
                     IconButton(
@@ -468,10 +471,10 @@ fun ProductInventoryCard(
                             viewModel.adjustStock(product, product.stock + step)
                         },
                         modifier = Modifier
-                            .size(28.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(6.dp))
+                            .size(32.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     }
                 }
             }

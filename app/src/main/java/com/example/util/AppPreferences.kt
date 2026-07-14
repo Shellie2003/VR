@@ -14,6 +14,7 @@ class AppPreferences(context: Context) {
         private const val KEY_GROCERY_NAME = "key_grocery_name"
         private const val KEY_COLOR_THEME = "key_color_theme"
         private const val KEY_SHOP_MODE = "key_shop_mode"
+        private const val KEY_THEME_MODE = "key_theme_mode"
     }
 
     var language: String
@@ -31,6 +32,10 @@ class AppPreferences(context: Context) {
     var colorTheme: String
         get() = prefs.getString(KEY_COLOR_THEME, "emerald") ?: "emerald"
         set(value) = prefs.edit().putString(KEY_COLOR_THEME, value).apply()
+
+    var themeMode: String
+        get() = prefs.getString(KEY_THEME_MODE, "light") ?: "light"
+        set(value) = prefs.edit().putString(KEY_THEME_MODE, value).apply()
 
     var isActivated: Boolean
         get() = true

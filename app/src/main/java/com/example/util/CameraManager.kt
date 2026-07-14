@@ -65,9 +65,17 @@ object CameraManager {
                         CaptureRequest.CONTROL_AF_MODE,
                         CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
                     )
-                    Log.d(TAG, "Configured CONTROL_AF_MODE_CONTINUOUS_PICTURE on Preview via Camera2Interop.")
+                    extender.setCaptureRequestOption(
+                        CaptureRequest.CONTROL_MODE,
+                        CaptureRequest.CONTROL_MODE_USE_SCENE_MODE
+                    )
+                    extender.setCaptureRequestOption(
+                        CaptureRequest.CONTROL_SCENE_MODE,
+                        CaptureRequest.CONTROL_SCENE_MODE_BARCODE
+                    )
+                    Log.d(TAG, "Configured CONTROL_AF_MODE_CONTINUOUS_PICTURE and CONTROL_SCENE_MODE_BARCODE on Preview via Camera2Interop.")
                 } catch (e: Exception) {
-                    Log.w(TAG, "Failed to apply Camera2Interop autofocus option on Preview", e)
+                    Log.w(TAG, "Failed to apply Camera2Interop autofocus & scene mode option on Preview", e)
                 }
 
                 val preview = previewBuilder.build().also {
@@ -95,8 +103,16 @@ object CameraManager {
                         CaptureRequest.CONTROL_AF_MODE,
                         CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
                     )
+                    extender.setCaptureRequestOption(
+                        CaptureRequest.CONTROL_MODE,
+                        CaptureRequest.CONTROL_MODE_USE_SCENE_MODE
+                    )
+                    extender.setCaptureRequestOption(
+                        CaptureRequest.CONTROL_SCENE_MODE,
+                        CaptureRequest.CONTROL_SCENE_MODE_BARCODE
+                    )
                 } catch (e: Exception) {
-                    Log.w(TAG, "Failed to apply Camera2Interop autofocus option on ImageAnalysis", e)
+                    Log.w(TAG, "Failed to apply Camera2Interop autofocus & scene mode option on ImageAnalysis", e)
                 }
 
                 val imageAnalysis = imageAnalysisBuilder.build()

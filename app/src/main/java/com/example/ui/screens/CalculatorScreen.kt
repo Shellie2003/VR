@@ -87,6 +87,8 @@ fun CalculatorScreen(
     var showRealCameraScanner by remember { mutableStateOf(false) }
     var showTrosaDialog by remember { mutableStateOf(false) }
     var trosaDebtorName by remember { mutableStateOf("") }
+    var editingCartItem by remember { mutableStateOf<CartItem?>(null) }
+    var editingQuantityStr by remember { mutableStateOf("") }
     val isTrosaMode = amountReceivedStr.trim().isEmpty()
 
     // New state variables for QuickMiscPage sub-tabs and multiplier inputs
@@ -394,6 +396,23 @@ fun CalculatorScreen(
                                                     imageVector = Icons.Default.AddCircleOutline,
                                                     contentDescription = "Add",
                                                     tint = if (item.quantity < maxStock) themeColor else MaterialTheme.colorScheme.outline,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+
+                                            Spacer(modifier = Modifier.width(8.dp))
+
+                                            IconButton(
+                                                onClick = {
+                                                    editingCartItem = item
+                                                    editingQuantityStr = if (item.quantity % 1.0 == 0.0) item.quantity.toInt().toString() else item.quantity.toString()
+                                                },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Edit,
+                                                    contentDescription = "Edit Quantity",
+                                                    tint = themeColor,
                                                     modifier = Modifier.size(18.dp)
                                                 )
                                             }
@@ -876,6 +895,23 @@ fun CalculatorScreen(
                                             imageVector = Icons.Default.AddCircleOutline,
                                             contentDescription = "Add",
                                             tint = if (item.quantity < maxStock) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    IconButton(
+                                        onClick = {
+                                            editingCartItem = item
+                                            editingQuantityStr = if (item.quantity % 1.0 == 0.0) item.quantity.toInt().toString() else item.quantity.toString()
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Edit Quantity",
+                                            tint = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
@@ -2674,6 +2710,80 @@ fun CalculatorScreen(
                     }
                 ) {
                     Text(cancelLabel)
+                }
+            }
+        )
+    }
+    if (editingCartItem != null) {
+        val item = editingCartItem!!
+        val titleText = when (activeLang) {
+            "mg" -> "Hanova isan'ny entana"
+            "fr" -> "Modifier la quantité"
+            else -> "Modify quantity"
+        }
+        val labelText = when (activeLang) {
+            "mg" -> "Isany (farany ambony: ${FormatUtil.formatQty(item.maxStock, item.unit)})"
+            "fr" -> "Quantité (max: ${FormatUtil.formatQty(item.maxStock, item.unit)})"
+            else -> "Quantity (max: ${FormatUtil.formatQty(item.maxStock, item.unit)})"
+        }
+        val cancelText = when (activeLang) {
+            "mg" -> "Hanafoana"
+            "fr" -> "Annuler"
+            else -> "Cancel"
+        }
+        val confirmText = when (activeLang) {
+            "mg" -> "Hamarina"
+            "fr" -> "Valider"
+            else -> "Confirm"
+        }
+        AlertDialog(
+            onDismissRequest = { editingCartItem = null },
+            title = { Text(titleText, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(item.name, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
+                    OutlinedTextField(
+                        value = editingQuantityStr,
+                        onValueChange = { editingQuantityStr = it },
+                        label = { Text(labelText) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newQty = editingQuantityStr.replace(',', '.').toDoubleOrNull()
+                        if (newQty != null && newQty > 0) {
+                            if (newQty > item.maxStock) {
+                                val warnText = when (activeLang) {
+                                    "mg" -> "Tahiry ambony indrindra: ${FormatUtil.formatQty(item.maxStock, item.unit)}"
+                                    "fr" -> "Stock maximum dépassé : ${FormatUtil.formatQty(item.maxStock, item.unit)}"
+                                    else -> "Maximum stock exceeded: ${FormatUtil.formatQty(item.maxStock, item.unit)}"
+                                }
+                                Toast.makeText(context, warnText, Toast.LENGTH_SHORT).show()
+                            }
+                            viewModel.updateCartQuantity(item.id, newQty)
+                            editingCartItem = null
+                        } else {
+                            val errorText = when (activeLang) {
+                                "mg" -> "Isana tsy mety"
+                                "fr" -> "Quantité invalide"
+                                else -> "Invalid quantity"
+                            }
+                            Toast.makeText(context, errorText, Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = themeColor)
+                ) {
+                    Text(confirmText, color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingCartItem = null }) {
+                    Text(cancelText)
                 }
             }
         )

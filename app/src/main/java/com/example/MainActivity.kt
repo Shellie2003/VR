@@ -11,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
@@ -95,6 +96,7 @@ fun MainLifecycleContainer() {
     )
 
     val themeColor by viewModel.themeColor.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
 
     // States for screens
     var isSplashVisible by remember { mutableStateOf(true) }
@@ -129,7 +131,13 @@ fun MainLifecycleContainer() {
 
     val t = { key: String -> LanguageManager.translate(key, activeLang) }
 
-    MyApplicationTheme(primaryColorOverride = themeColor) {
+    val isDark = when (themeMode) {
+        "dark" -> true
+        "light" -> false
+        else -> isSystemInDarkTheme()
+    }
+
+    MyApplicationTheme(darkTheme = isDark, primaryColorOverride = themeColor) {
         when {
             isSplashVisible -> {
                 SplashScreen(t)

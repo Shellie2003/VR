@@ -20,6 +20,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.animation.animateContentSize
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -108,22 +111,25 @@ fun BarcodeScannerView(
     val coroutineScope = rememberCoroutineScope()
     var manualBarcodeValue by remember { mutableStateOf("") }
     var sessionScannedProductIds by remember { mutableStateOf(setOf<Int>()) }
+    var editingCartItem by remember { mutableStateOf<com.example.ui.viewmodel.CartItem?>(null) }
+    var editingQuantityStr by remember { mutableStateOf("") }
 
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
     val hasCameraPermission = cameraPermissionState.status.isGranted
 
+    var cameraControl by remember { mutableStateOf<androidx.camera.core.CameraControl?>(null) }
+    var currentZoom by remember { mutableStateOf(1.0f) }
+
     val options = remember(barcodeFormats) {
+        val builder = BarcodeScannerOptions.Builder()
         if (barcodeFormats.isNotEmpty()) {
             val first = barcodeFormats[0]
             val rest = barcodeFormats.drop(1).toIntArray()
-            BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(first, *rest)
-                .build()
+            builder.setBarcodeFormats(first, *rest)
         } else {
-            BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS)
-                .build()
+            builder.setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS)
         }
+        builder.build()
     }
     val scanner = remember(options) {
         BarcodeScanning.getClient(options)
@@ -276,11 +282,58 @@ fun BarcodeScannerView(
                             factory = { ctx ->
                                 PreviewView(ctx).apply {
                                     scaleType = PreviewView.ScaleType.FILL_CENTER
+                                    // Add tap-to-focus gesture
+                                    setOnTouchListener { view, event ->
+                                        if (event.action == android.view.MotionEvent.ACTION_DOWN) {
+                                            val currentCameraControl = cameraControl
+                                            if (currentCameraControl != null) {
+                                                try {
+                                                    val factory = meteringPointFactory
+                                                    val point = factory.createPoint(event.x, event.y)
+                                                    val action = androidx.camera.core.FocusMeteringAction.Builder(
+                                                        point,
+                                                        androidx.camera.core.FocusMeteringAction.FLAG_AF or androidx.camera.core.FocusMeteringAction.FLAG_AE
+                                                    ).build()
+                                                    currentCameraControl.startFocusAndMetering(action)
+                                                    view.performClick()
+                                                } catch (e: Exception) {
+                                                    Log.e("BarcodeScanner", "Failed to focus on touch", e)
+                                                }
+                                            }
+                                        }
+                                        true
+                                    }
                                 }.also { previewView ->
                                     com.example.util.CameraManager.bindScanner(
                                         context = ctx,
                                         lifecycleOwner = lifecycleOwner,
                                         previewView = previewView,
+                                        onCameraConfigured = { camera ->
+                                             cameraControl = camera.cameraControl
+                                             try {
+                                                 camera.cameraControl.setZoomRatio(currentZoom)
+                                             } catch (e: Exception) {
+                                                 Log.e("BarcodeScanner", "Failed to set initial zoom", e)
+                                             }
+                                             // Focus on the center once configured
+                                            try {
+                                                previewView.post {
+                                                    val factory = previewView.meteringPointFactory
+                                                    val centerPoint = factory.createPoint(
+                                                        previewView.width / 2f,
+                                                        previewView.height / 2f
+                                                    )
+                                                    val action = androidx.camera.core.FocusMeteringAction.Builder(
+                                                        centerPoint,
+                                                        androidx.camera.core.FocusMeteringAction.FLAG_AF or androidx.camera.core.FocusMeteringAction.FLAG_AE
+                                                    ).setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS)
+                                                     .build()
+                                                    camera.cameraControl.startFocusAndMetering(action)
+                                                }
+                                            } catch (e: Exception) {
+                                                Log.e("BarcodeScanner", "Failed to focus center", e)
+                                            }
+                                        },
                                         analyzer = { imageProxy ->
                                             val mediaImage = imageProxy.image
                                             if (mediaImage != null) {
@@ -373,6 +426,42 @@ fun BarcodeScannerView(
                                 .fillMaxSize()
                                 .background(Color.Black.copy(alpha = 0.15f))
                         )
+                        // Floating zoom control overlay (Google Camera Style)
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 12.dp)
+                                .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf(1.0f, 2.0f, 3.0f).forEach { zoomVal ->
+                                val isSelected = currentZoom == zoomVal
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .background(if (isSelected) themeColor else Color.Transparent)
+                                        .clickable {
+                                            currentZoom = zoomVal
+                                            try {
+                                                cameraControl?.setZoomRatio(zoomVal)
+                                            } catch (e: Exception) {
+                                                Log.e("BarcodeScanner", "Failed to set zoom ratio to $zoomVal", e)
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "${zoomVal.toInt()}x",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -455,7 +544,7 @@ fun BarcodeScannerView(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .fillMaxHeight(0.42f)
+                        .fillMaxHeight(0.55f)
                         .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                         .background(MaterialTheme.colorScheme.surface)
                         .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)), RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
@@ -694,6 +783,32 @@ fun BarcodeScannerView(
 
                                             Spacer(modifier = Modifier.width(4.dp))
 
+                                            // Edit Button
+                                            IconButton(
+                                                onClick = {
+                                                    editingCartItem = item
+                                                    editingQuantityStr = if (item.quantity % 1.0 == 0.0) item.quantity.toInt().toString() else item.quantity.toString()
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = MaterialTheme.colorScheme.outlineVariant,
+                                                    modifier = Modifier.fillMaxSize()
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Edit,
+                                                            contentDescription = "Edit",
+                                                            tint = MaterialTheme.colorScheme.onSurface,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            Spacer(modifier = Modifier.width(4.dp))
+
                                             // Trash/Delete Button
                                             IconButton(
                                                 onClick = {
@@ -735,5 +850,80 @@ fun BarcodeScannerView(
                 }
             }
         }
+    }
+
+    if (editingCartItem != null) {
+        val item = editingCartItem!!
+        val titleText = when (language) {
+            "mg" -> "Hanova isan'ny entana"
+            "fr" -> "Modifier la quantité"
+            else -> "Modify quantity"
+        }
+        val labelText = when (language) {
+            "mg" -> "Isany (farany ambony: ${com.example.util.FormatUtil.formatQty(item.maxStock, item.unit)})"
+            "fr" -> "Quantité (max: ${com.example.util.FormatUtil.formatQty(item.maxStock, item.unit)})"
+            else -> "Quantity (max: ${com.example.util.FormatUtil.formatQty(item.maxStock, item.unit)})"
+        }
+        val cancelText = when (language) {
+            "mg" -> "Hanafoana"
+            "fr" -> "Annuler"
+            else -> "Cancel"
+        }
+        val confirmText = when (language) {
+            "mg" -> "Hamarina"
+            "fr" -> "Valider"
+            else -> "Confirm"
+        }
+        AlertDialog(
+            onDismissRequest = { editingCartItem = null },
+            title = { Text(titleText, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(item.name, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
+                    OutlinedTextField(
+                        value = editingQuantityStr,
+                        onValueChange = { editingQuantityStr = it },
+                        label = { Text(labelText) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newQty = editingQuantityStr.replace(',', '.').toDoubleOrNull()
+                        if (newQty != null && newQty > 0) {
+                            if (newQty > item.maxStock) {
+                                val warnText = when (language) {
+                                    "mg" -> "Tahiry ambony indrindra: ${com.example.util.FormatUtil.formatQty(item.maxStock, item.unit)}"
+                                    "fr" -> "Stock maximum dépassé : ${com.example.util.FormatUtil.formatQty(item.maxStock, item.unit)}"
+                                    else -> "Maximum stock exceeded: ${com.example.util.FormatUtil.formatQty(item.maxStock, item.unit)}"
+                                }
+                                android.widget.Toast.makeText(context, warnText, android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                            viewModel?.updateCartQuantity(item.id, newQty)
+                            editingCartItem = null
+                        } else {
+                            val errorText = when (language) {
+                                "mg" -> "Isana tsy mety"
+                                "fr" -> "Quantité invalide"
+                                else -> "Invalid quantity"
+                            }
+                            android.widget.Toast.makeText(context, errorText, android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = themeColor)
+                ) {
+                    Text(confirmText, color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingCartItem = null }) {
+                    Text(cancelText)
+                }
+            }
+        )
     }
 }

@@ -44,6 +44,7 @@ class InventoryViewModel(
 
     val groceryName = MutableStateFlow(appPreferences.groceryName)
     val colorTheme = MutableStateFlow(appPreferences.colorTheme)
+    val themeMode = MutableStateFlow(appPreferences.themeMode)
     val shopMode = MutableStateFlow(appPreferences.shopMode)
 
     val themeColor: StateFlow<androidx.compose.ui.graphics.Color> = colorTheme.map {
@@ -63,6 +64,11 @@ class InventoryViewModel(
     fun updateColorTheme(theme: String) {
         appPreferences.colorTheme = theme
         colorTheme.value = theme
+    }
+
+    fun updateThemeMode(mode: String) {
+        appPreferences.themeMode = mode
+        themeMode.value = mode
     }
 
     fun updateShopMode(mode: String) {

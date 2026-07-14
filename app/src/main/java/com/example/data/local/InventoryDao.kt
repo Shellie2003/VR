@@ -39,7 +39,7 @@ interface ProductDao {
     suspend fun getProductByBarcode(barcode: String): Product?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertProduct(product: Product)
+    suspend fun insertProduct(product: Product): Long
 
     @Update
     suspend fun updateProduct(product: Product)

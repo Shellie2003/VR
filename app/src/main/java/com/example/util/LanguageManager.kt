@@ -16,37 +16,37 @@ object LanguageManager {
             "en" to "POS & Inventory"
         ),
         "activation_required" to mapOf(
-            "mg" to "Mila fampahavitrihana ny fampiharana",
+            "mg" to "Mila Fanalahidy ny Application",
             "fr" to "Activation requise pour l'application",
             "en" to "App activation required"
         ),
         "installation_id" to mapOf(
-            "mg" to "Installation ID (Alefaso any amin'ny mpamorona):",
-            "fr" to "Installation ID (Envoyez au développeur) :",
-            "en" to "Installation ID (Send to developer):"
+            "mg" to "Installation ID (Alefaso any amin'ny AinaDigit):",
+            "fr" to "Installation ID (Envoyez à AinaDigit) :",
+            "en" to "Installation ID (Send to AinaDigit):"
         ),
         "activation_code_label" to mapOf(
-            "mg" to "Hampiditra code fampahavitrihana (6 tondro)",
+            "mg" to "Hampiditra Kaody famahàna (6 tondro)",
             "fr" to "Saisir le code d'activation (6 chiffres)",
             "en" to "Enter activation code (6 digits)"
         ),
         "activate_btn" to mapOf(
-            "mg" to "Hampandeha ny fampiharana",
+            "mg" to "Active-o ny application",
             "fr" to "Activer l'application",
             "en" to "Activate application"
         ),
         "activation_success" to mapOf(
-            "mg" to "Tafita! Vita fampahavitrihana maharitra ny fampiharana.",
+            "mg" to "Tafita! Afaka mampiasa ny application amin'ny fotoana rehetra ianao.",
             "fr" to "Succès ! L'application est activée en permanence.",
             "en" to "Success! The application is permanently activated."
         ),
         "activation_error" to mapOf(
-            "mg" to "Diso ny code fampahavitrihana nampidirinao!",
+            "mg" to "Diso ny Kaody famahàna nampidirinao!",
             "fr" to "Code d'activation invalide !",
             "en" to "Invalid activation code!"
         ),
         "trial_mode" to mapOf(
-            "mg" to "Fomba Andrana (24 Ora)",
+            "mg" to "Andrana (24 Ora)",
             "fr" to "Mode d'essai gratuit (24h)",
             "en" to "Free Trial Mode (24h)"
         ),
@@ -61,12 +61,12 @@ object LanguageManager {
             "en" to "Trial time expired!"
         ),
         "trial_expired_desc" to mapOf(
-            "mg" to "Mba tohizo ny fampiasana, ampidiro ny code fampahavitrihana.",
+            "mg" to "Raha hanohy ny fampiasana, ampidiro ny code fampahavitrihana.",
             "fr" to "Pour continuer à utiliser l'app, veuillez entrer le code d'activation.",
             "en" to "To continue using the app, please enter the activation code."
         ),
         "hours_remaining" to mapOf(
-            "mg" to "Sisa fotoana handramana:",
+            "mg" to "Fotoana sisa tavela:",
             "fr" to "Temps d'essai restant :",
             "en" to "Trial time remaining:"
         ),
@@ -76,7 +76,7 @@ object LanguageManager {
             "en" to "Home"
         ),
         "tab_pos" to mapOf(
-            "mg" to "Kajy",
+            "mg" to "Kessy",
             "fr" to "Caisse",
             "en" to "POS"
         ),
@@ -96,7 +96,7 @@ object LanguageManager {
             "en" to "Debts"
         ),
         "tab_history" to mapOf(
-            "mg" to "Tantara",
+            "mg" to "Historika",
             "fr" to "Historique",
             "en" to "History"
         ),
@@ -116,22 +116,22 @@ object LanguageManager {
             "en" to "Total Categories"
         ),
         "latest_added" to mapOf(
-            "mg" to "Entana 5 farany nampidirina",
+            "mg" to "Entana 5 nampidirina farany",
             "fr" to "5 derniers produits",
             "en" to "5 latest products"
         ),
         "no_products" to mapOf(
-            "mg" to "Tsy misy entana mbola voatahiry",
+            "mg" to "Mbola tsy misy entana voatahiry",
             "fr" to "Aucun produit disponible",
             "en" to "No products available"
         ),
         "add_first_product" to mapOf(
-            "mg" to "Hampiditra ny entana voalohany",
+            "mg" to "vao hampiditra entana",
             "fr" to "Ajouter votre premier produit",
             "en" to "Add your first product"
         ),
         "calcul_rapide" to mapOf(
-            "mg" to "Calcul Rapide",
+            "mg" to "Kajy haingana",
             "fr" to "Calcul Rapide",
             "en" to "Quick Misc"
         ),
@@ -146,17 +146,17 @@ object LanguageManager {
             "en" to "Change to return"
         ),
         "vola_tsy_ampy" to mapOf(
-            "mg" to "Vola mbola tsy ampy",
+            "mg" to "Mbola tsy ampy ilay vola",
             "fr" to "Montant manquant",
             "en" to "Amount missing"
         ),
         "vider_panier" to mapOf(
-            "mg" to "Vider ny panier",
+            "mg" to "Foano ny Harona",
             "fr" to "Vider le panier",
             "en" to "Clear cart"
         ),
         "valider_vente" to mapOf(
-            "mg" to "Valider ny varotra",
+            "mg" to "Ankatoavy ny varotra",
             "fr" to "Valider la vente",
             "en" to "Validate sale"
         ),
@@ -196,32 +196,32 @@ object LanguageManager {
             "en" to "Unit of measure"
         ),
         "unit_piece" to mapOf(
-            "mg" to "Pièce / Tapa-pako",
+            "mg" to "Pièce / Tsinjarany",
             "fr" to "Pièce",
             "en" to "Piece"
         ),
         "unit_litre" to mapOf(
-            "mg" to "Litre (L)",
+            "mg" to "Litatra",
             "fr" to "Litre",
             "en" to "Liter"
         ),
         "unit_kg" to mapOf(
-            "mg" to "Kilogramme (kg)",
+            "mg" to "Kilograma (kg)",
             "fr" to "Kilogramme",
             "en" to "Kilogram"
         ),
         "unit_paquet" to mapOf(
-            "mg" to "Paquet / Fonosana",
+            "mg" to "Paquet",
             "fr" to "Paquet",
             "en" to "Packet"
         ),
         "unit_carton" to mapOf(
-            "mg" to "Carton / Baoritra",
+            "mg" to "Carton",
             "fr" to "Carton",
             "en" to "Carton"
         ),
         "unit_sac" to mapOf(
-            "mg" to "Sac / Gony",
+            "mg" to "Gony",
             "fr" to "Sac",
             "en" to "Sac"
         ),
@@ -231,14 +231,14 @@ object LanguageManager {
             "en" to "Box/Boîte"
         ),
         "unit_bouteille" to mapOf(
-            "mg" to "Bouteille / Tavoahangy",
+            "mg" to "Tavoahangy",
             "fr" to "Bouteille",
             "en" to "Bottle"
         ),
         "unit_kapoaka" to mapOf(
-            "mg" to "Tasse / Kapoaka",
-            "fr" to "Kapoaka / Tasse",
-            "en" to "Cup / Kapoaka"
+            "mg" to "Kapoaka",
+            "fr" to "Tasse",
+            "en" to "Cup"
         ),
         "unit_price" to mapOf(
             "mg" to "Vidiny iray (Ar)",
@@ -251,7 +251,7 @@ object LanguageManager {
             "en" to "Initial stock"
         ),
         "save_btn" to mapOf(
-            "mg" to "Hitehirizana",
+            "mg" to "Hitahiry",
             "fr" to "Enregistrer le produit",
             "en" to "Save Product"
         ),
@@ -261,7 +261,7 @@ object LanguageManager {
             "en" to "Image URL (Optional)"
         ),
         "take_photo_btn" to mapOf(
-            "mg" to "Handray sary (Caméra)",
+            "mg" to "Haka sary (Caméra)",
             "fr" to "Prendre une photo (Caméra)",
             "en" to "Take Photo (Camera)"
         ),
@@ -281,7 +281,7 @@ object LanguageManager {
             "en" to "Quick Stock Adjustment"
         ),
         "edit_action" to mapOf(
-            "mg" to "Hanova mombamomba",
+            "mg" to "Hanova",
             "fr" to "Modifier",
             "en" to "Edit Details"
         ),
@@ -366,7 +366,7 @@ object LanguageManager {
             "en" to "Partial Repayment"
         ),
         "repay_amount_label" to mapOf(
-            "mg" to "Sora-bola hoaloa (Ar)",
+            "mg" to "Vola hoaloa (Ar)",
             "fr" to "Montant remboursé (Ar)",
             "en" to "Repayment Amount (Ar)"
         ),
@@ -381,17 +381,17 @@ object LanguageManager {
             "en" to "Confirm Repayment"
         ),
         "repaid_badge" to mapOf(
-            "mg" to "Tafaloha",
+            "mg" to "voaloa",
             "fr" to "Payée",
             "en" to "Paid"
         ),
         "unpaid_badge" to mapOf(
-            "mg" to "Trosa",
+            "mg" to "tsy voaloha",
             "fr" to "En cours",
             "en" to "Unpaid"
         ),
         "no_sales_history" to mapOf(
-            "mg" to "Tsy misy tantara momba ny varotra mbola voasoratra.",
+            "mg" to "Mbola tsy misy historika voasoratra.",
             "fr" to "Aucune vente enregistrée dans l'historique.",
             "en" to "No sales recorded in history."
         ),
@@ -401,7 +401,7 @@ object LanguageManager {
             "en" to "Make your first sale"
         ),
         "calculator_multiplicator" to mapOf(
-            "mg" to "Kalkilatora fampitomboana",
+            "mg" to "Kajy fampitomboana",
             "fr" to "Calculateur Multiplicateur",
             "en" to "Multiplier Calculator"
         ),
@@ -411,12 +411,12 @@ object LanguageManager {
             "en" to "Miscellaneous Item"
         ),
         "receipt_details_title" to mapOf(
-            "mg" to "Détails ny recibu / fividianana",
+            "mg" to "Détails ny reçu / fividianana",
             "fr" to "Détails du reçu de caisse",
             "en" to "Receipt Details"
         ),
         "settings_lang" to mapOf(
-            "mg" to "Safidy ny fiteny (Langue)",
+            "mg" to "Hisafidy fiteny",
             "fr" to "Choisir la langue",
             "en" to "Select Language"
         ),

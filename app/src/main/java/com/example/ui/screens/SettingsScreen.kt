@@ -39,6 +39,7 @@ fun SettingsScreen(
     val currentThemeKey by viewModel.colorTheme.collectAsState()
     val themeColor by viewModel.themeColor.collectAsState()
     val shopModeVal by viewModel.shopMode.collectAsState()
+    val themeModeVal by viewModel.themeMode.collectAsState()
 
     // Local state for grocery name editing
     var nameInput by remember(groceryNameVal) { mutableStateOf(groceryNameVal) }
@@ -79,8 +80,32 @@ fun SettingsScreen(
 
     val themeLabel = when (activeLang) {
         "mg" -> "Loko Fototra (Thème)"
-        "fr" -> "Thème (Colors Sheeds)"
+        "fr" -> "Thème (Couleurs)"
         else -> "Color Theme"
+    }
+
+    val displayModeLabel = when (activeLang) {
+        "mg" -> "Fomba Fampisehoana"
+        "fr" -> "Mode d'affichage"
+        else -> "Display Mode"
+    }
+
+    val lightLabel = when (activeLang) {
+        "mg" -> "Mazava (Light)"
+        "fr" -> "Clair"
+        else -> "Light"
+    }
+
+    val darkLabel = when (activeLang) {
+        "mg" -> "Maizina (Dark)"
+        "fr" -> "Sombre"
+        else -> "Dark"
+    }
+
+    val systemLabel = when (activeLang) {
+        "mg" -> "Araka ny finday"
+        "fr" -> "Système"
+        else -> "System"
     }
 
     val historyBtnTitle = when (activeLang) {
@@ -110,10 +135,16 @@ fun SettingsScreen(
     val scrollState = rememberScrollState()
     var showSnackbar by remember { mutableStateOf(false) }
 
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF1B1C1C)
+    val cardBg = if (isDark) Color(0xFF222323) else Color(0xFFF8FAFC)
+    val cardBorderColor = if (isDark) Color(0xFF343535) else Color(0xFFE2E8F0)
+    val mainTextColor = if (isDark) Color.White else Color(0xFF1E293B)
+    val secondaryTextColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Column(
             modifier = Modifier
@@ -134,12 +165,12 @@ fun SettingsScreen(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFF1F5F9))
+                        .background(if (isDark) Color(0xFF2D2E2E) else Color(0xFFF1F5F9))
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Hiverina",
-                        tint = Color(0xFF1E293B),
+                        tint = mainTextColor,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -148,7 +179,7 @@ fun SettingsScreen(
                     text = settingsTitle,
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Black,
-                        color = Color(0xFF1E293B),
+                        color = mainTextColor,
                         fontSize = 22.sp
                     )
                 )
@@ -162,8 +193,8 @@ fun SettingsScreen(
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                border = androidx.compose.foundation.BorderStroke(1.dp, cardBorderColor)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -183,7 +214,7 @@ fun SettingsScreen(
                             text = storeNameLabel,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E293B)
+                            color = mainTextColor
                         )
                     }
 
@@ -196,10 +227,12 @@ fun SettingsScreen(
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White,
+                            focusedContainerColor = if (isDark) Color(0xFF1B1C1C) else Color.White,
+                            unfocusedContainerColor = if (isDark) Color(0xFF1B1C1C) else Color.White,
                             focusedBorderColor = themeColor,
-                            unfocusedBorderColor = Color(0xFFCBD5E1)
+                            unfocusedBorderColor = if (isDark) Color(0xFF4E5050) else Color(0xFFCBD5E1),
+                            focusedTextColor = mainTextColor,
+                            unfocusedTextColor = mainTextColor
                         )
                     )
 
@@ -247,8 +280,8 @@ fun SettingsScreen(
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                border = androidx.compose.foundation.BorderStroke(1.dp, cardBorderColor)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -268,7 +301,7 @@ fun SettingsScreen(
                             text = themeLabel,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E293B)
+                            color = mainTextColor
                         )
                     }
 
@@ -292,7 +325,7 @@ fun SettingsScreen(
                                         .background(color)
                                         .border(
                                             width = if (isSelected) 3.dp else 0.dp,
-                                            color = if (isSelected) Color.Black else Color.Transparent,
+                                            color = if (isSelected) (if (isDark) Color.White else Color.Black) else Color.Transparent,
                                             shape = CircleShape
                                         ),
                                     contentAlignment = Alignment.Center
@@ -310,9 +343,122 @@ fun SettingsScreen(
                                     text = label,
                                     fontSize = 11.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Color.Black else Color(0xFF64748B)
+                                    color = if (isSelected) mainTextColor else secondaryTextColor
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            // CARD FOR THEME MODE SELECTION (LIGHT / DARK / SYSTEM)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                border = androidx.compose.foundation.BorderStroke(1.dp, cardBorderColor)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Brightness4,
+                            contentDescription = null,
+                            tint = themeColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = displayModeLabel,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = mainTextColor
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Light Option
+                        val isLightSel = themeModeVal == "light"
+                        Button(
+                            onClick = { viewModel.updateThemeMode("light") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isLightSel) themeColor else (if (isDark) Color(0xFF1B1C1C) else Color.White),
+                                contentColor = if (isLightSel) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                width = 1.dp,
+                                color = if (isLightSel) Color.Transparent else cardBorderColor
+                            ),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text(
+                                text = lightLabel,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // Dark Option
+                        val isDarkSel = themeModeVal == "dark"
+                        Button(
+                            onClick = { viewModel.updateThemeMode("dark") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp),
+                                shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isDarkSel) themeColor else (if (isDark) Color(0xFF1B1C1C) else Color.White),
+                                contentColor = if (isDarkSel) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                width = 1.dp,
+                                color = if (isDarkSel) Color.Transparent else cardBorderColor
+                            ),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text(
+                                text = darkLabel,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // System Option
+                        val isSystemSel = themeModeVal == "system"
+                        Button(
+                            onClick = { viewModel.updateThemeMode("system") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp),
+                                shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isSystemSel) themeColor else (if (isDark) Color(0xFF1B1C1C) else Color.White),
+                                contentColor = if (isSystemSel) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                width = 1.dp,
+                                color = if (isSystemSel) Color.Transparent else cardBorderColor
+                            ),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text(
+                                text = systemLabel,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -324,8 +470,8 @@ fun SettingsScreen(
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                border = androidx.compose.foundation.BorderStroke(1.dp, cardBorderColor)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -345,7 +491,7 @@ fun SettingsScreen(
                             text = languageLabel,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E293B)
+                            color = mainTextColor
                         )
                     }
 
@@ -362,12 +508,12 @@ fun SettingsScreen(
                                     .height(38.dp),
                                 shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isSelected) themeColor else Color.White,
-                                    contentColor = if (isSelected) Color.White else Color(0xFF475569)
+                                    containerColor = if (isSelected) themeColor else (if (isDark) Color(0xFF1B1C1C) else Color.White),
+                                    contentColor = if (isSelected) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
                                 ),
                                 border = androidx.compose.foundation.BorderStroke(
                                     width = 1.dp,
-                                    color = if (isSelected) Color.Transparent else Color(0xFFE2E8F0)
+                                    color = if (isSelected) Color.Transparent else cardBorderColor
                                 ),
                                 contentPadding = PaddingValues(0.dp)
                             ) {
@@ -392,8 +538,8 @@ fun SettingsScreen(
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                border = androidx.compose.foundation.BorderStroke(1.dp, cardBorderColor)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -413,7 +559,7 @@ fun SettingsScreen(
                             text = shopModeLabel,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E293B)
+                            color = mainTextColor
                         )
                     }
 
@@ -430,12 +576,12 @@ fun SettingsScreen(
                                 .height(38.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isRetail) themeColor else Color.White,
-                                contentColor = if (isRetail) Color.White else Color(0xFF475569)
+                                containerColor = if (isRetail) themeColor else (if (isDark) Color(0xFF1B1C1C) else Color.White),
+                                contentColor = if (isRetail) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
                             ),
                             border = androidx.compose.foundation.BorderStroke(
                                 width = 1.dp,
-                                color = if (isRetail) Color.Transparent else Color(0xFFE2E8F0)
+                                color = if (isRetail) Color.Transparent else cardBorderColor
                             ),
                             contentPadding = PaddingValues(0.dp)
                         ) {
@@ -455,12 +601,12 @@ fun SettingsScreen(
                                 .height(38.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isWholesale) themeColor else Color.White,
-                                contentColor = if (isWholesale) Color.White else Color(0xFF475569)
+                                containerColor = if (isWholesale) themeColor else (if (isDark) Color(0xFF1B1C1C) else Color.White),
+                                contentColor = if (isWholesale) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
                             ),
                             border = androidx.compose.foundation.BorderStroke(
                                 width = 1.dp,
-                                color = if (isWholesale) Color.Transparent else Color(0xFFE2E8F0)
+                                color = if (isWholesale) Color.Transparent else cardBorderColor
                             ),
                             contentPadding = PaddingValues(0.dp)
                         ) {
@@ -530,7 +676,7 @@ fun SettingsScreen(
                                     else -> "Calculate profit and restock products"
                                 },
                                 fontSize = 11.sp,
-                                color = Color(0xFF64748B)
+                                color = secondaryTextColor
                             )
                         }
                     }
@@ -590,7 +736,7 @@ fun SettingsScreen(
                             Text(
                                 text = "Hijery ny tantaran'ny varotra rehetra",
                                 fontSize = 11.sp,
-                                color = Color(0xFF64748B)
+                                color = secondaryTextColor
                             )
                         }
                     }

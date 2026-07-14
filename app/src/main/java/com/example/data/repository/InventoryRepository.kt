@@ -32,61 +32,65 @@ class InventoryRepository(
     suspend fun getProductByBarcode(barcode: String): Product? = productDao.getProductByBarcode(barcode)
 
     suspend fun insertProduct(product: Product) {
-        productDao.insertProduct(product)
+        val generatedId = productDao.insertProduct(product)
+        val productWithId = product.copy(id = generatedId.toInt())
         // Sync to the new relational Produits table
-        val existingProduit = if (product.id != 0) produitDao.getProduitById(product.id.toLong()) else null
+        val existingProduit = produitDao.getProduitById(generatedId)
         val newProduit = Produit(
-            id = product.id.toLong(),
-            nom = product.name,
-            nomCourt = product.nomCourt ?: product.name,
-            categorie = product.category,
-            sousCategorie = product.sousCategorie,
-            marque = product.marque,
-            description = product.description,
-            uniteBase = product.unit,
-            quantiteStock = product.stock,
-            seuilAlerte = product.lowStockThreshold,
-            stockMax = product.stockMax,
-            emplacement = product.emplacement,
-            prixAchatUniteBase = product.prixAchatUniteBase,
-            fournisseurId = product.fournisseurId,
-            gerePeremption = product.gerePeremption,
-            imageUrl = product.imageUrl,
-            codeBarrePrincipal = product.barcode,
-            taxable = product.taxable,
-            tauxTaxe = product.tauxTaxe,
+            id = generatedId,
+            nom = productWithId.name,
+            nomCourt = productWithId.nomCourt ?: productWithId.name,
+            categorie = productWithId.category,
+            sousCategorie = productWithId.sousCategorie,
+            marque = productWithId.marque,
+            description = productWithId.description,
+            uniteBase = productWithId.unit,
+            quantiteStock = productWithId.stock,
+            seuilAlerte = productWithId.lowStockThreshold,
+            stockMax = productWithId.stockMax,
+            emplacement = productWithId.emplacement,
+            prixAchatUniteBase = productWithId.prixAchatUniteBase,
+            fournisseurId = productWithId.fournisseurId,
+            gerePeremption = productWithId.gerePeremption,
+            imageUrl = productWithId.imageUrl,
+            codeBarrePrincipal = productWithId.barcode,
+            taxable = productWithId.taxable,
+            tauxTaxe = productWithId.tauxTaxe,
             actif = true,
             dateAjout = existingProduit?.dateAjout ?: System.currentTimeMillis(),
             dateDerniereMaj = System.currentTimeMillis()
         )
-        val pId = produitDao.insertProduit(newProduit)
-        val targetProduitId = if (product.id != 0) product.id.toLong() else pId
+        produitDao.insertProduit(newProduit)
 
         // Upsert default UniteProduit
-        val existingUnite = if (product.id != 0) uniteProduitDao.getUniteByBarcode(product.barcode) else null
+        val existingUnite = if (productWithId.barcode.isNotEmpty()) uniteProduitDao.getUniteByBarcode(productWithId.barcode) else null
         val baseUnite = UniteProduit(
             id = existingUnite?.id ?: 0L,
-            produitId = targetProduitId,
-            nomUnite = product.unit,
+            produitId = generatedId,
+            nomUnite = productWithId.unit,
             facteurVersBase = 1.0,
-            prixVente = product.price,
-            prixAchat = product.prixAchatUniteBase,
-            codeBarre = product.barcode.ifEmpty { null },
+            prixVente = productWithId.price,
+            prixAchat = productWithId.prixAchatUniteBase,
+            codeBarre = productWithId.barcode.ifEmpty { null },
             estUniteBase = true,
             estUniteVenteDefaut = true,
             ordre = 0,
             actif = true
         )
-        uniteProduitDao.insertUnite(baseUnite)
+        if (existingUnite != null) {
+            uniteProduitDao.updateUnite(baseUnite)
+        } else {
+            uniteProduitDao.insertUnite(baseUnite)
+        }
 
         // Record a MouvementStock
         val qtyBefore = existingProduit?.quantiteStock ?: 0.0
         val mvt = MouvementStock(
-            produitId = targetProduitId,
+            produitId = generatedId,
             type = if (existingProduit == null) "ENTREE" else "CORRECTION",
-            quantite = product.stock,
+            quantite = productWithId.stock,
             quantiteAvant = qtyBefore,
-            quantiteApres = product.stock,
+            quantiteApres = productWithId.stock,
             note = "Enregistré depuis le modèle Product"
         )
         mouvementStockDao.insertMouvement(mvt)
@@ -120,7 +124,11 @@ class InventoryRepository(
             dateAjout = existingProduit?.dateAjout ?: System.currentTimeMillis(),
             dateDerniereMaj = System.currentTimeMillis()
         )
-        produitDao.insertProduit(newProduit)
+        if (existingProduit != null) {
+            produitDao.updateProduit(newProduit)
+        } else {
+            produitDao.insertProduit(newProduit)
+        }
 
         // Upsert default UniteProduit
         val existingUnite = if (product.barcode.isNotEmpty()) uniteProduitDao.getUniteByBarcode(product.barcode) else null
@@ -137,7 +145,11 @@ class InventoryRepository(
             ordre = 0,
             actif = true
         )
-        uniteProduitDao.insertUnite(baseUnite)
+        if (existingUnite != null) {
+            uniteProduitDao.updateUnite(baseUnite)
+        } else {
+            uniteProduitDao.insertUnite(baseUnite)
+        }
 
         // Record movement if quantity changed
         val qtyBefore = existingProduit?.quantiteStock ?: 0.0
@@ -184,21 +196,37 @@ class InventoryRepository(
         val venteId = venteDao.insertVente(newVente)
 
         for (item in sale.items) {
-            val produitId = item.productId.toLong()
-            val existingProduit = produitDao.getProduitById(produitId)
+            val originalId = item.productId.toLong()
+            var existingProduit = produitDao.getProduitById(originalId)
+
+            if (existingProduit == null) {
+                // Fallback to barcode
+                val matchingLegacyProduct = productDao.getProductById(item.productId)
+                if (matchingLegacyProduct != null && matchingLegacyProduct.barcode.isNotEmpty()) {
+                    existingProduit = produitDao.getProduitByBarcode(matchingLegacyProduct.barcode)
+                }
+            }
+
+            if (existingProduit == null) {
+                // Fallback to name
+                existingProduit = produitDao.getProduitByName(item.name)
+            }
 
             if (existingProduit != null) {
+                val targetId = existingProduit.id
                 // Get or create base UniteProduit
                 var uniteId = 0L
                 val units = if (existingProduit.codeBarrePrincipal?.isNotEmpty() == true) {
                     uniteProduitDao.getUniteByBarcode(existingProduit.codeBarrePrincipal)
                 } else null
 
-                if (units != null) {
-                    uniteId = units.id
+                val baseUnit = if (units != null) units else uniteProduitDao.getBaseUniteForProduit(targetId)
+
+                if (baseUnit != null) {
+                    uniteId = baseUnit.id
                 } else {
                     val baseUnite = UniteProduit(
-                        produitId = produitId,
+                        produitId = targetId,
                         nomUnite = existingProduit.uniteBase,
                         facteurVersBase = 1.0,
                         prixVente = item.price,
@@ -215,7 +243,7 @@ class InventoryRepository(
                 // Save LigneVente
                 val ligne = LigneVente(
                     venteId = venteId,
-                    produitId = produitId,
+                    produitId = targetId,
                     uniteId = uniteId,
                     quantite = item.quantity,
                     prixUnitaireApplique = item.price,
@@ -225,7 +253,7 @@ class InventoryRepository(
 
                 // Record MouvementStock
                 val mvt = MouvementStock(
-                    produitId = produitId,
+                    produitId = targetId,
                     type = "SORTIE_VENTE",
                     quantite = item.quantity,
                     quantiteAvant = existingProduit.quantiteStock,
@@ -240,7 +268,7 @@ class InventoryRepository(
                     quantiteStock = (existingProduit.quantiteStock - item.quantity).coerceAtLeast(0.0),
                     dateDerniereMaj = System.currentTimeMillis()
                 )
-                produitDao.insertProduit(updatedProduit)
+                produitDao.updateProduit(updatedProduit)
             }
         }
     }
@@ -257,21 +285,37 @@ class InventoryRepository(
         val venteId = venteDao.insertVente(newVente)
 
         for (item in sale.items) {
-            val produitId = item.productId.toLong()
-            val existingProduit = produitDao.getProduitById(produitId)
+            val originalId = item.productId.toLong()
+            var existingProduit = produitDao.getProduitById(originalId)
+
+            if (existingProduit == null) {
+                // Fallback to barcode
+                val matchingLegacyProduct = productDao.getProductById(item.productId)
+                if (matchingLegacyProduct != null && matchingLegacyProduct.barcode.isNotEmpty()) {
+                    existingProduit = produitDao.getProduitByBarcode(matchingLegacyProduct.barcode)
+                }
+            }
+
+            if (existingProduit == null) {
+                // Fallback to name
+                existingProduit = produitDao.getProduitByName(item.name)
+            }
 
             if (existingProduit != null) {
+                val targetId = existingProduit.id
                 // Get or create base UniteProduit
                 var uniteId = 0L
                 val units = if (existingProduit.codeBarrePrincipal?.isNotEmpty() == true) {
                     uniteProduitDao.getUniteByBarcode(existingProduit.codeBarrePrincipal)
                 } else null
 
-                if (units != null) {
-                    uniteId = units.id
+                val baseUnit = if (units != null) units else uniteProduitDao.getBaseUniteForProduit(targetId)
+
+                if (baseUnit != null) {
+                    uniteId = baseUnit.id
                 } else {
                     val baseUnite = UniteProduit(
-                        produitId = produitId,
+                        produitId = targetId,
                         nomUnite = existingProduit.uniteBase,
                         facteurVersBase = 1.0,
                         prixVente = item.price,
@@ -288,7 +332,7 @@ class InventoryRepository(
                 // Save LigneVente
                 val ligne = LigneVente(
                     venteId = venteId,
-                    produitId = produitId,
+                    produitId = targetId,
                     uniteId = uniteId,
                     quantite = item.quantity,
                     prixUnitaireApplique = item.price,
@@ -298,7 +342,7 @@ class InventoryRepository(
 
                 // Record MouvementStock
                 val mvt = MouvementStock(
-                    produitId = produitId,
+                    produitId = targetId,
                     type = "SORTIE_VENTE",
                     quantite = item.quantity,
                     quantiteAvant = existingProduit.quantiteStock,
@@ -313,7 +357,7 @@ class InventoryRepository(
                     quantiteStock = (existingProduit.quantiteStock - item.quantity).coerceAtLeast(0.0),
                     dateDerniereMaj = System.currentTimeMillis()
                 )
-                produitDao.insertProduit(updatedProduit)
+                produitDao.updateProduit(updatedProduit)
             }
 
             // Update legacy Product model stock to stay synchronized

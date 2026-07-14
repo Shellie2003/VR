@@ -12,6 +12,9 @@ interface ProduitDao {
     @Query("SELECT * FROM produits WHERE id = :id")
     suspend fun getProduitById(id: Long): Produit?
 
+    @Query("SELECT * FROM produits WHERE nom = :name LIMIT 1")
+    suspend fun getProduitByName(name: String): Produit?
+
     @Query("SELECT * FROM produits WHERE codeBarrePrincipal = :barcode LIMIT 1")
     suspend fun getProduitByBarcode(barcode: String): Produit?
 
@@ -29,6 +32,9 @@ interface ProduitDao {
 interface UniteProduitDao {
     @Query("SELECT * FROM unites_produit WHERE produitId = :produitId ORDER BY ordre ASC")
     fun getUnitesForProduit(produitId: Long): Flow<List<UniteProduit>>
+
+    @Query("SELECT * FROM unites_produit WHERE produitId = :produitId AND estUniteBase = 1 LIMIT 1")
+    suspend fun getBaseUniteForProduit(produitId: Long): UniteProduit?
 
     @Query("SELECT * FROM unites_produit WHERE codeBarre = :barcode LIMIT 1")
     suspend fun getUniteByBarcode(barcode: String): UniteProduit?
