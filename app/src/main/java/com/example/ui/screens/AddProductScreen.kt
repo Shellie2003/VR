@@ -36,6 +36,10 @@ import com.example.util.LanguageManager
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.shape.CircleShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,6 +95,15 @@ fun AddProductScreen(
 
     val context = LocalContext.current
 
+    // Open Food Facts states and helpers
+    val coroutineScope = rememberCoroutineScope()
+    var showOffSearch by remember { mutableStateOf(false) }
+    var offSearchQuery by remember { mutableStateOf("") }
+    var offSearchResults by remember { mutableStateOf<List<com.example.util.OpenFoodFactsApi.OffProduct>>(emptyList()) }
+    var offSearchLoading by remember { mutableStateOf(false) }
+    var offSearchError by remember { mutableStateOf<String?>(null) }
+    var offOnlyMadagascar by remember { mutableStateOf(true) }
+
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
@@ -114,9 +127,35 @@ fun AddProductScreen(
     }
 
     // Dropdown Categories
-    val standardCategories = listOf("Alimentation", "Légumes", "Boissons", "Épicerie", "Droguerie", "Hafa")
+    val standardCategories = listOf(
+        "Épicerie - Farine & Boulangerie",
+        "Épicerie - Pâtes alimentaires",
+        "Épicerie - Huiles de cuisine",
+        "Épicerie - Lait & Produits laitiers",
+        "Épicerie - Margarine & Matières grasses",
+        "Épicerie - Conserves",
+        "Épicerie - Condiments, Épices & Assaisonnements",
+        "Épicerie - Confiseries & Snacks",
+        "Boissons - Café & Thé",
+        "Boissons - Jus",
+        "Hygiène & Beauté",
+        "Bébé - Couches & Lingettes",
+        "Entretien ménager & Nettoyage",
+        "Entretien chaussures (Cirage)",
+        "Désodorisants & Parfums d'ambiance",
+        "Papeterie & Fournitures scolaires",
+        "Éclairage (Ampoules)",
+        "Bougies",
+        "Allumettes & Briquets",
+        "Insecticides & Anti-moustiques",
+        "Piles électriques",
+        "Quincaillerie",
+        "Lubrifiants & Fluides moteur",
+        "Autres / Divers",
+        "Hafa"
+    )
     var selectedCategory by remember(editingProduct) {
-        val cat = editingProduct?.category ?: "Alimentation"
+        val cat = editingProduct?.category ?: "Épicerie - Farine & Boulangerie"
         mutableStateOf(if (standardCategories.contains(cat)) cat else "Hafa")
     }
     var customCategory by remember(editingProduct) {
@@ -133,6 +172,77 @@ fun AddProductScreen(
     var hasManuallyChangedUnit by remember { mutableStateOf(false) }
     var hasManuallyChangedCategory by remember { mutableStateOf(false) }
 
+    fun mapOffCategory(offCategoryStr: String?, productName: String?): String {
+        val textToSearch = "${offCategoryStr ?: ""} ${productName ?: ""}".lowercase()
+        return when {
+            textToSearch.contains("farine") || textToSearch.contains("boulangerie") || textToSearch.contains("levure") || textToSearch.contains("bread") || textToSearch.contains("pain") || textToSearch.contains("flour") || textToSearch.contains("koba") || textToSearch.contains("lafarina") -> "Épicerie - Farine & Boulangerie"
+            textToSearch.contains("pâte") || textToSearch.contains("pasta") || textToSearch.contains("macaroni") || textToSearch.contains("spaghetti") || textToSearch.contains("noodle") || textToSearch.contains("ramen") || textToSearch.contains("elbow") || textToSearch.contains("fusilli") || textToSearch.contains("twist") -> "Épicerie - Pâtes alimentaires"
+            textToSearch.contains("gear oil") || textToSearch.contains("sae") || textToSearch.contains("boss 4t") || textToSearch.contains("atf") || textToSearch.contains("graise") || textToSearch.contains("graisse") || textToSearch.contains("lubrifiant") || textToSearch.contains("moteur") || textToSearch.contains("engine") || textToSearch.contains("lubec") -> "Lubrifiants & Fluides moteur"
+            textToSearch.contains("huile") || textToSearch.contains("oil") || textToSearch.contains("menaka") || textToSearch.contains("cocotop") || textToSearch.contains("hina") -> "Épicerie - Huiles de cuisine"
+            textToSearch.contains("lait") || textToSearch.contains("dairy") || textToSearch.contains("yogurt") || textToSearch.contains("danica") || textToSearch.contains("francelait") || textToSearch.contains("ronono") || textToSearch.contains("cheese") || textToSearch.contains("fromage") || textToSearch.contains("cream") || textToSearch.contains("crème") -> "Épicerie - Lait & Produits laitiers"
+            textToSearch.contains("margarine") || textToSearch.contains("jadida") || textToSearch.contains("orkide") || textToSearch.contains("butter") || textToSearch.contains("beurre") || textToSearch.contains("matière grasse") || textToSearch.contains("marga") -> "Épicerie - Margarine & Matières grasses"
+            textToSearch.contains("conserve") || textToSearch.contains("sardine") || textToSearch.contains("canned") || textToSearch.contains("mais doux") || textToSearch.contains("d'or") || textToSearch.contains("anny") || textToSearch.contains("delmoneco") || textToSearch.contains("mavo") || textToSearch.contains("omega") || textToSearch.contains("soleil d'or") -> "Épicerie - Conserves"
+            textToSearch.contains("cube") || textToSearch.contains("calnort") || textToSearch.contains("ketchup") || textToSearch.contains("mayonese") || textToSearch.contains("mayonnaise") || textToSearch.contains("lesieur") || textToSearch.contains("sauce") || textToSearch.contains("épice") || textToSearch.contains("condiment") || textToSearch.contains("sira") || textToSearch.contains("sel") || textToSearch.contains("assaisonnement") -> "Épicerie - Condiments, Épices & Assaisonnements"
+            textToSearch.contains("snack") || textToSearch.contains("biscuit") || textToSearch.contains("biski") || textToSearch.contains("cookie") || textToSearch.contains("candy") || textToSearch.contains("bonbon") || textToSearch.contains("lollypop") || textToSearch.contains("cake") || textToSearch.contains("bingo") || textToSearch.contains("chocolat") || textToSearch.contains("sweet") || textToSearch.contains("confi") || textToSearch.contains("goma") || textToSearch.contains("baume") || textToSearch.contains("extra baume") -> "Épicerie - Confiseries & Snacks"
+            textToSearch.contains("café") || textToSearch.contains("cafe") || textToSearch.contains("thé") || textToSearch.contains("tea") || textToSearch.contains("taf") || textToSearch.contains("zoto") || textToSearch.contains("salone") -> "Boissons - Café & Thé"
+            textToSearch.contains("jus") || textToSearch.contains("juice") || textToSearch.contains("drink") || textToSearch.contains("soda") || textToSearch.contains("cola") || textToSearch.contains("bashayer") || textToSearch.contains("dynamic") || textToSearch.contains("le fruit") || textToSearch.contains("tampico") || textToSearch.contains("eau") || textToSearch.contains("rano") || textToSearch.contains("sprite") || textToSearch.contains("fanta") -> "Boissons - Jus"
+            textToSearch.contains("hygiène") || textToSearch.contains("beauté") || textToSearch.contains("savon") || textToSearch.contains("soap") || textToSearch.contains("cali") || textToSearch.contains("cosmetic") || textToSearch.contains("dentifrice") || textToSearch.contains("shamp") || textToSearch.contains("cheveux") || textToSearch.contains("belle") || textToSearch.contains("jojoba") || textToSearch.contains("kinana") || textToSearch.contains("ravintsara") -> "Hygiène & Beauté"
+            textToSearch.contains("couche") || textToSearch.contains("bebem") || textToSearch.contains("goodcare") || textToSearch.contains("baby") || textToSearch.contains("bebe") || textToSearch.contains("lingette") || textToSearch.contains("comfort") || textToSearch.contains("pants") -> "Bébé - Couches & Lingettes"
+            textToSearch.contains("nettoyage") || textToSearch.contains("entretien") || textToSearch.contains("ariel") || textToSearch.contains("oxi") || textToSearch.contains("detergent") || textToSearch.contains("lessive") || textToSearch.contains("savony") || textToSearch.contains("bleu d'azure") -> "Entretien ménager & Nettoyage"
+            textToSearch.contains("cirage") || textToSearch.contains("presto") || textToSearch.contains("salone mats") || textToSearch.contains("chaussure") || textToSearch.contains("pate presto") || textToSearch.contains("pate salone") -> "Entretien chaussures (Cirage)"
+            textToSearch.contains("désodorisant") || textToSearch.contains("parfum d'ambiance") || textToSearch.contains("boule ext auto") || textToSearch.contains("air") -> "Désodorisants & Parfums d'ambiance"
+            textToSearch.contains("cahier") || textToSearch.contains("stylo") || textToSearch.contains("classmate") || textToSearch.contains("madabook") || textToSearch.contains("fournitures") || textToSearch.contains("papeterie") || textToSearch.contains("school") || textToSearch.contains("book") || textToSearch.contains("cah") -> "Papeterie & Fournitures scolaires"
+            textToSearch.contains("ampoule") || textToSearch.contains("led") || textToSearch.contains("eclairage") || textToSearch.contains("light") || textToSearch.contains("b22") || textToSearch.contains("e27") || textToSearch.contains("lightbulb") -> "Éclairage (Ampoules)"
+            textToSearch.contains("bougie") || textToSearch.contains("mateza") || textToSearch.contains("voila pm") || textToSearch.contains("zapp") -> "Bougies"
+            textToSearch.contains("allumette") || textToSearch.contains("briquet") || textToSearch.contains("mimosa") || textToSearch.contains("briq") || textToSearch.contains("whatshot") || textToSearch.contains("fire") || textToSearch.contains("star queen") || textToSearch.contains("roller") || textToSearch.contains("tic-tak") -> "Allumettes & Briquets"
+            textToSearch.contains("insecticide") || textToSearch.contains("anti-moustique") || textToSearch.contains("etkintox") || textToSearch.contains("kingtox") || textToSearch.contains("moskila") || textToSearch.contains("menabolo") || textToSearch.contains("salama") -> "Insecticides & Anti-moustiques"
+            textToSearch.contains("pile") || textToSearch.contains("battery") || textToSearch.contains("toshiba") || textToSearch.contains("energy r") || textToSearch.contains("voila r") -> "Piles électriques"
+            textToSearch.contains("pointe") || textToSearch.contains("vis") || textToSearch.contains("clou") || textToSearch.contains("quincaillerie") || textToSearch.contains("hardware") -> "Quincaillerie"
+            textToSearch.contains("hafa") || textToSearch.contains("autres / divers") || textToSearch.contains("divers") || textToSearch.contains("lollypop 48") -> "Autres / Divers"
+            else -> "Hafa"
+        }
+    }
+
+    fun performBarcodeLookup(code: String) {
+        if (code.isBlank()) return
+        coroutineScope.launch {
+            offSearchLoading = true
+            try {
+                val response = com.example.util.OpenFoodFactsApi.service.getProductByBarcode(code)
+                val p = response.product
+                if (p != null) {
+                    name = p.productName ?: ""
+                    barcode = p.code ?: code
+                    imageUrl = p.imageUrl ?: ""
+                    marque = p.brands ?: ""
+                    description = p.genericName ?: p.categories ?: ""
+                    selectedCategory = mapOffCategory(p.categories, p.productName)
+                    
+                    android.widget.Toast.makeText(
+                        context,
+                        if (activeLang == "mg") "Entana hita tamin'ny OFF! Ampidiro ny vidiny." else "Produit trouvé sur OFF! Saisissez le prix.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    android.widget.Toast.makeText(
+                        context,
+                        if (activeLang == "mg") "Tsy hita tamin'ny OFF" else "Produit non trouvé sur OFF",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                android.widget.Toast.makeText(
+                    context,
+                    if (activeLang == "mg") "Nisy olana teo amin'ny fifandraisana" else "Erreur de connexion OFF",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            } finally {
+                offSearchLoading = false
+            }
+        }
+    }
+
     // Smart prediction effect
     LaunchedEffect(name) {
         if (name.isBlank() || editingProduct != null) return@LaunchedEffect
@@ -140,11 +250,30 @@ fun AddProductScreen(
         
         if (!hasManuallyChangedCategory) {
             val predictedCat = when {
-                lower.contains("vary") || lower.contains("bary") || lower.contains("rice") || lower.contains("menaka") || lower.contains("oil") || lower.contains("huile") || lower.contains("sira") || lower.contains("sel") || lower.contains("saka") || lower.contains("sukra") || lower.contains("sucre") || lower.contains("biski") || lower.contains("biscuit") || lower.contains("koba") || lower.contains("farine") || lower.contains("lafarina") -> "Alimentation"
-                lower.contains("karoty") || lower.contains("pataty") || lower.contains("voatabia") || lower.contains("tongolo") || lower.contains("oignon") || lower.contains("legume") || lower.contains("tsaramaso") -> "Légumes"
-                lower.contains("rano") || lower.contains("eau") || lower.contains("jus") || lower.contains("cola") || lower.contains("beer") || lower.contains("biera") || lower.contains("fanta") || lower.contains("boisson") || lower.contains("sprite") -> "Boissons"
-                lower.contains("savony") || lower.contains("soap") || lower.contains("omipitika") || lower.contains("detergent") || lower.contains("shampoo") || lower.contains("odifitra") -> "Droguerie"
-                lower.contains("chocolat") || lower.contains("bonbon") || lower.contains("chewing") || lower.contains("kafe") || lower.contains("cafe") || lower.contains("the") -> "Épicerie"
+                lower.contains("farine") || lower.contains("boulangerie") || lower.contains("levure") || lower.contains("bread") || lower.contains("pain") || lower.contains("flour") || lower.contains("koba") || lower.contains("lafarina") -> "Épicerie - Farine & Boulangerie"
+                lower.contains("pâte") || lower.contains("pasta") || lower.contains("macaroni") || lower.contains("spaghetti") || lower.contains("noodle") || lower.contains("ramen") || lower.contains("elbow") || lower.contains("fusilli") || lower.contains("twist") -> "Épicerie - Pâtes alimentaires"
+                lower.contains("gear oil") || lower.contains("sae") || lower.contains("boss 4t") || lower.contains("atf") || lower.contains("graise") || lower.contains("graisse") || lower.contains("lubrifiant") || lower.contains("moteur") || lower.contains("engine") || lower.contains("lubec") -> "Lubrifiants & Fluides moteur"
+                lower.contains("huile") || lower.contains("oil") || lower.contains("menaka") || lower.contains("cocotop") || lower.contains("hina") -> "Épicerie - Huiles de cuisine"
+                lower.contains("lait") || lower.contains("dairy") || lower.contains("yogurt") || lower.contains("danica") || lower.contains("francelait") || lower.contains("ronono") || lower.contains("cheese") || lower.contains("fromage") || lower.contains("cream") || lower.contains("crème") -> "Épicerie - Lait & Produits laitiers"
+                lower.contains("margarine") || lower.contains("jadida") || lower.contains("orkide") || lower.contains("butter") || lower.contains("beurre") || lower.contains("matière grasse") || lower.contains("marga") -> "Épicerie - Margarine & Matières grasses"
+                lower.contains("conserve") || lower.contains("sardine") || lower.contains("canned") || lower.contains("mais doux") || lower.contains("d'or") || lower.contains("anny") || lower.contains("delmoneco") || lower.contains("mavo") || lower.contains("omega") || lower.contains("soleil d'or") -> "Épicerie - Conserves"
+                lower.contains("cube") || lower.contains("calnort") || lower.contains("ketchup") || lower.contains("mayonese") || lower.contains("mayonnaise") || lower.contains("lesieur") || lower.contains("sauce") || lower.contains("épice") || lower.contains("condiment") || lower.contains("sira") || lower.contains("sel") || lower.contains("assaisonnement") -> "Épicerie - Condiments, Épices & Assaisonnements"
+                lower.contains("snack") || lower.contains("biscuit") || lower.contains("biski") || lower.contains("cookie") || lower.contains("candy") || lower.contains("bonbon") || lower.contains("lollypop") || lower.contains("cake") || lower.contains("bingo") || lower.contains("chocolat") || lower.contains("sweet") || lower.contains("confi") || lower.contains("goma") || lower.contains("baume") || lower.contains("extra baume") -> "Épicerie - Confiseries & Snacks"
+                lower.contains("café") || lower.contains("cafe") || lower.contains("thé") || lower.contains("tea") || lower.contains("taf") || lower.contains("zoto") || lower.contains("salone") -> "Boissons - Café & Thé"
+                lower.contains("jus") || lower.contains("juice") || lower.contains("drink") || lower.contains("soda") || lower.contains("cola") || lower.contains("bashayer") || lower.contains("dynamic") || lower.contains("le fruit") || lower.contains("tampico") || lower.contains("eau") || lower.contains("rano") || lower.contains("sprite") || lower.contains("fanta") -> "Boissons - Jus"
+                lower.contains("hygiène") || lower.contains("beauté") || lower.contains("savon") || lower.contains("soap") || lower.contains("cali") || lower.contains("cosmetic") || lower.contains("dentifrice") || lower.contains("shamp") || lower.contains("cheveux") || lower.contains("belle") || lower.contains("jojoba") || lower.contains("kinana") || lower.contains("ravintsara") -> "Hygiène & Beauté"
+                lower.contains("couche") || lower.contains("bebem") || lower.contains("goodcare") || lower.contains("baby") || lower.contains("bebe") || lower.contains("lingette") || lower.contains("comfort") || lower.contains("pants") -> "Bébé - Couches & Lingettes"
+                lower.contains("nettoyage") || lower.contains("entretien") || lower.contains("ariel") || lower.contains("oxi") || lower.contains("detergent") || lower.contains("lessive") || lower.contains("savony") || lower.contains("bleu d'azure") -> "Entretien ménager & Nettoyage"
+                lower.contains("cirage") || lower.contains("presto") || lower.contains("salone mats") || lower.contains("chaussure") || lower.contains("pate presto") || lower.contains("pate salone") -> "Entretien chaussures (Cirage)"
+                lower.contains("désodorisant") || lower.contains("parfum d'ambiance") || lower.contains("boule ext auto") || lower.contains("air") -> "Désodorisants & Parfums d'ambiance"
+                lower.contains("cahier") || lower.contains("stylo") || lower.contains("classmate") || lower.contains("madabook") || lower.contains("fournitures") || lower.contains("papeterie") || lower.contains("school") || lower.contains("book") || lower.contains("cah") -> "Papeterie & Fournitures scolaires"
+                lower.contains("ampoule") || lower.contains("led") || lower.contains("eclairage") || lower.contains("light") || lower.contains("b22") || lower.contains("e27") || lower.contains("lightbulb") -> "Éclairage (Ampoules)"
+                lower.contains("bougie") || lower.contains("mateza") || lower.contains("voila pm") || lower.contains("zapp") -> "Bougies"
+                lower.contains("allumette") || lower.contains("briquet") || lower.contains("mimosa") || lower.contains("briq") || lower.contains("whatshot") || lower.contains("fire") || lower.contains("star queen") || lower.contains("roller") || lower.contains("tic-tak") -> "Allumettes & Briquets"
+                lower.contains("insecticide") || lower.contains("anti-moustique") || lower.contains("etkintox") || lower.contains("kingtox") || lower.contains("moskila") || lower.contains("menabolo") || lower.contains("salama") -> "Insecticides & Anti-moustiques"
+                lower.contains("pile") || lower.contains("battery") || lower.contains("toshiba") || lower.contains("energy r") || lower.contains("voila r") -> "Piles électriques"
+                lower.contains("pointe") || lower.contains("vis") || lower.contains("clou") || lower.contains("quincaillerie") || lower.contains("hardware") -> "Quincaillerie"
+                lower.contains("hafa") || lower.contains("autres / divers") || lower.contains("divers") || lower.contains("lollypop 48") -> "Autres / Divers"
                 else -> null
             }
             if (predictedCat != null) {
@@ -202,6 +331,61 @@ fun AddProductScreen(
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
+
+            // Open Food Facts Search Card
+            if (!isEditing) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showOffSearch = true },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.align(Alignment.Center)
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = when(activeLang) {
+                                    "mg" -> "Mikaroka amin'ny Open Food Facts"
+                                    "fr" -> "Rechercher sur Open Food Facts"
+                                    else -> "Search Open Food Facts"
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                text = when(activeLang) {
+                                    "mg" -> "Fenoy ho azy ny mombamomba ny vokatra"
+                                    "fr" -> "Remplir automatiquement la fiche produit"
+                                    else -> "Auto-fill product details instantly"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
+            }
 
             // Section 1: Core Identification
             Card(
@@ -660,6 +844,15 @@ fun AddProductScreen(
                                 modifier = Modifier.padding(end = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                if (barcode.isNotBlank()) {
+                                    IconButton(onClick = { performBarcodeLookup(barcode) }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Search,
+                                            contentDescription = "Search Barcode on Open Food Facts",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
                                 IconButton(onClick = { showLiveScanner = true }) {
                                     Icon(
                                         imageVector = Icons.Default.CameraAlt,
@@ -668,9 +861,7 @@ fun AddProductScreen(
                                     )
                                 }
                                 IconButton(onClick = {
-                                    val randomPrefix = listOf("611", "301", "325", "400").random()
-                                    val randomDigits = (1000000000..9999999999).random().toString()
-                                    barcode = randomPrefix + randomDigits.take(10)
+                                    barcode = com.example.util.BarcodeUtil.generateStandardBarcode()
                                 }) {
                                     Icon(
                                         imageVector = Icons.Default.Refresh,
@@ -680,7 +871,20 @@ fun AddProductScreen(
                                 }
                             }
                         },
-                        supportingText = { Text(barcodeSupportText) },
+                        supportingText = { 
+                            Column {
+                                Text(barcodeSupportText)
+                                if (barcode.isNotBlank()) {
+                                    Text(
+                                        text = if (activeLang == "mg") "Tsindrio ny fitaratra handinihana ity kaody ity tamin'ny OFF" else "Cliquez sur la loupe pour rechercher ce code sur OFF",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                }
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("product_barcode_input"),
@@ -1151,6 +1355,7 @@ fun AddProductScreen(
                         android.util.Log.d("AddProductScreen", "onBarcodeScanned triggered: scannedCode='$scannedCode'")
                         barcode = scannedCode
                         showLiveScanner = false
+                        performBarcodeLookup(scannedCode)
                     },
                     onClose = {
                         showLiveScanner = false
@@ -1158,6 +1363,301 @@ fun AddProductScreen(
                     language = activeLang,
                     themeColor = MaterialTheme.colorScheme.primary
                 )
+            }
+        }
+    }
+
+    if (showOffSearch) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showOffSearch = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.background,
+                tonalElevation = 8.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Open Food Facts",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        IconButton(onClick = { showOffSearch = false }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Search input
+                    OutlinedTextField(
+                        value = offSearchQuery,
+                        onValueChange = { offSearchQuery = it },
+                        placeholder = { 
+                            Text(
+                                if (activeLang == "mg") "Tadiavo eto ny entana..." 
+                                else "Saisissez un nom de produit ou mot-clé..."
+                            )
+                        },
+                        trailingIcon = {
+                            if (offSearchQuery.isNotBlank()) {
+                                IconButton(onClick = { offSearchQuery = "" }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear")
+                                }
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Madagascar filter toggle
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { offOnlyMadagascar = !offOnlyMadagascar }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        androidx.compose.material3.Switch(
+                            checked = offOnlyMadagascar,
+                            onCheckedChange = { offOnlyMadagascar = it }
+                        )
+                        Column {
+                            Text(
+                                text = if (activeLang == "mg") "Madagasikara ihany" else "Madagascar uniquement",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = if (activeLang == "mg") "Sivana ho an'ny vokatra misy eto an-toerana" else "Filtrer les produits disponibles localement",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = { 
+                            if (offSearchQuery.isNotBlank()) {
+                                offSearchLoading = true
+                                offSearchError = null
+                                coroutineScope.launch {
+                                    try {
+                                        val processedQuery = com.example.util.OpenFoodFactsApi.formatQueryForOff(offSearchQuery)
+                                        val response = if (offOnlyMadagascar) {
+                                            com.example.util.OpenFoodFactsApi.service.searchProducts(
+                                                terms = processedQuery,
+                                                tagtype0 = "countries",
+                                                tagContains0 = "contains",
+                                                tag0 = "madagascar"
+                                            )
+                                        } else {
+                                            com.example.util.OpenFoodFactsApi.service.searchProducts(terms = processedQuery)
+                                        }
+                                        offSearchResults = response.products ?: emptyList()
+                                        if (offSearchResults.isEmpty()) {
+                                            offSearchError = if (activeLang == "mg") "Tsy nahitana vokatra" else "Aucun produit trouvé"
+                                        }
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                        offSearchError = if (activeLang == "mg") "Nisy olana teo amin'ny fifandraisana" else "Erreur de connexion"
+                                    } finally {
+                                        offSearchLoading = false
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.Search, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(if (activeLang == "mg") "Mikaroka" else "Rechercher")
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Content Area
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (offSearchLoading) {
+                            CircularProgressIndicator()
+                        } else if (offSearchError != null) {
+                            Text(
+                                text = offSearchError ?: "",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else if (offSearchResults.isEmpty()) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(48.dp)
+                                )
+                                Text(
+                                    text = if (activeLang == "mg") "Tsy misy vokatra voasafidy" else "Entrez un mot-clé pour lancer la recherche",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        } else {
+                            androidx.compose.foundation.lazy.LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                items(offSearchResults.size) { index ->
+                                    val p = offSearchResults[index]
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                name = p.productName ?: ""
+                                                barcode = p.code ?: ""
+                                                imageUrl = p.imageUrl ?: ""
+                                                marque = p.brands ?: ""
+                                                description = p.genericName ?: p.categories ?: ""
+                                                selectedCategory = mapOffCategory(p.categories, p.productName)
+                                                showOffSearch = false
+                                                
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    if (activeLang == "mg") "Entana tafiditra! Vidiny sisa no ampidirina." 
+                                                    else "Détails du produit importés ! Saisissez le prix.",
+                                                    android.widget.Toast.LENGTH_LONG
+                                                ).show()
+                                            },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                        )
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            // Thumbnail Image
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(60.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            ) {
+                                                if (!p.imageUrl.isNullOrBlank()) {
+                                                    AsyncImage(
+                                                        model = p.imageUrl,
+                                                        contentDescription = null,
+                                                        contentScale = ContentScale.Crop,
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Image,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                        modifier = Modifier.align(Alignment.Center)
+                                                    )
+                                                }
+                                            }
+
+                                            // Product Details
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = p.productName ?: "Sans nom",
+                                                    fontWeight = FontWeight.Bold,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    maxLines = 2,
+                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                )
+                                                if (!p.brands.isNullOrBlank()) {
+                                                    Text(
+                                                        text = p.brands,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.primary,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                }
+                                                if (!p.code.isNullOrBlank()) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                        modifier = Modifier.padding(top = 4.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Label,
+                                                            contentDescription = null,
+                                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            modifier = Modifier.size(12.dp)
+                                                        )
+                                                        Text(
+                                                            text = p.code,
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowForward,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

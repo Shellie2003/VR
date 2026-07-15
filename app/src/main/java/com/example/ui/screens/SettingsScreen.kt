@@ -32,6 +32,7 @@ fun SettingsScreen(
     viewModel: InventoryViewModel,
     onNavigateToHistory: () -> Unit,
     onNavigateToCommission: () -> Unit,
+    onNavigateToBarcodes: () -> Unit,
     onNavigateToHome: () -> Unit
 ) {
     val activeLang by viewModel.language.collectAsState()
@@ -735,6 +736,76 @@ fun SettingsScreen(
                             )
                             Text(
                                 text = "Hijery ny tantaran'ny varotra rehetra",
+                                fontSize = 11.sp,
+                                color = secondaryTextColor
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = themeColor,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            // CARD REDIRECT TO BARCODES MANAGEMENT
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .clickable { onNavigateToBarcodes() }
+                    .testTag("settings_barcodes_button"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = themeColor.copy(alpha = 0.08f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, themeColor.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(themeColor),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.QrCode,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Fikirakirana Kaody Bar"
+                                    "fr" -> "Gestion des codes-barres"
+                                    else -> "Barcode Management"
+                                },
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Hijery, hiteraka ary hanonta taratasy kaody bar iray"
+                                    "fr" -> "Visualiser, générer et imprimer une feuille de codes-barres"
+                                    else -> "View, generate and print a sheet of barcodes"
+                                },
                                 fontSize = 11.sp,
                                 color = secondaryTextColor
                             )

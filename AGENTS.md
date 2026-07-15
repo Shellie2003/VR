@@ -48,8 +48,11 @@ Voici l'inventaire officiel des fonctionnalités implémentées dans l'applicati
 
 2. **Écran de Gestion de Stock & Inventaire (`InventoryListScreen` / `AddProductScreen`)**
    - Liste des produits avec recherche instantanée et filtrage par stock faible.
+   - **Retour à la ligne automatique des catégories :** Utilisation de `FlowRow` pour afficher la catégorie, le SKU et les badges de statut (ALERT, LOW QTY) afin d'éviter tout écrasement ou distorsion de la mise en page lorsque les noms de catégories sont longs.
    - Ajout ou édition complète d'un produit (Nom, Prix de vente, Prix d'achat de base, Unité, Code-barres, Seuil d'alerte de stock faible, Fournisseur attitré).
    - Suppression sécurisée et ajustement manuel rapide des quantités en stock.
+   - **Génération & Impression de Code-barres Vectoriels (Nouveau) :** Génération automatique et aléatoire de numéros de code-barres uniques (Code 39) en un clic. Création automatique en arrière-plan d'une étiquette PDF au format vectoriel haute résolution incluant le nom du produit et le code-barres, sauvegardée directement dans le dossier public `Downloads/EpicerieBarcodes`. Lancement instantané du flux d'impression Android standard (`PrintManager`) pour une impression rapide sur des étiquettes adhésives.
+   - **Intégration Open Food Facts API (Nouveau) :** Module de recherche mondiale de produits intégré permettant de scanner un code-barres ou de saisir un mot-clé pour pré-remplir instantanément la fiche produit. Récupère automatiquement le nom, la marque, la description, la catégorie (mappée intelligemment vers nos sections Alimentation, Boissons, Légumes, Épicerie, Droguerie, Hafa) ainsi que l'image miniature officielle du produit via Coil. L'utilisateur n'a plus qu'à saisir son prix de vente final.
 
 3. **Écran d'Historique des Ventes (`SalesHistoryScreen`)**
    - Journal chronologique détaillé de toutes les transactions effectuées.
@@ -67,6 +70,7 @@ Voici l'inventaire officiel des fonctionnalités implémentées dans l'applicati
    - Choix du mode d'affichage thématique (Sombre, Clair ou adaptation automatique selon le Système) pour une visibilité idéale de jour comme de nuit.
    - Modification du nom de l'épicerie affiché en haut de l'écran d'accueil.
    - Bouton de redirection vers le calculateur d'approvisionnement.
+   - Bouton de redirection vers l'écran de gestion et impression consolidée de codes-barres.
 
 6. **Écran de Calculateur d'Approvisionnement & Marges (`CommissionScreen`)**
    - Accessible depuis la page des Paramètres.
@@ -75,3 +79,13 @@ Voici l'inventaire officiel des fonctionnalités implémentées dans l'applicati
    - **Validation du réapprovisionnement :** Met à jour directement le stock du produit en y ajoutant les nouvelles unités reçues, enregistre le nouveau prix d'achat/gros et le nouveau prix de vente, et lie le fournisseur choisi au produit.
    - **Alerte de stock faible (Tahiry ho lany) :** Un deuxième onglet qui liste automatiquement tous les produits dont le niveau de stock est inférieur au seuil configuré, avec un bouton d'accès rapide "Approvisionner" pour les charger directement dans le calculateur.
    - **Ajout rapide de fournisseurs :** Formulaire en boîte de dialogue pour créer instantanément de nouveaux fournisseurs sur place si non listés.
+
+7. **Écran de Gestion de Codes-Barres (`BarcodeListScreen`)**
+   - Accessible depuis la page des Paramètres.
+   - **Filtres par onglets tactiles :** Sépare d'un clic les produits avec code-barres et sans code-barres pour un suivi instantané de l'état de l'inventaire.
+   - **Recherche temps réel & Groupement par Catégorie :** Filtrage instantané des produits par nom ou numéro de code-barres. Les produits sont triés et groupés dynamiquement par catégorie (par exemple : Alimentation, Boisson, etc.) avec des bannières de titre de section colorées et élégantes.
+   - **Génération unifiée en arrière-plan :** Pour les produits sans code-barres, un clic sur le bouton "Générer" attribue dynamiquement un code unique de 13 chiffres intégrant une clé de contrôle (checksum) conforme aux normes internationales EAN-13, et met à jour instantanément la base de données locale.
+   - **Impression consolidée intelligente (`varotra_code_barre.pdf`) :** Génère un document PDF unique regroupant l'ensemble des codes-barres générés par l'application sous forme de planche d'étiquettes vectorielles haute résolution disposées en grille de 2 colonnes (5 lignes par page) pour un scan optimal. Les produits y sont regroupés et ordonnés par catégorie.
+   - **Formes de codes-barres optimisées (EAN-13 Standard de Qualité) :** Les barres de garde (début, milieu, fin) s'étendent élégamment vers le bas à travers la zone de texte, et les chiffres sont espacés et présentés de manière conforme aux standards industriels sous la planche pour un scan instantané à la caméra ou avec un lecteur optique.
+   - **Saut de page automatique sans coupe :** Intègre une logique géométrique stricte de saut de page (dès 10 étiquettes atteintes par planche), garantissant qu'aucune étiquette ne soit coupée horizontalement entre deux pages.
+   - **Impression unitaire :** Possibilité de relancer individuellement l'impression d'un produit précis depuis sa fiche avec le même rendu EAN-13 haute fidélité.

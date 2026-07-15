@@ -41,6 +41,10 @@ class AppPreferences(context: Context) {
         get() = true
         set(value) = prefs.edit().putBoolean(KEY_ACTIVATED, value).apply()
 
+    var hasSeededNewCategories: Boolean
+        get() = prefs.getBoolean("key_has_seeded_new_categories", false)
+        set(value) = prefs.edit().putBoolean("key_has_seeded_new_categories", value).apply()
+
     var trialStartTime: Long
         get() {
             val start = prefs.getLong(KEY_TRIAL_START, 0L)

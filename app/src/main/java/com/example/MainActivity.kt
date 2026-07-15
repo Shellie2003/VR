@@ -56,7 +56,8 @@ enum class ScreenTab {
     Dettes,      // Client Debts
     Historique,  // Sales history
     Parametres,  // Settings
-    Commission   // Restocking & supply commission calculator
+    Commission,  // Restocking & supply commission calculator
+    BarcodeList  // Barcode management and sheet printing
 }
 
 class MainActivity : ComponentActivity() {
@@ -358,7 +359,7 @@ fun MainAppLayout(
             )
 
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres) {
+                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList) {
                     TopAppBarSection(
                         viewModel = viewModel,
                         onNavigateToSettings = { currentTab = ScreenTab.Parametres }
@@ -410,9 +411,14 @@ fun MainAppLayout(
                             viewModel = viewModel,
                             onNavigateToHistory = { currentTab = ScreenTab.Historique },
                             onNavigateToCommission = { currentTab = ScreenTab.Commission },
+                            onNavigateToBarcodes = { currentTab = ScreenTab.BarcodeList },
                             onNavigateToHome = navigateToHome
                         )
                         ScreenTab.Commission -> CommissionScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = { currentTab = ScreenTab.Parametres }
+                        )
+                        ScreenTab.BarcodeList -> BarcodeListScreen(
                             viewModel = viewModel,
                             onNavigateBack = { currentTab = ScreenTab.Parametres }
                         )
@@ -424,7 +430,7 @@ fun MainAppLayout(
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {
-                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres) {
+                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList) {
                     TopAppBarSection(
                         viewModel = viewModel,
                         onNavigateToSettings = { currentTab = ScreenTab.Parametres }
@@ -500,9 +506,14 @@ fun MainAppLayout(
                         viewModel = viewModel,
                         onNavigateToHistory = { currentTab = ScreenTab.Historique },
                         onNavigateToCommission = { currentTab = ScreenTab.Commission },
+                        onNavigateToBarcodes = { currentTab = ScreenTab.BarcodeList },
                         onNavigateToHome = navigateToHome
                     )
                     ScreenTab.Commission -> CommissionScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { currentTab = ScreenTab.Parametres }
+                    )
+                    ScreenTab.BarcodeList -> BarcodeListScreen(
                         viewModel = viewModel,
                         onNavigateBack = { currentTab = ScreenTab.Parametres }
                     )
