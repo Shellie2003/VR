@@ -9,7 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -685,7 +685,7 @@ fun SettingsScreen(
                     }
 
                     Icon(
-                        imageVector = Icons.Default.KeyboardArrowRight,
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = null,
                         tint = themeColor,
                         modifier = Modifier.size(24.dp)
@@ -745,7 +745,7 @@ fun SettingsScreen(
                     }
 
                     Icon(
-                        imageVector = Icons.Default.KeyboardArrowRight,
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = null,
                         tint = themeColor,
                         modifier = Modifier.size(24.dp)
@@ -815,7 +815,7 @@ fun SettingsScreen(
                     }
 
                     Icon(
-                        imageVector = Icons.Default.KeyboardArrowRight,
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = null,
                         tint = themeColor,
                         modifier = Modifier.size(24.dp)
@@ -874,7 +874,7 @@ fun SettingsScreen(
                             )
                             Text(
                                 text = when (activeLang) {
-                                    "mg" -> "Hampitahana ny tahiry sy ny varotra amin'ny finday hafa amin'ny alalan'ny Wi-Fi"
+                                    "mg" -> "Hampitahana ny tahiry sy ny varotra amin'ny finday haha amin'ny alalan'ny Wi-Fi"
                                     "fr" -> "Partager le stock et les ventes en temps réel via le réseau local Wi-Fi"
                                     else -> "Share stock and sales in real-time over local Wi-Fi"
                                 },
@@ -885,7 +885,7 @@ fun SettingsScreen(
                     }
 
                     Icon(
-                        imageVector = Icons.Default.KeyboardArrowRight,
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = null,
                         tint = themeColor,
                         modifier = Modifier.size(24.dp)

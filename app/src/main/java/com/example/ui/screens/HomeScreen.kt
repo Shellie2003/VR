@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.ShoppingBasket
 import androidx.compose.material3.*
@@ -197,7 +198,7 @@ fun HomeScreen(
                         color = Color(0xFFF57C00)
                     )
                     Icon(
-                        imageVector = Icons.Default.KeyboardArrowRight,
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = null,
                         tint = Color(0xFFF57C00),
                         modifier = Modifier.size(16.dp)
@@ -629,7 +630,7 @@ fun HomeScreen(
                             color = Color(0xFFF57C00)
                         )
                         Icon(
-                            imageVector = Icons.Default.KeyboardArrowRight,
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                             contentDescription = null,
                             tint = Color(0xFFF57C00),
                             modifier = Modifier.size(16.dp)

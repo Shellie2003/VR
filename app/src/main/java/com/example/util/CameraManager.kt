@@ -59,7 +59,6 @@ object CameraManager {
 
                 // Enable continuous auto-focus using Camera2Interop
                 try {
-                    @OptIn(ExperimentalCamera2Interop::class)
                     val extender = Camera2Interop.Extender(previewBuilder)
                     extender.setCaptureRequestOption(
                         CaptureRequest.CONTROL_AF_MODE,
@@ -97,7 +96,6 @@ object CameraManager {
 
                 // Enable continuous auto-focus on ImageAnalysis capture requests as well
                 try {
-                    @OptIn(ExperimentalCamera2Interop::class)
                     val extender = Camera2Interop.Extender(imageAnalysisBuilder)
                     extender.setCaptureRequestOption(
                         CaptureRequest.CONTROL_AF_MODE,

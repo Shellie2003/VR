@@ -1,6 +1,5 @@
 @file:kotlin.OptIn(
-    com.google.accompanist.permissions.ExperimentalPermissionsApi::class,
-    androidx.camera.core.ExperimentalGetImage::class
+    com.google.accompanist.permissions.ExperimentalPermissionsApi::class
 )
 
 package com.example.ui.components
@@ -276,7 +275,7 @@ fun BarcodeScannerView(
                     contentAlignment = Alignment.Center
                 ) {
                     if (hasCameraPermission) {
-                        val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+                        val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
                         AndroidView(
                             factory = { ctx ->

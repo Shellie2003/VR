@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -488,7 +489,7 @@ fun CalculatorScreen(
                                     modifier = Modifier.size(16.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Backspace,
+                                        imageVector = Icons.AutoMirrored.Filled.Backspace,
                                         contentDescription = "Clear",
                                         tint = Color.Red,
                                         modifier = Modifier.size(14.dp)
@@ -1085,7 +1086,7 @@ fun CalculatorScreen(
                             modifier = Modifier.size(16.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Backspace,
+                                imageVector = Icons.AutoMirrored.Filled.Backspace,
                                 contentDescription = "Clear",
                                 tint = Color.Red,
                                 modifier = Modifier.size(14.dp)
@@ -1317,7 +1318,7 @@ fun CalculatorScreen(
                             modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.ArrowBack,
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
                                 tint = MaterialTheme.colorScheme.primary
                             )
@@ -1446,7 +1447,7 @@ fun CalculatorScreen(
                                                 .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.Undo,
+                                                imageVector = Icons.AutoMirrored.Filled.Undo,
                                                 contentDescription = "Undo",
                                                 tint = Color.White,
                                                 modifier = Modifier.size(16.dp)
@@ -1556,7 +1557,7 @@ fun CalculatorScreen(
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Backspace,
+                                    imageVector = Icons.AutoMirrored.Filled.Backspace,
                                     contentDescription = "Clear",
                                     tint = Color.White,
                                     modifier = Modifier.size(18.dp)
@@ -1820,7 +1821,7 @@ fun CalculatorScreen(
                                                         modifier = Modifier.size(24.dp)
                                                     ) {
                                                         Icon(
-                                                            imageVector = Icons.Default.Backspace,
+                                                            imageVector = Icons.AutoMirrored.Filled.Backspace,
                                                             contentDescription = "Clear",
                                                             tint = Color.Red,
                                                             modifier = Modifier.size(14.dp)
@@ -1905,7 +1906,7 @@ fun CalculatorScreen(
                                                         modifier = Modifier.size(24.dp)
                                                     ) {
                                                         Icon(
-                                                            imageVector = Icons.Default.Backspace,
+                                                            imageVector = Icons.AutoMirrored.Filled.Backspace,
                                                             contentDescription = "Clear",
                                                             tint = Color.Red,
                                                             modifier = Modifier.size(14.dp)

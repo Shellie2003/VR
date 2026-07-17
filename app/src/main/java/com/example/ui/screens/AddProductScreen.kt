@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.foundation.BorderStroke
 import com.example.ui.components.BarcodeScannerView
@@ -413,7 +414,7 @@ fun AddProductScreen(
                                 .background(MaterialTheme.colorScheme.secondary)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.List,
+                                imageVector = Icons.AutoMirrored.Filled.List,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSecondary,
                                 modifier = Modifier.align(Alignment.Center)
@@ -1689,7 +1690,7 @@ fun AddProductScreen(
                                                         modifier = Modifier.padding(top = 4.dp)
                                                     ) {
                                                         Icon(
-                                                            imageVector = Icons.Default.Label,
+                                                            imageVector = Icons.AutoMirrored.Filled.Label,
                                                             contentDescription = null,
                                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                             modifier = Modifier.size(12.dp)
@@ -1704,7 +1705,7 @@ fun AddProductScreen(
                                             }
 
                                             Icon(
-                                                imageVector = Icons.Default.ArrowForward,
+                                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.primary
                                             )
@@ -1760,7 +1761,7 @@ fun AddProductScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.List,
+                                imageVector = Icons.AutoMirrored.Filled.List,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.secondary
                             )

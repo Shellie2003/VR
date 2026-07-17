@@ -27,11 +27,11 @@ object OpenFoodFactsApi {
 
     data class OffProduct(
         val code: String?,
-        @Json(name = "product_name") val productName: String?,
+        @param:Json(name = "product_name") val productName: String?,
         val categories: String?,
-        @Json(name = "image_url") val imageUrl: String?,
+        @param:Json(name = "image_url") val imageUrl: String?,
         val brands: String?,
-        @Json(name = "generic_name") val genericName: String?
+        @param:Json(name = "generic_name") val genericName: String?
     )
 
     interface Service {
