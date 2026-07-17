@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <array name="com_google_android_gms_fonts_certs">
+        <item>@array/com_google_android_gms_fonts_certs_dev</item>
+        <item>@array/com_google_android_gms_fonts_certs_prod</item>
+    </array>
+    <string-array name="com_google_android_gms_fonts_certs_dev">
+        <item>
+            MIIEqDCCA5CgAwIBAgIJANWFu/T1nIn7MA0GCSqGSIb3DQEBBQUAMFcxCzAJBgNVBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRYwFAYDVQQHDA1Nb3VudGFpbiBWaWV3MRQwEgYDVQQKDAtHb29nbGUgSW5jLjEQMA4GA1UECwwHQW5kcm9pZDAeFw0xMzAzMDYxOTA3MDlaFw00MTA3MTcxOTA3MDlaMFcxCzAJBgNVBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRYwFAYDVQQHDA1Nb3VudGFpbiBWaWV3MRQwEgYDVQQKDAtHb29nbGUgSW5jLjEQMA4GA1UECwwHQW5kcm9pZDCCASAwDQYJKoZIhvcNAQEBBQADggENADCCAQgCggEBANvC4VooIQ696MTZ2DHC7DPhS/b6H8XU0M4R8L6GFFWMawx/vWhfUplyBmBbFHcjgJQiSKJsK8872Wr25E/Z3EGq7Yj91akl7ifmLoXavVz40x2kcLyD01w0pt9zzSdD5EyEhmjFJVADib7+Ky8cIzzpVoGMbIpGl63dej1OsjtcA8NWFlKGu6mX5pJPobsFc9yNNC84mhN+676EbbUKEey653Z1CEE7YhBfALbdQJcg+jZYNAiSOz0VKscwNEDfQzuxJDR3X075EAKuS3IUreNKSDV8x6ksJLt73BV/v/7Dh31T3a9tRfYfbg2gopDJ4WHSElVsyxlQ/TKpl1Y0Af1tgLHrxTrm/OrAGzlj4EDOh78nHpkfKqyWmTE4STS5dd1II5kDIg==
+        </item>
+    </string-array>
+    <string-array name="com_google_android_gms_fonts_certs_prod">
+        <item>
+            MIIEqDCCA5CgAwIBAgIJANWFu/T1nIn7MA0GCSqGSIb3DQEBBQUAMFcxCzAJBgNVBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRYwFAYDVQQHDA1Nb3VudGFpbiBWaWV3MRQwEgYDVQQKDAtHb29nbGUgSW5jLjEQMA4GA1UECwwHQW5kcm9pZDAeFw0xMzAzMDYxOTA3MDlaFw00MTA3MTcxOTA3MDlaMFcxCzAJBgNVBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRYwFAYDVQQHDA1Nb3VudGFpbiBWaWV3MRQwEgYDVQQKDAtHb29nbGUgSW5jLjEQMA4GA1UECwwHQW5kcm9pZDCCASAwDQYJKoZIhvcNAQEBBQADggENADCCAQgCggEBANvC4VooIQ696MTZ2DHC7DPhS/b6H8XU0M4R8L6GFFWMawx/vWhfUplyBmBbFHcjgJQiSKJsK8872Wr25E/Z3EGq7Yj91akl7ifmLoXavVz40x2kcLyD01w0pt9zzSdD5EyEhmjFJVADib7+Ky8cIzzpVoGMbIpGl63dej1OsjtcA8NWFlKGu6mX5pJPobsFc9yNNC84mhN+676EbbUKEey653Z1CEE7YhBfALbdQJcg+jZYNAiSOz0VKscwNEDfQzuxJDR3X075EAKuS3IUreNKSDV8x6ksJLt73BV/v/7Dh31T3a9tRfYfbg2gopDJ4WHSElVsyxlQ/TKpl1Y0Af1tgLHrxTrm/OrAGzlj4EDOh78nHpkfKqyWmTE4STS5dd1II5kDIg==
+        </item>
+    </string-array>
+</resources>

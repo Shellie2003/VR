@@ -186,7 +186,7 @@ fun DebtsScreen(
                 contentPadding = PaddingValues(bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(debts) { debt ->
+                items(debts, key = { it.id }) { debt ->
                     DebtCard(
                         debt = debt,
                         activeLang = activeLang,

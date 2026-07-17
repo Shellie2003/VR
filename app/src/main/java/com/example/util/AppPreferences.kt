@@ -45,6 +45,10 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean("key_has_seeded_new_categories", false)
         set(value) = prefs.edit().putBoolean("key_has_seeded_new_categories", value).apply()
 
+    var excludedProductIds: Set<String>
+        get() = prefs.getStringSet("key_excluded_product_ids", emptySet()) ?: emptySet()
+        set(value) = prefs.edit().putStringSet("key_excluded_product_ids", value).apply()
+
     var trialStartTime: Long
         get() {
             val start = prefs.getLong(KEY_TRIAL_START, 0L)

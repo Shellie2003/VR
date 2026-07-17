@@ -13,6 +13,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.foundation.BorderStroke
@@ -98,6 +101,7 @@ fun AddProductScreen(
     // Open Food Facts states and helpers
     val coroutineScope = rememberCoroutineScope()
     var showOffSearch by remember { mutableStateOf(false) }
+    var showTemplateSearch by remember { mutableStateOf(false) }
     var offSearchQuery by remember { mutableStateOf("") }
     var offSearchResults by remember { mutableStateOf<List<com.example.util.OpenFoodFactsApi.OffProduct>>(emptyList()) }
     var offSearchLoading by remember { mutableStateOf(false) }
@@ -381,6 +385,59 @@ fun AddProductScreen(
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
+
+                // Choose from Templates Card
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showTemplateSearch = true },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.secondary)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.List,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSecondary,
+                                modifier = Modifier.align(Alignment.Center)
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = when(activeLang) {
+                                    "mg" -> "Mampiasa modely vokatra efa misy"
+                                    "fr" -> "Utiliser un modèle de produit"
+                                    else -> "Use a product template"
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                text = when(activeLang) {
+                                    "mg" -> "Mifidiana amin'ny sokajy sy vokatra an-jatony efa vonona"
+                                    "fr" -> "Choisir parmi des centaines de produits pré-configurés"
+                                    else -> "Choose from hundreds of pre-configured products"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
                             )
                         }
                     }
@@ -1650,6 +1707,187 @@ fun AddProductScreen(
                                                 imageVector = Icons.Default.ArrowForward,
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showTemplateSearch) {
+        val templateCategoriesState = viewModel.getAllTemplateCategories().collectAsState(initial = emptyList())
+        val templateCategories = listOf("All") + templateCategoriesState.value
+
+        var queryText by remember { mutableStateOf("") }
+        var selectedCat by remember { mutableStateOf("All") }
+        val templatesListState = viewModel.searchTemplateProductsInDb(queryText, selectedCat).collectAsState(initial = emptyList())
+        val templatesList = templatesListState.value
+
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showTemplateSearch = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.background,
+                tonalElevation = 8.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.List,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                            Text(
+                                text = if (activeLang == "mg") "Modely vokatra efa misy" else "Modèles de produits",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                        IconButton(onClick = { showTemplateSearch = false }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Search input
+                    OutlinedTextField(
+                        value = queryText,
+                        onValueChange = { queryText = it },
+                        placeholder = { Text(if (activeLang == "mg") "Hikaroka modely..." else "Rechercher un modèle...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (queryText.isNotEmpty()) {
+                                IconButton(onClick = { queryText = "" }) {
+                                    Icon(Icons.Default.Clear, contentDescription = null)
+                                }
+                            }
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Categories LazyRow
+                    androidx.compose.foundation.lazy.LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                    ) {
+                        items(templateCategories) { cat ->
+                            val isSelected = selectedCat == cat
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { selectedCat = cat },
+                                label = { Text(cat, style = MaterialTheme.typography.bodySmall) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            )
+                        }
+                    }
+
+                    // Templates List
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        if (templatesList.isEmpty()) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = if (activeLang == "mg") "Tsy misy modely hita" else "Aucun modèle trouvé",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        } else {
+                            androidx.compose.foundation.lazy.LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                items(templatesList) { item ->
+                                    Card(
+                                        onClick = {
+                                            // Pre-fill the form with template details!
+                                            name = item.name
+                                            selectedCategory = item.category
+                                            selectedUnit = item.unit
+                                            sku = item.sku
+                                            priceStr = "" // Let user enter sale price
+                                            prixAchatUniteBaseStr = "" // Let user enter purchase price
+                                            stockStr = "" // Let user enter initial stock
+                                            
+                                            showTemplateSearch = false
+                                            
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                if (activeLang == "mg") "Modely voafantina! Ampidiro ny vidiny sy ny tahiry." 
+                                                else "Modèle sélectionné ! Remplissez le prix et le stock.",
+                                                android.widget.Toast.LENGTH_LONG
+                                            ).show()
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                        ),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = item.name,
+                                                    fontWeight = FontWeight.Bold,
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                                Text(
+                                                    text = item.category,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    modifier = Modifier.padding(top = 2.dp)
+                                                )
+                                                if (item.unit.isNotEmpty()) {
+                                                    Text(
+                                                        text = "Unité: ${item.unit}",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                    )
+                                                }
+                                            }
+                                            Icon(
+                                                imageVector = Icons.Default.Add,
+                                                tint = MaterialTheme.colorScheme.secondary,
+                                                contentDescription = "Select"
                                             )
                                         }
                                     }

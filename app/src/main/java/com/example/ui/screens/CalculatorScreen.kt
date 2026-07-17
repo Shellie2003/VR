@@ -199,7 +199,7 @@ fun CalculatorScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(bottom = 8.dp)
                         ) {
-                            items(filteredProducts) { product ->
+                            items(filteredProducts, key = { it.id }) { product ->
                                 CashRegisterProductCard(
                                     product = product,
                                     onAddToCart = { prod, qty -> viewModel.addToCart(prod, qty) },
@@ -227,7 +227,7 @@ fun CalculatorScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val quickMiscTitle = when (activeLang) {
-                            "mg" -> "Vola Mivantana (Quick Misc)"
+                            "mg" -> "Vola Mivantana"
                             "fr" -> "Divers rapide"
                             else -> "Quick Miscellaneous"
                         }
@@ -311,7 +311,7 @@ fun CalculatorScreen(
                                 verticalArrangement = Arrangement.spacedBy(1.dp),
                                 contentPadding = PaddingValues(vertical = 4.dp)
                             ) {
-                                items(cart) { item ->
+                                items(cart, key = { it.id }) { item ->
                                     val maxStock = item.maxStock
                                     val step = if (item.unit.lowercase().contains("litre") || 
                                                    item.unit.lowercase().contains("kilo") || 
@@ -808,7 +808,7 @@ fun CalculatorScreen(
                         verticalArrangement = Arrangement.spacedBy(1.dp),
                         contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
-                        items(cart) { item ->
+                        items(cart, key = { it.id }) { item ->
                             val maxStock = item.maxStock
                             val step = if (item.unit.lowercase().contains("litre") || 
                                            item.unit.lowercase().contains("kilo") || 
@@ -1009,7 +1009,7 @@ fun CalculatorScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(bottom = 4.dp, top = 4.dp)
                         ) {
-                            items(filteredProducts) { product ->
+                            items(filteredProducts, key = { it.id }) { product ->
                                 CashRegisterProductCard(
                                     product = product,
                                     onAddToCart = { prod, qty -> viewModel.addToCart(prod, qty) },

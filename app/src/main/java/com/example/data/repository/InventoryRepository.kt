@@ -17,19 +17,34 @@ class InventoryRepository(
     val mouvementStockDao: MouvementStockDao,
     val lotProduitDao: LotProduitDao,
     val venteDao: VenteDao,
-    val lignesVenteDao: LigneVenteDao
+    val lignesVenteDao: LigneVenteDao,
+    val restockDao: RestockDao
 ) {
     val allProducts: Flow<List<Product>> = productDao.getAllProducts()
     val allSales: Flow<List<Sale>> = saleDao.getAllSales()
     val allDebts: Flow<List<Debt>> = debtDao.getAllDebts()
+    val allRestocks: Flow<List<Restock>> = restockDao.getAllRestocks()
     val allCategories: Flow<List<String>> = productDao.getAllCategories()
+
+    suspend fun insertRestock(restock: Restock) {
+        restockDao.insertRestock(restock)
+    }
+
+    suspend fun deleteRestock(restock: Restock) {
+        restockDao.deleteRestock(restock)
+    }
 
     fun getLimitedProducts(limit: Int): Flow<List<Product>> = productDao.getLimitedProducts(limit)
     fun searchProducts(query: String, category: String, showLowStockOnly: Boolean): Flow<List<Product>> = 
         productDao.searchProducts(query, category, showLowStockOnly)
+    fun searchTemplateProducts(query: String, category: String): Flow<List<Product>> = 
+        productDao.searchTemplateProducts(query, category)
+    fun getAllTemplateCategories(): Flow<List<String>> = productDao.getAllTemplateCategories()
     fun hasProducts(): Flow<Boolean> = productDao.hasProducts()
+    fun hasTemplates(): Flow<Boolean> = productDao.hasTemplates()
     fun getProductsWithBarcodes(): Flow<List<Product>> = productDao.getProductsWithBarcodes()
     suspend fun getProductByBarcode(barcode: String): Product? = productDao.getProductByBarcode(barcode)
+    suspend fun getProductByName(name: String): Product? = productDao.getProductByName(name)
 
     suspend fun insertProduct(product: Product) {
         val generatedId = productDao.insertProduct(product)
@@ -60,10 +75,17 @@ class InventoryRepository(
             dateAjout = existingProduit?.dateAjout ?: System.currentTimeMillis(),
             dateDerniereMaj = System.currentTimeMillis()
         )
-        produitDao.insertProduit(newProduit)
+        if (existingProduit != null) {
+            produitDao.updateProduit(newProduit)
+        } else {
+            produitDao.insertProduit(newProduit)
+        }
 
         // Upsert default UniteProduit
-        val existingUnite = if (productWithId.barcode.isNotEmpty()) uniteProduitDao.getUniteByBarcode(productWithId.barcode) else null
+        val existingUnite = (if (productWithId.barcode.isNotEmpty()) {
+            uniteProduitDao.getUniteByBarcode(productWithId.barcode)
+        } else null) ?: uniteProduitDao.getBaseUniteForProduit(generatedId)
+
         val baseUnite = UniteProduit(
             id = existingUnite?.id ?: 0L,
             produitId = generatedId,
@@ -131,7 +153,10 @@ class InventoryRepository(
         }
 
         // Upsert default UniteProduit
-        val existingUnite = if (product.barcode.isNotEmpty()) uniteProduitDao.getUniteByBarcode(product.barcode) else null
+        val existingUnite = (if (product.barcode.isNotEmpty()) {
+            uniteProduitDao.getUniteByBarcode(product.barcode)
+        } else null) ?: uniteProduitDao.getBaseUniteForProduit(product.id.toLong())
+
         val baseUnite = UniteProduit(
             id = existingUnite?.id ?: 0L,
             produitId = product.id.toLong(),

@@ -46,15 +46,29 @@ class InventoryViewModel(
     val colorTheme = MutableStateFlow(appPreferences.colorTheme)
     val themeMode = MutableStateFlow(appPreferences.themeMode)
     val shopMode = MutableStateFlow(appPreferences.shopMode)
+    val excludedProductIds = MutableStateFlow(appPreferences.excludedProductIds)
+
+    fun toggleProductSyncExclusion(productId: Int) {
+        val currentSet = appPreferences.excludedProductIds.toMutableSet()
+        val idStr = productId.toString()
+        if (currentSet.contains(idStr)) {
+            currentSet.remove(idStr)
+        } else {
+            currentSet.add(idStr)
+        }
+        appPreferences.excludedProductIds = currentSet
+        excludedProductIds.value = currentSet
+        triggerLocalSafetyBackup()
+    }
 
     val themeColor: StateFlow<androidx.compose.ui.graphics.Color> = colorTheme.map {
         when (it) {
             "sunset" -> androidx.compose.ui.graphics.Color(0xFFE65100)
             "indigo" -> androidx.compose.ui.graphics.Color(0xFF1E3A8A)
             "rose" -> androidx.compose.ui.graphics.Color(0xFF881337)
-            else -> androidx.compose.ui.graphics.Color(0xFF13503C) // "emerald" / default
+            else -> androidx.compose.ui.graphics.Color(0xFF012D1D) // default primary
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), androidx.compose.ui.graphics.Color(0xFF13503C))
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), androidx.compose.ui.graphics.Color(0xFF012D1D))
 
     fun updateGroceryName(name: String) {
         appPreferences.groceryName = name
@@ -113,10 +127,154 @@ class InventoryViewModel(
     val allDebts: StateFlow<List<Debt>> = repository.allDebts
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val allRestocks: StateFlow<List<com.example.data.model.Restock>> = repository.allRestocks
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun saveRestock(restock: com.example.data.model.Restock) {
+        viewModelScope.launch {
+            repository.insertRestock(restock)
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    fun deleteRestock(restock: com.example.data.model.Restock) {
+        viewModelScope.launch {
+            repository.deleteRestock(restock)
+            triggerLocalSafetyBackup()
+        }
+    }
+
     val categories: StateFlow<List<String>> = repository.allCategories
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Combined Flow for searched & filtered products using database-level search
+    val lastClickedProductId = MutableStateFlow<Int?>(null)
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val coOccurrenceMap: StateFlow<Map<Int, Map<Int, Int>>> = allSales
+        .map { sales ->
+            val map = mutableMapOf<Int, MutableMap<Int, Int>>()
+            for (sale in sales) {
+                val itemIds = sale.items.map { it.productId }.distinct()
+                if (itemIds.size < 2) continue
+                for (i in itemIds.indices) {
+                    val p1 = itemIds[i]
+                    if (p1 == 0) continue
+                    for (j in i + 1 until itemIds.size) {
+                        val p2 = itemIds[j]
+                        if (p2 == 0) continue
+                        map.getOrPut(p1) { mutableMapOf() }[p2] = (map[p1]?.get(p2) ?: 0) + 1
+                        map.getOrPut(p2) { mutableMapOf() }[p1] = (map[p2]?.get(p1) ?: 0) + 1
+                    }
+                }
+            }
+            map
+        }
+        .flowOn(kotlinx.coroutines.Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    private fun getSemanticScore(p1: Product, p2: Product): Double {
+        val name1 = p1.name.lowercase()
+        val name2 = p2.name.lowercase()
+        var score = 0.0
+
+        if (p1.category == p2.category) {
+            score += 1.0
+        }
+
+        if (name1.contains("sucre")) {
+            if (name2.contains("café") || name2.contains("cafe") || name2.contains("taf")) score += 20.0
+            if (name2.contains("thé") || name2.contains("the")) score += 15.0
+            if (name2.contains("lait") || name2.contains("francelait")) score += 15.0
+            if (name2.contains("farine")) score += 10.0
+            if (name2.contains("biscuit") || name2.contains("biski")) score += 8.0
+        }
+        if (name2.contains("sucre")) {
+            if (name1.contains("café") || name1.contains("cafe") || name1.contains("taf")) score += 20.0
+            if (name1.contains("thé") || name1.contains("the")) score += 15.0
+            if (name1.contains("lait") || name1.contains("francelait")) score += 15.0
+            if (name1.contains("farine")) score += 10.0
+            if (name1.contains("biscuit") || name1.contains("biski")) score += 8.0
+        }
+
+        if (name1.contains("huile") || name1.contains("oil") || name1.contains("menaka")) {
+            if (name2.contains("vary") || name2.contains("riz")) score += 25.0
+            if (name2.contains("pâte") || name2.contains("pate") || name2.contains("mac") || name2.contains("spaghetti")) score += 20.0
+            if (name2.contains("sardine")) score += 18.0
+            if (name2.contains("sel")) score += 15.0
+            if (name2.contains("farine")) score += 12.0
+        }
+        if (name2.contains("huile") || name2.contains("oil") || name2.contains("menaka")) {
+            if (name1.contains("vary") || name1.contains("riz")) score += 25.0
+            if (name1.contains("pâte") || name1.contains("pate") || name1.contains("mac") || name1.contains("spaghetti")) score += 20.0
+            if (name1.contains("sardine")) score += 18.0
+            if (name1.contains("sel")) score += 15.0
+            if (name1.contains("farine")) score += 12.0
+        }
+
+        if (name1.contains("café") || name1.contains("cafe") || name1.contains("taf") || name1.contains("thé") || name1.contains("the")) {
+            if (name2.contains("sucre")) score += 20.0
+            if (name2.contains("lait") || name2.contains("francelait")) score += 15.0
+        }
+        if (name2.contains("café") || name2.contains("cafe") || name2.contains("taf") || name2.contains("thé") || name2.contains("the")) {
+            if (name1.contains("sucre")) score += 20.0
+            if (name1.contains("lait") || name1.contains("francelait")) score += 15.0
+        }
+
+        if (name1.contains("farine")) {
+            if (name2.contains("levure") || name2.contains("gloripan")) score += 25.0
+            if (name2.contains("sucre")) score += 15.0
+            if (name2.contains("marga") || name2.contains("jadida") || name2.contains("orkide") || name2.contains("beurre")) score += 20.0
+        }
+        if (name2.contains("farine")) {
+            if (name1.contains("levure") || name1.contains("gloripan")) score += 25.0
+            if (name1.contains("sucre")) score += 15.0
+            if (name1.contains("marga") || name1.contains("jadida") || name1.contains("orkide") || name1.contains("beurre")) score += 20.0
+        }
+
+        if (name1.contains("savon") || name1.contains("savony")) {
+            if (name2.contains("dentifrice") || name2.contains("signal") || name2.contains("colgate")) score += 20.0
+            if (name2.contains("brosse")) score += 15.0
+            if (name2.contains("shampoing")) score += 15.0
+            if (name2.contains("det ") || name2.contains("ariel") || name2.contains("oxi") || name2.contains("lessive")) score += 10.0
+        }
+        if (name2.contains("savon") || name2.contains("savony")) {
+            if (name1.contains("dentifrice") || name1.contains("signal") || name1.contains("colgate")) score += 20.0
+            if (name1.contains("brosse")) score += 15.0
+            if (name1.contains("shampoing")) score += 15.0
+            if (name1.contains("det ") || name1.contains("ariel") || name1.contains("oxi") || name1.contains("lessive")) score += 10.0
+        }
+
+        if (name1.contains("couche") || name1.contains("cou ")) {
+            if (name2.contains("lingette")) score += 25.0
+            if (name2.contains("goodcare") || name2.contains("bebem") || name2.contains("lait")) score += 15.0
+        }
+        if (name2.contains("couche") || name2.contains("cou ")) {
+            if (name1.contains("lingette")) score += 25.0
+            if (name1.contains("goodcare") || name1.contains("bebem") || name1.contains("lait")) score += 15.0
+        }
+
+        if (name1.contains("ampoule") || name1.contains("amp ")) {
+            if (name2.contains("pile") || name2.contains("toshiba") || name2.contains("energy")) score += 20.0
+            if (name2.contains("bougie") || name2.contains("mateza")) score += 15.0
+            if (name2.contains("allumette") || name2.contains("briquet") || name2.contains("mimosa")) score += 15.0
+        }
+        if (name2.contains("ampoule") || name2.contains("amp ")) {
+            if (name1.contains("pile") || name1.contains("toshiba") || name1.contains("energy")) score += 20.0
+            if (name1.contains("bougie") || name1.contains("mateza")) score += 15.0
+            if (name1.contains("allumette") || name1.contains("briquet") || name1.contains("mimosa")) score += 15.0
+        }
+
+        if (name1.contains("bougie") || name1.contains("mateza")) {
+            if (name2.contains("allumette") || name2.contains("briquet") || name2.contains("mimosa") || name2.contains("roller")) score += 25.0
+        }
+        if (name2.contains("bougie") || name2.contains("mateza")) {
+            if (name1.contains("allumette") || name1.contains("briquet") || name1.contains("mimosa") || name1.contains("roller")) score += 25.0
+        }
+
+        return score
+    }
+
+    // Combined Flow for searched & filtered products using database-level search and dynamic predictive association sorting
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val filteredProducts: StateFlow<List<Product>> = combine(
         searchQuery,
@@ -126,7 +284,29 @@ class InventoryViewModel(
         Triple(query, cat, lowStockOnly)
     }.flatMapLatest { (query, cat, lowStockOnly) ->
         repository.searchProducts(query, cat, lowStockOnly)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.combine(combine(lastClickedProductId, coOccurrenceMap) { lastId, coMap ->
+        lastId to coMap
+    }) { products, (lastId, coMap) ->
+        if (lastId == null) {
+            products
+        } else {
+            val clickedProduct = products.find { it.id == lastId } ?: allProducts.value.find { it.id == lastId }
+            val clickedCoOccurrences = coMap[lastId] ?: emptyMap()
+            
+            products.sortedWith(compareByDescending { product ->
+                if (product.id == lastId) {
+                    999999.0
+                } else {
+                    val coOccurCount = clickedCoOccurrences[product.id] ?: 0
+                    val coScore = coOccurCount * 1000.0
+                    val semScore = if (clickedProduct != null) getSemanticScore(clickedProduct, product) else 0.0
+                    coScore + semScore
+                }
+            })
+        }
+    }
+    .flowOn(kotlinx.coroutines.Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Combined Flow for searched & filtered debts
     val filteredDebts: StateFlow<List<Debt>> = combine(
@@ -155,15 +335,23 @@ class InventoryViewModel(
     init {
         viewModelScope.launch {
             repository.hasProducts().take(1).collect { hasProducts ->
-                if (!hasProducts) {
+                val hasBackupFile = com.example.util.BackupHelper.hasBackup(context)
+                if (hasBackupFile) {
+                    val restored = restoreLocalSafetyBackup()
+                    if (restored) {
+                        addSyncLog("Famerenana ny tahiry avy amin'ny backup fiarovana nahomby!")
+                    }
+                } else if (!hasProducts) {
                     seedSampleProducts()
                 }
             }
         }
         viewModelScope.launch {
-            if (!appPreferences.hasSeededNewCategories) {
-                seedNewCategoriesAndProducts()
-                appPreferences.hasSeededNewCategories = true
+            repository.hasTemplates().take(1).collect { hasTemplates ->
+                if (!hasTemplates || !appPreferences.hasSeededNewCategories) {
+                    seedNewCategoriesAndProducts()
+                    appPreferences.hasSeededNewCategories = true
+                }
             }
         }
     }
@@ -397,7 +585,7 @@ class InventoryViewModel(
             Product(name = "BONBON LOLLYPOP 48*16", price = 0.0, category = "Autres / Divers", stock = 0.0, unit = "Pièce", prixAchatUniteBase = 0.0)
         )
         newProducts.forEach { product ->
-            repository.insertProduct(product)
+            repository.insertProduct(product.copy(isTemplate = true))
         }
     }
 
@@ -514,6 +702,61 @@ class InventoryViewModel(
         val cartSnapshot = _cart.value
         if (cartSnapshot.isEmpty()) return false
 
+        // Check if we are a client terminal
+        if (com.example.sync.SyncManager.isConnected.value && !com.example.sync.SyncManager.isServer.value) {
+            // We are a Client! We must request validation from the Server.
+            val soldItems = cartSnapshot.map {
+                com.example.sync.ProductDeduction(
+                    productId = it.productId?.toString() ?: "",
+                    quantity = it.quantity
+                )
+            }
+            
+            // Generate Sale JSON
+            val soldItemsForSale = cartSnapshot.map {
+                SoldItem(
+                    productId = it.productId ?: 0,
+                    name = it.name,
+                    quantity = it.quantity,
+                    price = it.price
+                )
+            }
+            val total = cartSnapshot.sumOf { it.totalPrice }
+            val newSale = Sale(
+                timestamp = System.currentTimeMillis(),
+                totalAmount = total,
+                items = soldItemsForSale
+            )
+            
+            // Convert Sale to JSON using standard JSONObject
+            val saleJsonObj = org.json.JSONObject()
+            saleJsonObj.put("timestamp", newSale.timestamp)
+            saleJsonObj.put("totalAmount", newSale.totalAmount)
+            val itemsArr = org.json.JSONArray()
+            newSale.items.forEach {
+                val itemObj = org.json.JSONObject()
+                itemObj.put("productId", it.productId)
+                itemObj.put("name", it.name)
+                itemObj.put("quantity", it.quantity)
+                itemObj.put("price", it.price)
+                itemsArr.put(itemObj)
+            }
+            saleJsonObj.put("items", itemsArr)
+            val saleJson = saleJsonObj.toString()
+
+            // Run blocking connection to server
+            val success = kotlinx.coroutines.runBlocking {
+                com.example.sync.SyncManager.requestSaleOnServer(saleJson, soldItems)
+            }
+
+            if (success) {
+                clearCart()
+                return true
+            } else {
+                return false
+            }
+        }
+
         viewModelScope.launch {
             try {
                 val soldItems = cartSnapshot.map {
@@ -550,6 +793,10 @@ class InventoryViewModel(
 
                 // 3. Clear cart
                 clearCart()
+
+                // Trigger network database sync automatically
+                com.example.sync.SyncManager.triggerDatabaseSync()
+                triggerLocalSafetyBackup()
             } catch (e: Throwable) {
                 e.printStackTrace()
             }
@@ -560,6 +807,14 @@ class InventoryViewModel(
     // Robust searching methods
     fun searchProductsInDb(query: String): Flow<List<Product>> {
         return repository.searchProducts(query, "All", false)
+    }
+
+    fun searchTemplateProductsInDb(query: String, category: String = "All"): Flow<List<Product>> {
+        return repository.searchTemplateProducts(query, category)
+    }
+
+    fun getAllTemplateCategories(): Flow<List<String>> {
+        return repository.getAllTemplateCategories()
     }
 
     fun getProductsWithBarcodes(): Flow<List<Product>> {
@@ -584,6 +839,8 @@ class InventoryViewModel(
                     NotificationHelper.showLowStockNotification(context, product)
                 }
             }
+            com.example.sync.SyncManager.triggerDatabaseSync()
+            triggerLocalSafetyBackup()
         }
     }
 
@@ -591,6 +848,8 @@ class InventoryViewModel(
         viewModelScope.launch {
             repository.deleteProduct(product)
             removeFromCart("product_${product.id}")
+            com.example.sync.SyncManager.triggerDatabaseSync()
+            triggerLocalSafetyBackup()
         }
     }
 
@@ -601,12 +860,16 @@ class InventoryViewModel(
             if (updatedProduct.isLowStock) {
                 NotificationHelper.showLowStockNotification(context, updatedProduct)
             }
+            com.example.sync.SyncManager.triggerDatabaseSync()
+            triggerLocalSafetyBackup()
         }
     }
 
     fun deleteSale(sale: Sale) {
         viewModelScope.launch {
             repository.deleteSale(sale)
+            com.example.sync.SyncManager.triggerDatabaseSync()
+            triggerLocalSafetyBackup()
         }
     }
 
@@ -614,6 +877,8 @@ class InventoryViewModel(
     fun saveDebt(debt: Debt) {
         viewModelScope.launch {
             repository.insertDebt(debt)
+            com.example.sync.SyncManager.triggerDatabaseSync()
+            triggerLocalSafetyBackup()
         }
     }
 
@@ -629,6 +894,8 @@ class InventoryViewModel(
                     isPaid = isPaidNow
                 )
                 repository.updateDebt(updatedDebt)
+                com.example.sync.SyncManager.triggerDatabaseSync()
+                triggerLocalSafetyBackup()
             }
         }
     }
@@ -636,6 +903,8 @@ class InventoryViewModel(
     fun deleteDebt(debt: Debt) {
         viewModelScope.launch {
             repository.deleteDebt(debt)
+            com.example.sync.SyncManager.triggerDatabaseSync()
+            triggerLocalSafetyBackup()
         }
     }
 
@@ -646,6 +915,406 @@ class InventoryViewModel(
     fun saveFournisseur(fournisseur: Fournisseur) {
         viewModelScope.launch {
             repository.fournisseurDao.insertFournisseur(fournisseur)
+        }
+    }
+
+    // MULTI-TERMINAL SYNCHRONIZATION BRIDGE METHODS
+    val syncLogs = MutableStateFlow<List<String>>(emptyList())
+
+    fun addSyncLog(text: String) {
+        val current = syncLogs.value.takeLast(100).toMutableList()
+        val timeStr = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+        current.add("[$timeStr] $text")
+        syncLogs.value = current
+    }
+
+    fun reserveStockSync(productId: String, quantity: Double): Boolean {
+        val id = productId.toIntOrNull() ?: return false
+        val product = kotlinx.coroutines.runBlocking { repository.getProductById(id) } ?: return false
+        return product.stock >= quantity
+    }
+
+    fun commitSaleSync(saleJson: String): Boolean {
+        return try {
+            val obj = org.json.JSONObject(saleJson)
+            val timestamp = obj.getLong("timestamp")
+            val totalAmount = obj.getDouble("totalAmount")
+            val itemsArr = obj.getJSONArray("items")
+            val list = mutableListOf<SoldItem>()
+            for (i in 0 until itemsArr.length()) {
+                val itemObj = itemsArr.getJSONObject(i)
+                list.add(
+                    SoldItem(
+                        productId = itemObj.getInt("productId"),
+                        name = itemObj.getString("name"),
+                        quantity = itemObj.getDouble("quantity"),
+                        price = itemObj.getDouble("price")
+                    )
+                )
+            }
+            val sale = Sale(
+                timestamp = timestamp,
+                totalAmount = totalAmount,
+                items = list
+            )
+            kotlinx.coroutines.runBlocking {
+                repository.checkoutSale(sale)
+            }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    fun updateStockSync(productId: String, newQuantity: Double) {
+        val id = productId.toIntOrNull() ?: return
+        viewModelScope.launch {
+            val product = repository.getProductById(id)
+            if (product != null) {
+                val updatedProduct = product.copy(stock = newQuantity)
+                repository.updateProduct(updatedProduct)
+            }
+        }
+    }
+
+    fun getAllProductsJsonSync(): String {
+        val products = allProducts.value
+        val arr = org.json.JSONArray()
+        val excluded = excludedProductIds.value
+        products.forEach {
+            if (!excluded.contains(it.id.toString())) {
+                val obj = org.json.JSONObject()
+                obj.put("id", it.id)
+                obj.put("name", it.name)
+                obj.put("price", it.price)
+                obj.put("category", it.category)
+                obj.put("stock", it.stock)
+                obj.put("unit", it.unit)
+                obj.put("sku", it.sku ?: "")
+                obj.put("lowStockThreshold", it.lowStockThreshold)
+                obj.put("prixAchatUniteBase", it.prixAchatUniteBase ?: 0.0)
+                obj.put("barcode", it.barcode ?: "")
+                arr.put(obj)
+            }
+        }
+        return arr.toString()
+    }
+
+    fun syncAllProductsSync(stockJson: String) {
+        viewModelScope.launch {
+            try {
+                val arr = org.json.JSONArray(stockJson)
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val id = obj.optInt("id", 0)
+                    val name = obj.getString("name")
+                    val price = obj.getDouble("price")
+                    val category = obj.getString("category")
+                    val stock = obj.getDouble("stock")
+                    val unit = obj.getString("unit")
+                    val sku = obj.optString("sku", "")
+                    val threshold = obj.optDouble("lowStockThreshold", 0.0)
+                    val basePrice = obj.optDouble("prixAchatUniteBase", 0.0)
+                    val barcode = obj.optString("barcode", "")
+
+                    val existing = if (barcode.isNotEmpty()) {
+                        repository.getProductByBarcode(barcode)
+                    } else if (sku.isNotEmpty()) {
+                        allProducts.value.find { it.sku.equals(sku, ignoreCase = true) }
+                    } else {
+                        null
+                    } ?: repository.getProductByName(name)
+
+                    if (existing != null) {
+                        val updated = existing.copy(
+                            name = name,
+                            price = price,
+                            category = category,
+                            stock = stock,
+                            unit = unit,
+                            sku = sku,
+                            lowStockThreshold = threshold,
+                            prixAchatUniteBase = basePrice,
+                            barcode = barcode
+                        )
+                        repository.insertProduct(updated)
+                    } else {
+                        val newProd = Product(
+                            id = 0,
+                            name = name,
+                            price = price,
+                            category = category,
+                            stock = stock,
+                            unit = unit,
+                            sku = sku,
+                            lowStockThreshold = threshold,
+                            prixAchatUniteBase = basePrice,
+                            barcode = barcode
+                        )
+                        repository.insertProduct(newProd)
+                    }
+                }
+                addSyncLog("Mise à jour complète du catalogue (${arr.length()} produits)")
+            } catch (e: Exception) {
+                e.printStackTrace()
+                addSyncLog("Erreur de synchronisation du catalogue: ${e.message}")
+            }
+        }
+    }
+
+    fun getFullDatabaseJsonSync(): String {
+        return kotlinx.coroutines.runBlocking {
+            try {
+                val products = repository.allProducts.first()
+                val sales = repository.allSales.first()
+                val debts = repository.allDebts.first()
+                val excluded = excludedProductIds.value
+
+                val productsArr = org.json.JSONArray()
+                products.forEach { prod ->
+                    if (!excluded.contains(prod.id.toString())) {
+                        val obj = org.json.JSONObject()
+                        obj.put("id", prod.id)
+                        obj.put("name", prod.name)
+                        obj.put("price", prod.price)
+                        obj.put("category", prod.category)
+                        obj.put("stock", prod.stock)
+                        obj.put("unit", prod.unit)
+                        obj.put("barcode", prod.barcode)
+                        obj.put("wholesalePrice", prod.wholesalePrice ?: 0.0)
+                        obj.put("sku", prod.sku)
+                        obj.put("lowStockThreshold", prod.lowStockThreshold)
+                        obj.put("prixAchatUniteBase", prod.prixAchatUniteBase)
+                        obj.put("isTemplate", prod.isTemplate)
+                        productsArr.put(obj)
+                    }
+                }
+
+                val salesArr = org.json.JSONArray()
+                sales.forEach { sale ->
+                    val saleObj = org.json.JSONObject()
+                    saleObj.put("timestamp", sale.timestamp)
+                    saleObj.put("totalAmount", sale.totalAmount)
+                    
+                    val itemsArr = org.json.JSONArray()
+                    sale.items.forEach { item ->
+                        val itemObj = org.json.JSONObject()
+                        itemObj.put("productId", item.productId)
+                        itemObj.put("name", item.name)
+                        itemObj.put("quantity", item.quantity)
+                        itemObj.put("price", item.price)
+                        itemsArr.put(itemObj)
+                    }
+                    saleObj.put("items", itemsArr)
+                    salesArr.put(saleObj)
+                }
+
+                val debtsArr = org.json.JSONArray()
+                debts.forEach { debt ->
+                    val debtObj = org.json.JSONObject()
+                    debtObj.put("debtorName", debt.debtorName)
+                    debtObj.put("amount", debt.amount)
+                    debtObj.put("balance", debt.balance)
+                    debtObj.put("date", debt.date)
+                    debtObj.put("note", debt.note)
+                    debtObj.put("isPaid", debt.isPaid)
+                    debtsArr.put(debtObj)
+                }
+
+                com.example.sync.SyncSerializer.serializeFullSync(
+                    productsArr.toString(),
+                    salesArr.toString(),
+                    debtsArr.toString()
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+                "{}"
+            }
+        }
+    }
+
+    fun syncFullDatabaseSync(syncJson: String) {
+        viewModelScope.launch {
+            try {
+                val (productsStr, salesStr, debtsStr) = com.example.sync.SyncSerializer.deserializeFullSync(syncJson)
+
+                // 1. Parse & Merge Products
+                val productsList = mutableListOf<Product>()
+                val prodArr = org.json.JSONArray(productsStr)
+                for (i in 0 until prodArr.length()) {
+                    val obj = prodArr.getJSONObject(i)
+                    productsList.add(
+                        Product(
+                            id = obj.optInt("id", 0),
+                            name = obj.getString("name"),
+                            price = obj.getDouble("price"),
+                            category = obj.getString("category"),
+                            stock = obj.getDouble("stock"),
+                            unit = obj.optString("unit", "Pièce"),
+                            barcode = obj.optString("barcode", ""),
+                            wholesalePrice = if (obj.has("wholesalePrice")) obj.getDouble("wholesalePrice") else null,
+                            sku = obj.optString("sku", ""),
+                            lowStockThreshold = obj.optDouble("lowStockThreshold", 5.0),
+                            prixAchatUniteBase = obj.optDouble("prixAchatUniteBase", 0.0),
+                            isTemplate = obj.optBoolean("isTemplate", false)
+                        )
+                    )
+                }
+
+                productsList.forEach { prod ->
+                    val existing = if (prod.barcode.isNotEmpty()) {
+                        repository.getProductByBarcode(prod.barcode)
+                    } else if (prod.sku.isNotEmpty()) {
+                        allProducts.value.find { it.sku.equals(prod.sku, ignoreCase = true) }
+                    } else {
+                        null
+                    } ?: repository.getProductByName(prod.name)
+
+                    if (existing == null) {
+                        repository.insertProduct(prod.copy(id = 0))
+                    } else {
+                        val updated = existing.copy(
+                            name = prod.name,
+                            price = prod.price,
+                            category = prod.category,
+                            stock = prod.stock,
+                            unit = prod.unit,
+                            sku = prod.sku,
+                            lowStockThreshold = prod.lowStockThreshold,
+                            prixAchatUniteBase = prod.prixAchatUniteBase,
+                            barcode = prod.barcode,
+                            isTemplate = prod.isTemplate
+                        )
+                        repository.insertProduct(updated)
+                    }
+                }
+
+                // 2. Parse & Merge Sales
+                val salesList = mutableListOf<Sale>()
+                val saleArr = org.json.JSONArray(salesStr)
+                for (i in 0 until saleArr.length()) {
+                    val obj = saleArr.getJSONObject(i)
+                    val itemsArr = obj.getJSONArray("items")
+                    val itemsList = mutableListOf<SoldItem>()
+                    for (j in 0 until itemsArr.length()) {
+                        val itemObj = itemsArr.getJSONObject(j)
+                        itemsList.add(
+                            SoldItem(
+                                productId = itemObj.getInt("productId"),
+                                name = itemObj.getString("name"),
+                                quantity = itemObj.getDouble("quantity"),
+                                price = itemObj.getDouble("price")
+                            )
+                        )
+                    }
+                    salesList.add(
+                        Sale(
+                            timestamp = obj.getLong("timestamp"),
+                            totalAmount = obj.getDouble("totalAmount"),
+                            items = itemsList
+                        )
+                    )
+                }
+
+                var newSalesCount = 0
+                for (incomingSale in salesList) {
+                    val saleExists = allSales.value.any { 
+                        it.timestamp == incomingSale.timestamp && Math.abs(it.totalAmount - incomingSale.totalAmount) < 0.01 
+                    }
+                    if (!saleExists) {
+                        val mappedItems = mutableListOf<SoldItem>()
+                        for (item in incomingSale.items) {
+                            val localProd = repository.getProductByName(item.name)
+                            if (localProd != null) {
+                                mappedItems.add(item.copy(productId = localProd.id))
+                            } else {
+                                mappedItems.add(item)
+                            }
+                        }
+                        repository.checkoutSale(incomingSale.copy(id = 0, items = mappedItems))
+                        newSalesCount++
+                    }
+                }
+                if (newSalesCount > 0) {
+                    addSyncLog("Mise à jour ventes: $newSalesCount ventes enregistrées")
+                }
+
+                // 3. Parse & Merge Debts
+                val debtsList = mutableListOf<Debt>()
+                val debtArr = org.json.JSONArray(debtsStr)
+                for (i in 0 until debtArr.length()) {
+                    val obj = debtArr.getJSONObject(i)
+                    debtsList.add(
+                        Debt(
+                            debtorName = obj.getString("debtorName"),
+                            amount = obj.getDouble("amount"),
+                            balance = obj.getDouble("balance"),
+                            date = obj.getLong("date"),
+                            note = obj.optString("note", ""),
+                            isPaid = obj.optBoolean("isPaid", false)
+                        )
+                    )
+                }
+
+                var newDebtsCount = 0
+                var updatedDebtsCount = 0
+                debtsList.forEach { incomingDebt ->
+                    val existingDebt = allDebts.value.find {
+                        it.debtorName.equals(incomingDebt.debtorName, ignoreCase = true) && 
+                        Math.abs(it.date - incomingDebt.date) < 60000
+                    }
+                    if (existingDebt == null) {
+                        repository.insertDebt(incomingDebt.copy(id = 0))
+                        newDebtsCount++
+                    } else {
+                        if (incomingDebt.balance < existingDebt.balance || incomingDebt.isPaid != existingDebt.isPaid) {
+                            val updatedDebt = existingDebt.copy(
+                                balance = incomingDebt.balance,
+                                isPaid = incomingDebt.isPaid,
+                                note = incomingDebt.note
+                            )
+                            repository.updateDebt(updatedDebt)
+                            updatedDebtsCount++
+                        }
+                    }
+                }
+                if (newDebtsCount > 0 || updatedDebtsCount > 0) {
+                    addSyncLog("Mise à jour dettes: $newDebtsCount nouvelles, $updatedDebtsCount modifiées")
+                }
+
+                addSyncLog("Nahomby ny fampitoviana ny tahiry rehetra!")
+                triggerLocalSafetyBackup()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                addSyncLog("Hadisoana fampitoviana: ${e.message}")
+            }
+        }
+    }
+
+    fun triggerLocalSafetyBackup() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val dbJson = getFullDatabaseJsonSync()
+                com.example.util.BackupHelper.saveBackup(context, dbJson)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun restoreLocalSafetyBackup(): Boolean {
+        return try {
+            val backupJson = com.example.util.BackupHelper.readBackup(context)
+            if (backupJson != null) {
+                syncFullDatabaseSync(backupJson)
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
         }
     }
 }

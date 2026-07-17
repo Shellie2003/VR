@@ -130,7 +130,7 @@ fun HomeScreen(
                 onValueChange = { viewModel.searchQuery.value = it },
                 placeholder = { 
                     Text(
-                        text = "Tadiavo ny vokatra...", 
+                        text = "Hitady Entana...", 
                         color = Color(0xFF94A3B8),
                         fontSize = 14.sp
                     ) 
@@ -177,7 +177,7 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "Vokatra farany nampidirina",
+                    text = "Entana farany nampidirina",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1E293B),
@@ -276,7 +276,7 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(products) { product ->
+                items(products, key = { it.id }) { product ->
                     val cartItem = cart.find { it.id == "product_${product.id}" }
                     val isInCart = cartItem != null
 
@@ -286,6 +286,7 @@ fun HomeScreen(
                             .fillMaxWidth()
                             .clickable {
                                 viewModel.addToCart(product, 1.0)
+                                viewModel.lastClickedProductId.value = product.id
                             }
                             .testTag("product_grid_card_${product.id}"),
                         shape = RoundedCornerShape(16.dp),
@@ -323,6 +324,48 @@ fun HomeScreen(
                                             .fillMaxSize()
                                             .background(Color(0xFFECEFF1))
                                     )
+                                }
+
+                                if (isInCart && cartItem != null) {
+                                    val count = cartItem.quantity
+                                    val countStr = if (count % 1.0 == 0.0) count.toInt().toString() else count.toString()
+
+                                    Row(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(6.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(themeColor)
+                                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(CircleShape)
+                                                .background(Color.White.copy(alpha = 0.25f))
+                                                .clickable {
+                                                    viewModel.changeCartQuantityByDelta("product_${product.id}", -1.0)
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Remove,
+                                                contentDescription = "Hanafo fikitihana",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+
+                                        Text(
+                                            text = countStr,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            modifier = Modifier.padding(end = 4.dp)
+                                        )
+                                    }
                                 }
                             }
 
@@ -518,7 +561,7 @@ fun HomeScreen(
                     onValueChange = { viewModel.searchQuery.value = it },
                     placeholder = { 
                         Text(
-                            text = "Tadiavo ny vokatra...", 
+                            text = "Hitady Entana...", 
                             color = Color(0xFF94A3B8),
                             fontSize = 14.sp
                         ) 
@@ -566,7 +609,7 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Vokatra farany nampidirina",
+                        text = "Entana farany nampidirina",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF1E293B),

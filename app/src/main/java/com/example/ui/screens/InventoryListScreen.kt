@@ -108,7 +108,7 @@ fun InventoryListScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                items(categoriesList) { category ->
+                items(categoriesList, key = { it }) { category ->
                     val isSelected = category.lowercase() == selectedCategory.lowercase()
                     val label = if (category == "All") t("filter_all") else category
 
@@ -205,7 +205,7 @@ fun InventoryListScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(filteredProducts.size) { index ->
+                        items(filteredProducts.size, key = { index -> filteredProducts[index].id }) { index ->
                             val product = filteredProducts[index]
                             ProductInventoryCard(
                                 product = product,
@@ -224,7 +224,7 @@ fun InventoryListScreen(
                         contentPadding = PaddingValues(bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(filteredProducts) { product ->
+                        items(filteredProducts, key = { it.id }) { product ->
                             ProductInventoryCard(
                                 product = product,
                                 viewModel = viewModel,

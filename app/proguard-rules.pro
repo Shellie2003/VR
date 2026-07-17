@@ -5,17 +5,40 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep line numbers for crash reporting
+-keepattributes SourceFile,LineNumberTable
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Room Database rules
+-keep class * extends androidx.room.RoomDatabase
+-dontwarn androidx.room.paging.**
+-keep class androidx.room.RoomDatabase { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Moshi rules
+-keep class com.squareup.moshi.** { *; }
+-keep interface com.squareup.moshi.** { *; }
+-dontwarn com.squareup.moshi.**
+-keepclassmembers class * {
+    @com.squareup.moshi.Json <fields>;
+}
+
+# Retrofit rules
+-keep class retrofit2.** { *; }
+-dontwarn retrofit2.**
+-keepclassmembers class * {
+    @retrofit2.http.** <methods>;
+}
+
+# OkHttp rules
+-keep class okhttp3.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
+
+# Keep our data models, sync bridge, and database entities intact for serialization/Room mapping
+-keep class com.example.data.model.** { *; }
+-keep class com.example.sync.** { *; }
+-keep class com.example.data.local.** { *; }
+
+# Keep ML Kit and camera components
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
+

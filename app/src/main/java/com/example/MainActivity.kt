@@ -34,6 +34,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.local.AppDatabase
@@ -57,7 +60,8 @@ enum class ScreenTab {
     Historique,  // Sales history
     Parametres,  // Settings
     Commission,  // Restocking & supply commission calculator
-    BarcodeList  // Barcode management and sheet printing
+    BarcodeList, // Barcode management and sheet printing
+    Synchronisation // Multi-terminal synchronization screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -88,13 +92,43 @@ fun MainLifecycleContainer() {
             database.mouvementStockDao(),
             database.lotProduitDao(),
             database.venteDao(),
-            database.lignesVenteDao()
+            database.lignesVenteDao(),
+            database.restockDao()
         ) 
     }
     
     val viewModel: InventoryViewModel = viewModel(
         factory = InventoryViewModelFactory(repository, context.applicationContext)
     )
+
+    LaunchedEffect(viewModel) {
+        com.example.sync.SyncManager.syncBridge = object : com.example.sync.SyncBridge {
+            override fun handleReserveStock(productId: String, quantity: Double): Boolean {
+                return viewModel.reserveStockSync(productId, quantity)
+            }
+            override fun handleCommitSale(saleJson: String): Boolean {
+                return viewModel.commitSaleSync(saleJson)
+            }
+            override fun handleUpdateStockGlobal(productId: String, newQuantity: Double) {
+                viewModel.updateStockSync(productId, newQuantity)
+            }
+            override fun getAllProductsJson(): String {
+                return viewModel.getAllProductsJsonSync()
+            }
+            override fun handleSyncStock(stockJson: String) {
+                viewModel.syncAllProductsSync(stockJson)
+            }
+            override fun logMessage(text: String) {
+                viewModel.addSyncLog(text)
+            }
+            override fun getFullDatabaseJson(): String {
+                return viewModel.getFullDatabaseJsonSync()
+            }
+            override fun handleFullDatabaseSync(syncJson: String) {
+                viewModel.syncFullDatabaseSync(syncJson)
+            }
+        }
+    }
 
     val themeColor by viewModel.themeColor.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
@@ -160,7 +194,8 @@ fun SplashScreen(t: (String) -> String) {
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            modifier = Modifier.align(Alignment.Center)
         ) {
             Box(
                 modifier = Modifier
@@ -172,7 +207,7 @@ fun SplashScreen(t: (String) -> String) {
                 Icon(
                     imageVector = Icons.Rounded.ShoppingBasket,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = Color(0xFFFFB300),
                     modifier = Modifier.size(56.dp)
                 )
             }
@@ -196,10 +231,20 @@ fun SplashScreen(t: (String) -> String) {
             Spacer(modifier = Modifier.height(24.dp))
 
             CircularProgressIndicator(
-                color = Color.White,
+                color = Color(0xFFFFB300),
                 modifier = Modifier.size(36.dp)
             )
         }
+
+        Text(
+            text = "Dévéloppée par AinaDigit",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color.White.copy(alpha = 0.7f),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 32.dp)
+        )
     }
 }
 
@@ -359,10 +404,11 @@ fun MainAppLayout(
             )
 
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList) {
+                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation) {
                     TopAppBarSection(
                         viewModel = viewModel,
-                        onNavigateToSettings = { currentTab = ScreenTab.Parametres }
+                        onNavigateToSettings = { currentTab = ScreenTab.Parametres },
+                        isTablet = true
                     )
                 }
 
@@ -412,13 +458,18 @@ fun MainAppLayout(
                             onNavigateToHistory = { currentTab = ScreenTab.Historique },
                             onNavigateToCommission = { currentTab = ScreenTab.Commission },
                             onNavigateToBarcodes = { currentTab = ScreenTab.BarcodeList },
-                            onNavigateToHome = navigateToHome
+                            onNavigateToHome = navigateToHome,
+                            onNavigateToSync = { currentTab = ScreenTab.Synchronisation }
                         )
                         ScreenTab.Commission -> CommissionScreen(
                             viewModel = viewModel,
                             onNavigateBack = { currentTab = ScreenTab.Parametres }
                         )
                         ScreenTab.BarcodeList -> BarcodeListScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = { currentTab = ScreenTab.Parametres }
+                        )
+                        ScreenTab.Synchronisation -> SyncScreen(
                             viewModel = viewModel,
                             onNavigateBack = { currentTab = ScreenTab.Parametres }
                         )
@@ -430,10 +481,11 @@ fun MainAppLayout(
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {
-                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList) {
+                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation) {
                     TopAppBarSection(
                         viewModel = viewModel,
-                        onNavigateToSettings = { currentTab = ScreenTab.Parametres }
+                        onNavigateToSettings = { currentTab = ScreenTab.Parametres },
+                        isTablet = false
                     )
                 }
             },
@@ -507,13 +559,18 @@ fun MainAppLayout(
                         onNavigateToHistory = { currentTab = ScreenTab.Historique },
                         onNavigateToCommission = { currentTab = ScreenTab.Commission },
                         onNavigateToBarcodes = { currentTab = ScreenTab.BarcodeList },
-                        onNavigateToHome = navigateToHome
+                        onNavigateToHome = navigateToHome,
+                        onNavigateToSync = { currentTab = ScreenTab.Synchronisation }
                     )
                     ScreenTab.Commission -> CommissionScreen(
                         viewModel = viewModel,
                         onNavigateBack = { currentTab = ScreenTab.Parametres }
                     )
                     ScreenTab.BarcodeList -> BarcodeListScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { currentTab = ScreenTab.Parametres }
+                    )
+                    ScreenTab.Synchronisation -> SyncScreen(
                         viewModel = viewModel,
                         onNavigateBack = { currentTab = ScreenTab.Parametres }
                     )
@@ -526,7 +583,8 @@ fun MainAppLayout(
 @Composable
 fun TopAppBarSection(
     viewModel: InventoryViewModel,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    isTablet: Boolean = false
 ) {
     val themeColor by viewModel.themeColor.collectAsState()
     val groceryNameVal by viewModel.groceryName.collectAsState()
@@ -546,50 +604,344 @@ fun TopAppBarSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Branding header
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(themeColor),
-                    contentAlignment = Alignment.Center
+            if (!isTablet) {
+                // Branding header
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ShoppingBasket,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(themeColor),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ShoppingBasket,
+                            contentDescription = null,
+                            tint = Color(0xFFFFB300),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text(
+                        text = groceryNameVal,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Black,
+                        color = themeColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 140.dp)
                     )
                 }
-                Text(
-                    text = groceryNameVal,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Black,
-                    color = themeColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = 140.dp)
-                )
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
             }
 
-            // Settings icon button
-            IconButton(
-                onClick = onNavigateToSettings,
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(themeColor.copy(alpha = 0.12f))
-                    .testTag("app_bar_settings_button")
+            var showSyncDialog by remember { mutableStateOf(false) }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Paramètres",
-                    tint = themeColor
-                )
+                // Sync control button
+                IconButton(
+                    onClick = { showSyncDialog = true },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(themeColor.copy(alpha = 0.12f))
+                        .testTag("app_bar_sync_exclusion_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Sync,
+                        contentDescription = "Fampitoviana ny Tahiry",
+                        tint = themeColor
+                    )
+                }
+
+                // Settings icon button
+                IconButton(
+                    onClick = onNavigateToSettings,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(themeColor.copy(alpha = 0.12f))
+                        .testTag("app_bar_settings_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Paramètres",
+                        tint = themeColor
+                    )
+                }
+            }
+
+            if (showSyncDialog) {
+                val activeLang by viewModel.language.collectAsState()
+                val products by viewModel.allProducts.collectAsState()
+                val excludedSet by viewModel.excludedProductIds.collectAsState()
+                var dialogSearchQuery by remember { mutableStateOf("") }
+
+                val filteredProducts = remember(products, excludedSet, dialogSearchQuery) {
+                    products.filter {
+                        it.name.contains(dialogSearchQuery, ignoreCase = true) ||
+                        it.sku.contains(dialogSearchQuery, ignoreCase = true) ||
+                        it.barcode.contains(dialogSearchQuery, ignoreCase = true)
+                    }
+                }
+
+                Dialog(onDismissRequest = { showSyncDialog = false }) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(0.85f)
+                            .testTag("sync_exclusion_dialog_card"),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Header
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Sync,
+                                        contentDescription = null,
+                                        tint = themeColor,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Text(
+                                        text = when (activeLang) {
+                                            "mg" -> "Fampitoviana"
+                                            "fr" -> "Synchronisation"
+                                            else -> "Sync Control"
+                                        },
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { showSyncDialog = false }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Close"
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Safidio ny entana tiana hajanona tsy hampitoviana (tsindrio ny fako)."
+                                    "fr" -> "Sélectionnez les produits à exclure de la synchronisation réseau (cliquez sur la corbeille)."
+                                    else -> "Select products to exclude from network sync (click the delete icon)."
+                                },
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            // Search box
+                            OutlinedTextField(
+                                value = dialogSearchQuery,
+                                onValueChange = { dialogSearchQuery = it },
+                                modifier = Modifier.fillMaxWidth().testTag("sync_dialog_search_input"),
+                                placeholder = {
+                                    Text(
+                                        text = when (activeLang) {
+                                            "mg" -> "Hikaroka entana..."
+                                            "fr" -> "Rechercher..."
+                                            else -> "Search..."
+                                        },
+                                        fontSize = 13.sp
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                },
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = themeColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                                )
+                            )
+
+                            // List
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                            ) {
+                                if (filteredProducts.isEmpty()) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = when (activeLang) {
+                                                "mg" -> "Tsy misy entana hita"
+                                                "fr" -> "Aucun produit trouvé"
+                                                else -> "No products found"
+                                            },
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                } else {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        items(filteredProducts, key = { it.id }) { prod ->
+                                            val isExcluded = excludedSet.contains(prod.id.toString())
+                                            
+                                            Card(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = if (isExcluded) {
+                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                                    } else {
+                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
+                                                    }
+                                                )
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column(
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        Text(
+                                                            text = prod.name,
+                                                            fontSize = 14.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (isExcluded) {
+                                                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                                            } else {
+                                                                MaterialTheme.colorScheme.onSurface
+                                                            }
+                                                        )
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                        ) {
+                                                            Text(
+                                                                text = prod.category,
+                                                                fontSize = 11.sp,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                                            )
+                                                            
+                                                            // Status badge
+                                                            Surface(
+                                                                shape = RoundedCornerShape(6.dp),
+                                                                color = if (isExcluded) {
+                                                                    Color(0xFFFFCDD2).copy(alpha = 0.8f) // light red
+                                                                } else {
+                                                                    Color(0xFFC8E6C9).copy(alpha = 0.8f) // light green
+                                                                },
+                                                                modifier = Modifier.padding(vertical = 2.dp)
+                                                            ) {
+                                                                Text(
+                                                                    text = if (isExcluded) {
+                                                                        when (activeLang) {
+                                                                            "mg" -> "Tsy ampitoviana"
+                                                                            "fr" -> "Sync annulée"
+                                                                            else -> "Sync off"
+                                                                        }
+                                                                    } else {
+                                                                        when (activeLang) {
+                                                                            "mg" -> "Mampitovy"
+                                                                            "fr" -> "Synchronisé"
+                                                                            else -> "Sync on"
+                                                                        }
+                                                                    },
+                                                                    fontSize = 9.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = if (isExcluded) {
+                                                                        Color(0xFFC62828) // red
+                                                                    } else {
+                                                                        Color(0xFF2E7D32) // green
+                                                                    },
+                                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+
+                                                    IconButton(
+                                                        onClick = {
+                                                            viewModel.toggleProductSyncExclusion(prod.id)
+                                                        },
+                                                        modifier = Modifier.testTag("toggle_sync_btn_${prod.id}")
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = if (isExcluded) {
+                                                                Icons.Default.AddCircle
+                                                            } else {
+                                                                Icons.Default.Delete
+                                                            },
+                                                            contentDescription = if (isExcluded) "Inclure" else "Exclure",
+                                                            tint = if (isExcluded) {
+                                                                themeColor
+                                                            } else {
+                                                                Color(0xFFC62828)
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Bottom Action Button
+                            Button(
+                                onClick = { showSyncDialog = false },
+                                modifier = Modifier.fillMaxWidth().height(44.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = themeColor,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Text(
+                                    text = when (activeLang) {
+                                        "mg" -> "Hanidy"
+                                        "fr" -> "Fermer"
+                                        else -> "Close"
+                                    },
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }

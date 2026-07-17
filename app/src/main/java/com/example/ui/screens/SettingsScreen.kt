@@ -33,7 +33,8 @@ fun SettingsScreen(
     onNavigateToHistory: () -> Unit,
     onNavigateToCommission: () -> Unit,
     onNavigateToBarcodes: () -> Unit,
-    onNavigateToHome: () -> Unit
+    onNavigateToHome: () -> Unit,
+    onNavigateToSync: () -> Unit
 ) {
     val activeLang by viewModel.language.collectAsState()
     val groceryNameVal by viewModel.groceryName.collectAsState()
@@ -135,10 +136,11 @@ fun SettingsScreen(
 
     val scrollState = rememberScrollState()
     var showSnackbar by remember { mutableStateOf(false) }
+    var snackbarMessage by remember { mutableStateOf("") }
 
-    val isDark = MaterialTheme.colorScheme.background == Color(0xFF1B1C1C)
-    val cardBg = if (isDark) Color(0xFF222323) else Color(0xFFF8FAFC)
-    val cardBorderColor = if (isDark) Color(0xFF343535) else Color(0xFFE2E8F0)
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF002114)
+    val cardBg = if (isDark) Color(0xFF1B4332) else Color(0xFFF8FAFC)
+    val cardBorderColor = if (isDark) Color(0xFF2C5E43) else Color(0xFFE2E8F0)
     val mainTextColor = if (isDark) Color.White else Color(0xFF1E293B)
     val secondaryTextColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
 
@@ -166,7 +168,7 @@ fun SettingsScreen(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(if (isDark) Color(0xFF2D2E2E) else Color(0xFFF1F5F9))
+                        .background(if (isDark) Color(0xFF1B4332) else Color(0xFFF1F5F9))
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -228,10 +230,10 @@ fun SettingsScreen(
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = if (isDark) Color(0xFF1B1C1C) else Color.White,
-                            unfocusedContainerColor = if (isDark) Color(0xFF1B1C1C) else Color.White,
+                            focusedContainerColor = if (isDark) Color(0xFF1B4332) else Color.White,
+                            unfocusedContainerColor = if (isDark) Color(0xFF1B4332) else Color.White,
                             focusedBorderColor = themeColor,
-                            unfocusedBorderColor = if (isDark) Color(0xFF4E5050) else Color(0xFFCBD5E1),
+                            unfocusedBorderColor = if (isDark) Color(0xFF2C5E43) else Color(0xFFCBD5E1),
                             focusedTextColor = mainTextColor,
                             unfocusedTextColor = mainTextColor
                         )
@@ -396,7 +398,7 @@ fun SettingsScreen(
                                 .height(38.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isLightSel) themeColor else (if (isDark) Color(0xFF1B1C1C) else Color.White),
+                                containerColor = if (isLightSel) themeColor else (if (isDark) Color(0xFF1B4332) else Color.White),
                                 contentColor = if (isLightSel) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
                             ),
                             border = androidx.compose.foundation.BorderStroke(
@@ -421,7 +423,7 @@ fun SettingsScreen(
                                 .height(38.dp),
                                 shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isDarkSel) themeColor else (if (isDark) Color(0xFF1B1C1C) else Color.White),
+                                containerColor = if (isDarkSel) themeColor else (if (isDark) Color(0xFF1B4332) else Color.White),
                                 contentColor = if (isDarkSel) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
                             ),
                             border = androidx.compose.foundation.BorderStroke(
@@ -446,7 +448,7 @@ fun SettingsScreen(
                                 .height(38.dp),
                                 shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isSystemSel) themeColor else (if (isDark) Color(0xFF1B1C1C) else Color.White),
+                                containerColor = if (isSystemSel) themeColor else (if (isDark) Color(0xFF1B4332) else Color.White),
                                 contentColor = if (isSystemSel) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
                             ),
                             border = androidx.compose.foundation.BorderStroke(
@@ -509,7 +511,7 @@ fun SettingsScreen(
                                     .height(38.dp),
                                 shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isSelected) themeColor else (if (isDark) Color(0xFF1B1C1C) else Color.White),
+                                    containerColor = if (isSelected) themeColor else (if (isDark) Color(0xFF1B4332) else Color.White),
                                     contentColor = if (isSelected) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
                                 ),
                                 border = androidx.compose.foundation.BorderStroke(
@@ -577,7 +579,7 @@ fun SettingsScreen(
                                 .height(38.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isRetail) themeColor else (if (isDark) Color(0xFF1B1C1C) else Color.White),
+                                containerColor = if (isRetail) themeColor else (if (isDark) Color(0xFF1B4332) else Color.White),
                                 contentColor = if (isRetail) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
                             ),
                             border = androidx.compose.foundation.BorderStroke(
@@ -602,7 +604,7 @@ fun SettingsScreen(
                                 .height(38.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isWholesale) themeColor else (if (isDark) Color(0xFF1B1C1C) else Color.White),
+                                containerColor = if (isWholesale) themeColor else (if (isDark) Color(0xFF1B4332) else Color.White),
                                 contentColor = if (isWholesale) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
                             ),
                             border = androidx.compose.foundation.BorderStroke(
@@ -821,6 +823,231 @@ fun SettingsScreen(
                 }
             }
 
+            // CARD REDIRECT TO MULTI-TERMINAL SYNC
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .clickable { onNavigateToSync() }
+                    .testTag("settings_sync_button"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = themeColor.copy(alpha = 0.08f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, themeColor.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(themeColor),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Sync,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Mampitohy finday maro (Sync)"
+                                    "fr" -> "Synchronisation multi-terminal"
+                                    else -> "Multi-Terminal Sync"
+                                },
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Hampitahana ny tahiry sy ny varotra amin'ny finday hafa amin'ny alalan'ny Wi-Fi"
+                                    "fr" -> "Partager le stock et les ventes en temps réel via le réseau local Wi-Fi"
+                                    else -> "Share stock and sales in real-time over local Wi-Fi"
+                                },
+                                fontSize = 11.sp,
+                                color = secondaryTextColor
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = themeColor,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            // SECTION SAFETY BACKUP & SECURITY
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .testTag("settings_backup_security_card"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                border = androidx.compose.foundation.BorderStroke(1.dp, cardBorderColor)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(themeColor),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Security,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Fiarovana ny Tahiry"
+                                    "fr" -> "Sauvegarde & Sécurité"
+                                    else -> "Backup & Security"
+                                },
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = mainTextColor
+                            )
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Misoroka ny fahaverezan'ny angon-drakitra noho ny fanavaozana"
+                                    "fr" -> "Prévient la perte de données lors des mises à jour"
+                                    else -> "Prevents data loss during future application updates"
+                                },
+                                fontSize = 11.sp,
+                                color = secondaryTextColor
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(color = cardBorderColor.copy(alpha = 0.5f))
+
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Tehirizo ny tahiry rehetra amin'ny toerana azo antoka na havereno raha misy fahasimbana."
+                            "fr" -> "Sauvegardez vos données localement ou restaurez-les en cas d'anomalie."
+                            else -> "Save your data locally or restore it in case of any data corruption."
+                        },
+                        fontSize = 12.sp,
+                        color = secondaryTextColor
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Backup Button
+                        Button(
+                            onClick = {
+                                viewModel.triggerLocalSafetyBackup()
+                                snackbarMessage = when (activeLang) {
+                                    "mg" -> "Tafita! Voatahiry ao amin'ny finday ny backup-nao."
+                                    "fr" -> "Sauvegarde réussie ! Vos données sont en sécurité."
+                                    else -> "Backup successful! Your data is fully secured."
+                                }
+                                showSnackbar = true
+                            },
+                            modifier = Modifier.weight(1f).height(40.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = themeColor,
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Save,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Backup"
+                                    "fr" -> "Sauvegarder"
+                                    else -> "Backup"
+                                },
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // Restore Button
+                        OutlinedButton(
+                            onClick = {
+                                val success = viewModel.restoreLocalSafetyBackup()
+                                if (success) {
+                                    snackbarMessage = when (activeLang) {
+                                        "mg" -> "Tafita! Tafaverina soa aman-tsara ny tahiry rehetra."
+                                        "fr" -> "Restauration réussie ! Toutes vos données sont rétablies."
+                                        else -> "Restore successful! All your data has been restored."
+                                    }
+                                } else {
+                                    snackbarMessage = when (activeLang) {
+                                        "mg" -> "Hadisoana: Tsy misy backup hita ao amin'ny finday."
+                                        "fr" -> "Échec : Aucun fichier de sauvegarde trouvé."
+                                        else -> "Failed: No backup file found on this device."
+                                    }
+                                }
+                                showSnackbar = true
+                            },
+                            modifier = Modifier.weight(1f).height(40.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, themeColor),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = themeColor
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Restore,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Haverina"
+                                    "fr" -> "Restaurer"
+                                    else -> "Restore"
+                                },
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(32.dp))
         }
 
@@ -850,7 +1077,7 @@ fun SettingsScreen(
                         tint = Color(0xFF4ADE80)
                     )
                     Text(
-                        text = savedMessage,
+                        text = snackbarMessage.ifEmpty { savedMessage },
                         color = Color.White,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium

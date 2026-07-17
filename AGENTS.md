@@ -10,7 +10,13 @@ Ce fichier contient des instructions persistantes destinées aux assistants IA d
 - **Compilation régulière :** Valider chaque étape de modification en exécutant `compile_applet`. Ne jamais laisser l'application dans un état non compilable.
 
 ### 2. 🎨 Cohérence Visuelle & Thématique (Material Design 3)
-- **Thème et Couleurs :** Utiliser exclusivement le système de couleurs dynamiques et les variables de thème fournies par le `viewModel.themeColor` ou `MaterialTheme.colorScheme`. Ne jamais utiliser de codes couleurs hexadécimaux bruts dans les Composables.
+- **Thème et Couleurs (Mis à jour) :** L'application intègre le thème officiel avec les palettes de couleurs suivantes :
+  - *Mode Clair (Light) :* Primaire (`0xFF012D1D`), Secondaire (`0xFF855300`), Arrière-plan/Surface (`0xFFFBF9F8`), Conteneurs de surface (`0xFFEFEDED`).
+  - *Mode Sombre (Dark) :* Primaire (`0xFFC1ECD4`), Secondaire (`0xFFFEA619`), Arrière-plan/Surface (`0xFF002114`), Conteneurs de surface (`0xFF1B4332`).
+  - Utiliser exclusivement le système de couleurs dynamiques et les variables de thème fournies par `MaterialTheme.colorScheme` ou `viewModel.themeColor` (qui par défaut mappe vers le nouveau vert sombre `0xFF012D1D`). Ne jamais utiliser de codes couleurs hexadécimaux bruts dans les Composables.
+- **Typographie Officielle :**
+  - Titres et En-têtes : Police **Epilogue** (Gras, Semi-Gras, Moyen).
+  - Corps de texte et Badges : Police **Be Vietnam Pro** (Normal, Moyen, Semi-Gras).
 - **Icônes Consistantes :** Pour l'icône principale de l'application (le panier d'achat), toujours utiliser `Icons.Rounded.ShoppingBasket` (et non `Icons.Default.ShoppingBag`) afin d'assurer une cohérence parfaite entre l'écran d'accueil, le splash screen et l'historique des ventes.
 - **Espacement et Paddings :** Respecter une grille de 8dp constante. Préférer des marges généreuses et des arrondis de cartes de `12.dp` à `16.dp` pour un rendu moderne et aéré.
 
@@ -40,24 +46,30 @@ Ce fichier contient des instructions persistantes destinées aux assistants IA d
 
 Voici l'inventaire officiel des fonctionnalités implémentées dans l'application :
 
-1. **Écran de Caisse & Calculatrice (`CalculatorScreen`)**
+1. **Écran de Caisse & Calculatrice (`CalculatorScreen` / `HomeScreen` Grille)**
    - Calculatrice interactive pour saisir des montants manuels ou ajouter des produits du catalogue directement au panier.
    - Gestion des types de produits (vendu par unité standard, liquide en Litres, ou poids en Kilogrammes avec boutons pré-réglés `1/4 kg`, `1/2 kg`, `+1`).
-   - Saisie rapide par code-barres via caméra hautement optimisée à très faible latence (mise au point automatique centrale intelligente, tap-to-focus manuel, optimisation du processeur d'image matériel via le mode scène Code-barres, et sélecteur de zoom rapide tactile 1x/2x/3x pour lire les codes minuscules ou lointains) ou scanner physique externe.
+   - Saisie rapide par code-barres via caméra hautement optimisée à très faible latence.
    - Validation de la vente avec enregistrement automatique dans la base de données Room, mise à jour instantanée des stocks, et avertissement si stock insuffisant.
+   - **Badge de clic / Quantité & Bouton de décrémentation (Nouveau) :** Chaque carte de produit sur l'écran d'accueil affiche un badge dynamique coloré dans le coin supérieur droit de son image montrant le nombre de fois qu'elle a été cliquée (quantité active dans le panier). Ce badge intègre un bouton `-` interactif à faible encombrement permettant d'annuler/décrémenter directement un clic sans avoir à ouvrir le panneau du panier.
 
 2. **Écran de Gestion de Stock & Inventaire (`InventoryListScreen` / `AddProductScreen`)**
    - Liste des produits avec recherche instantanée et filtrage par stock faible.
    - **Retour à la ligne automatique des catégories :** Utilisation de `FlowRow` pour afficher la catégorie, le SKU et les badges de statut (ALERT, LOW QTY) afin d'éviter tout écrasement ou distorsion de la mise en page lorsque les noms de catégories sont longs.
    - Ajout ou édition complète d'un produit (Nom, Prix de vente, Prix d'achat de base, Unité, Code-barres, Seuil d'alerte de stock faible, Fournisseur attitré).
    - Suppression sécurisée et ajustement manuel rapide des quantités en stock.
+   - **Filtre de Modèles Secteur-Neutre (Nouveau) :** Les produits pré-configurés (modèles d'épicerie) sont désormais entièrement masqués des listes de vente, de stock et de recherche par défaut. Cela permet de conserver l'application parfaitement propre et prête pour n'importe quel autre secteur d'activité (poissonnerie, bar, etc.).
+   - **Ajout rapide depuis un Modèle (Nouveau) :** Bouton d'accès direct dans le formulaire de création de produit pour ouvrir un sélecteur de modèles. L'utilisateur peut y rechercher et filtrer par catégorie des centaines de produits pré-enregistrés. Sélectionner un modèle pré-remplit instantanément et localement la fiche produit (Nom, Catégorie, Unité, SKU), lui laissant simplement à saisir le prix de vente et les stocks restants.
    - **Génération & Impression de Code-barres Vectoriels (Nouveau) :** Génération automatique et aléatoire de numéros de code-barres uniques (Code 39) en un clic. Création automatique en arrière-plan d'une étiquette PDF au format vectoriel haute résolution incluant le nom du produit et le code-barres, sauvegardée directement dans le dossier public `Downloads/EpicerieBarcodes`. Lancement instantané du flux d'impression Android standard (`PrintManager`) pour une impression rapide sur des étiquettes adhésives.
    - **Intégration Open Food Facts API (Nouveau) :** Module de recherche mondiale de produits intégré permettant de scanner un code-barres ou de saisir un mot-clé pour pré-remplir instantanément la fiche produit. Récupère automatiquement le nom, la marque, la description, la catégorie (mappée intelligemment vers nos sections Alimentation, Boissons, Légumes, Épicerie, Droguerie, Hafa) ainsi que l'image miniature officielle du produit via Coil. L'utilisateur n'a plus qu'à saisir son prix de vente final.
 
-3. **Écran d'Historique des Ventes (`SalesHistoryScreen`)**
-   - Journal chronologique détaillé de toutes les transactions effectuées.
-   - Visualisation claire des gains, du chiffre d'affaires et de la marge bénéficiaire globale sur des périodes choisies.
-   - Possibilité d'annuler/supprimer une vente (réajustant automatiquement le stock associé).
+3. **Écran d'Historique & Traçabilité des Transactions (`SalesHistoryScreen`)**
+   - **Système d'Onglets d'Historiques :** Permet de basculer instantanément entre l'Historique des Ventes (**"Varotra"**) et l'Historique d'Approvisionnement (**"Fampidirana"**) pour une traçabilité totale et absolue de toutes les opérations financières et de stock.
+   - **Correction et Visualisation :** Affiche le chiffre d'affaires de la journée sous le terme exact de **"Vola maty androany"** (ou "Vola maty tamin'io daty io" si une autre date est choisie) de manière entièrement dynamique.
+   - **Filtre par calendrier haute précision :** Sélecteur de date interactif à icône de calendrier permettant d'isoler et d'analyser les transactions d'une journée spécifique (mettant à jour instantanément les métriques de revenus et le nombre d'opérations).
+   - **Barre de recherche dynamique et fluide :** Barre de recherche s'activant par glissement pour filtrer les ventes par nom de produit et les réapprovisionnements par nom de produit ou fournisseur en temps réel.
+   - **Kajy momba ny Vola (Analyses Financières Réelles) :** Un clic sur l'icône de diagramme à barres (BarChart) ouvre un tableau d'analyse consolidé calculant le nombre total de ventes, le chiffre d'affaires, le coût d'achat des produits vendus (COGS), le bénéfice net de la journée et le taux de marge réel.
+   - Possibilité d'annuler/supprimer n'importe quelle vente ou réapprovisionnement de l'historique avec confirmation de sécurité.
 
 4. **Écran de Gestion de Dettes (`DebtsScreen`)**
    - Enregistrement et suivi des clients ayant des arriérés de paiement.
@@ -74,11 +86,14 @@ Voici l'inventaire officiel des fonctionnalités implémentées dans l'applicati
 
 6. **Écran de Calculateur d'Approvisionnement & Marges (`CommissionScreen`)**
    - Accessible depuis la page des Paramètres.
-   - **Calculateur d'achat :** Permet d'entrer un produit, le nombre de cartons/lots achetés chez un fournisseur, le nombre de pièces par carton, et le coût total d'achat en gros.
-   - **Analyse de marge automatique :** Calcule instantanément le coût unitaire réel, le bénéfice total généré, le bénéfice par carton, le bénéfice par unité, et le taux de marge d'après le prix de vente unitaire saisi (que l'utilisateur peut ajuster en direct sur cet écran).
+   - **Tutoriel & Onboarding intégré :** Intègre une carte d'astuces "💡 Mode d'emploi / Fampiasana" décrivant précisément l'ordre idéal de saisie pour guider pas à pas l'utilisateur (choix de produit, cartons, pièces, coût d'achat total, prix de vente).
+   - **Calculateur d'achat & Bouton "Effacer tout" :** Permet d'entrer un produit, le nombre de cartons/lots achetés chez un fournisseur, le nombre de pièces par carton, et le coût total d'achat en gros. Un bouton rapide "Hamafana / Effacer tout" permet d'effacer d'un seul clic les données de démonstration pour y saisir de nouvelles valeurs personnalisées.
+   - **Analyse de marge automatique :** Calcule de manière robuste et sans plantage (en gérant élégamment les champs vides) le coût unitaire réel, le bénéfice total généré, le bénéfice par carton, le bénéfice par unité, et le taux de marge d'après le prix de vente unitaire saisi (que l'utilisateur peut ajuster en direct sur cet écran).
+   - **Badge de Sécurité de Marge Dynamique (Nouveau) :** Affiche un badge coloré dynamique au sommet du panneau d'analyse pour alerter instantanément le gérant sur la rentabilité de sa tarification : Fatiantoka/Perte (Rouge) ⚠️, Tombony kely/Marge faible (Jaune) ⚠️, ou Tombony tsara/Marge excellente (Vert) ✨.
    - **Validation du réapprovisionnement :** Met à jour directement le stock du produit en y ajoutant les nouvelles unités reçues, enregistre le nouveau prix d'achat/gros et le nouveau prix de vente, et lie le fournisseur choisi au produit.
    - **Alerte de stock faible (Tahiry ho lany) :** Un deuxième onglet qui liste automatiquement tous les produits dont le niveau de stock est inférieur au seuil configuré, avec un bouton d'accès rapide "Approvisionner" pour les charger directement dans le calculateur.
    - **Ajout rapide de fournisseurs :** Formulaire en boîte de dialogue pour créer instantanément de nouveaux fournisseurs sur place si non listés.
+   - **Traduction parfaite et harmonisée :** Toutes les lignes de calcul de marges, de coûts de revient et de bénéfices unitaires/globaux sont entièrement localisées avec soin en Malgache (MG), Français (FR) et Anglais (EN).
 
 7. **Écran de Gestion de Codes-Barres (`BarcodeListScreen`)**
    - Accessible depuis la page des Paramètres.
@@ -89,3 +104,26 @@ Voici l'inventaire officiel des fonctionnalités implémentées dans l'applicati
    - **Formes de codes-barres optimisées (EAN-13 Standard de Qualité) :** Les barres de garde (début, milieu, fin) s'étendent élégamment vers le bas à travers la zone de texte, et les chiffres sont espacés et présentés de manière conforme aux standards industriels sous la planche pour un scan instantané à la caméra ou avec un lecteur optique.
    - **Saut de page automatique sans coupe :** Intègre une logique géométrique stricte de saut de page (dès 10 étiquettes atteintes par planche), garantissant qu'aucune étiquette ne soit coupée horizontalement entre deux pages.
    - **Impression unitaire :** Possibilité de relancer individuellement l'impression d'un produit précis depuis sa fiche avec le même rendu EAN-13 haute fidélité.
+
+8. **Écran de Synchronisation Multi-terminal (`SyncScreen`)**
+   - Accessible depuis la page des Paramètres.
+   - **Mode Serveur (Gérant) :** Permet d'héberger une base de données de synchronisation sur le réseau local Wi-Fi. Affiche un code QR contenant l'adresse IP locale du serveur pour faciliter l'association instantanée des clients, inclut un bouton de redirection rapide vers les paramètres de Point d'accès (Hotspot) du téléphone pour faciliter le partage réseau direct, et montre le nombre de terminaux connectés en temps réel.
+   - **Mode Client (Vendeur) :** Intègre un scanner de code QR dédié et hautement optimisé (`QrCodeScannerView`) filtrant exclusivement les formats QR Code (évitant tout conflit avec les codes-barres standards) et incluant un raccourci d'accès direct aux paramètres Wi-Fi de l'appareil ainsi qu'une interface de saisie manuelle de l'adresse IP en secours, permettant de lire l'adresse IP du serveur et s'y connecter instantanément.
+   - **Mise à jour en temps réel & Synchronisation feno bidirectionnelle (Mise à jour) :** Permet la synchronisation bidirectionnelle fluide et automatique de toute la base de données (produits, ventes, dettes, paiements) dès la connexion et lors de chaque transaction ou modification de stock. Le serveur consolide intelligemment les données reçues des clients et redistribue la base consolidée à tous les terminaux.
+   - **Forçage manuel de synchronisation :** Ajout de boutons physiques "Forcer la synchronisation" (Ampitoviana mivantana ny tahiry) sur les écrans Client et Serveur pour déclencher un cycle de consolidation complet à la demande.
+   - **Console de Journalisation (Logs) :** Fournit un affichage temps réel de tous les événements de synchronisation avec un code couleur spécifique (Vert pour les succès, Rouge pour les erreurs) pour faciliter le débogage.
+
+    - **Gestion de Synchronisation Sélective (Nouveau) :** Ajout d'un bouton de synchronisation directe dans la barre d'outils supérieure (`TopAppBar`) à côté des paramètres. Il ouvre un dialogue de contrôle de synchronisation en temps réel qui permet de rechercher n'importe quel produit et d'activer/désactiver sélectivement sa synchronisation. Un bouton de suppression ("fako") permet d'annuler sa synchronisation à tout moment (le produit reste local mais n'est plus propagé sur le réseau), avec affichage de badges clairs d'état de synchronisation ("Mampitovy" / "Tsy ampitoviana").
+
+9. **Sécurisation & Backup Automatique de la Base de Données (Nouveau)**
+   - **Protection anti-effacement automatique :** L'application intègre un système d'auto-sauvegarde automatique en arrière-plan. À chaque transaction, modification de produit, paiement de dette, ou fampitoviana (synchronisation) réussie, la base de données consolidée est sérialisée en JSON et sauvegardée dans un fichier local sécurisé (`database_safety_backup.json`) au sein de l'espace privé de l'application.
+   - **Restauration transparente automatique :** Si la base de données venait à être effacée ou réinitialisée lors d'une mise à jour de version de l'application (changement de schéma ou version Room sans migration), l'application détecte automatiquement la perte de données au démarrage et réinjecte instantanément la totalité des produits, ventes, et dettes depuis la sauvegarde de sécurité locale.
+   - **Contrôles manuels dans les Paramètres :** Ajout d'une section dédiée "Fiarovana ny Tahiry" (Sauvegarde & Sécurité) dans l'écran des paramètres permettant à l'utilisateur de déclencher à tout moment un backup manuel ou de forcer une restauration complète de ses enregistrements professionnels.
+
+10. **Architecture, Optimisation et Performance (Nouveau)**
+    - **Indexation Room Database :** Ajout d'un index sur `isTemplate` dans l'entité `Product` (en plus de `name`, `category`, `barcode`, `sku`) pour optimiser à l'extrême les temps d'accès lors de la recherche et filtrage de modèles de produits.
+    - **Algorithme Prédictif Haute-Performance :** Implémentation d'un système de recommandation double-moteur (Co-occurrences transactionnelles tirées de l'historique et repli sémantique par mots-clés localisés). Toutes les fusions et tris de classement de pertinence s'exécutent de manière asynchrone sur le pool de threads `Dispatchers.Default` via des liaisons `combine` réactives, assurant des calculs fluides et instantanés même avec des catalogues volumineux sans jamais ralentir le fil d'exécution principal (UI thread).
+    - **Optimisation de Rendu Jetpack Compose :** Configuration systématique de clés uniques stables (`key`) dans les listes et grilles de l'application (`HomeScreen` produits, `CalculatorScreen` produits et paniers, `InventoryListScreen` produits et puces de catégorie, `DebtsScreen` dettes, `SalesHistoryScreen` transactions) pour réduire à zéro les recompositions redondantes et éliminer les micro-saccades (jank) lors du défilement ou des mutations.
+    - **R8 / ProGuard Minification & Réduction d'Espace :** Activation de `isMinifyEnabled = true` et `isShrinkResources = true` dans le profil de publication Gradle. Configuration de règles chirurgicales robustes dans `proguard-rules.pro` pour garantir que Room, Moshi, Retrofit, OkHttp et les modèles de données ne subissent aucune régression de sérialisation par réflexion tout en maximisant la compression.
+    - **Compatibilité Multi-Architecture (ABIs) :** Configuration optimisée de la compilation native pour supporter de manière optimale tous les processeurs majeurs (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`) assurant une exécution fluide et rapide des modules ML Kit et SQLite sur l'ensemble du parc d'appareils Android.
+

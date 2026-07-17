@@ -17,6 +17,7 @@ import com.example.data.model.MouvementStock
 import com.example.data.model.LotProduit
 import com.example.data.model.Vente
 import com.example.data.model.LigneVente
+import com.example.data.model.Restock
 
 @Database(
     entities = [
@@ -30,9 +31,10 @@ import com.example.data.model.LigneVente
         MouvementStock::class,
         LotProduit::class,
         Vente::class,
-        LigneVente::class
+        LigneVente::class,
+        Restock::class
     ],
-    version = 10,
+    version = 13,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -40,6 +42,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun productDao(): ProductDao
     abstract fun saleDao(): SaleDao
     abstract fun debtDao(): DebtDao
+    abstract fun restockDao(): RestockDao
 
     abstract fun produitDao(): ProduitDao
     abstract fun uniteProduitDao(): UniteProduitDao
@@ -65,10 +68,10 @@ abstract class AppDatabase : RoomDatabase() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)
                         // Pre-populate the products table with default values including barcodes, wholesale prices, sku, and stock_quantity
-                        db.execSQL("INSERT INTO products (id, name, price, category, stock, imageUrl, lowStockThreshold, unit, barcode, wholesalePrice, sku, stock_quantity, gerePeremption, taxable, tauxTaxe, prixAchatUniteBase) VALUES (1, 'Vary', 3200.0, 'Alimentation', 50.0, '', 10.0, 'Kilogramme', '6111222333444', 3000.0, 'SKU-VARY-01', 50, 0, 0, 0.0, 3000.0)")
-                        db.execSQL("INSERT INTO products (id, name, price, category, stock, imageUrl, lowStockThreshold, unit, barcode, wholesalePrice, sku, stock_quantity, gerePeremption, taxable, tauxTaxe, prixAchatUniteBase) VALUES (2, 'Karoty', 1500.0, 'Légumes', 20.0, '', 5.0, 'Kilogramme', '', 1300.0, 'SKU-KAROTY-02', 20, 0, 0, 0.0, 1300.0)")
-                        db.execSQL("INSERT INTO products (id, name, price, category, stock, imageUrl, lowStockThreshold, unit, barcode, wholesalePrice, sku, stock_quantity, gerePeremption, taxable, tauxTaxe, prixAchatUniteBase) VALUES (3, 'Menaka', 7500.0, 'Alimentation', 30.0, '', 5.0, 'Litre', '3017620422003', 7000.0, 'SKU-MENAKA-03', 30, 0, 0, 0.0, 7000.0)")
-                        db.execSQL("INSERT INTO products (id, name, price, category, stock, imageUrl, lowStockThreshold, unit, barcode, wholesalePrice, sku, stock_quantity, gerePeremption, taxable, tauxTaxe, prixAchatUniteBase) VALUES (4, 'Biski', 1000.0, 'Alimentation', 100.0, '', 10.0, 'Pièce', '3250541505351', 850.0, 'SKU-BISKI-04', 100, 0, 0, 0.0, 850.0)")
+                        db.execSQL("INSERT INTO products (id, name, price, category, stock, imageUrl, lowStockThreshold, unit, barcode, wholesalePrice, sku, stock_quantity, gerePeremption, taxable, tauxTaxe, prixAchatUniteBase, isTemplate) VALUES (1, 'Vary', 3200.0, 'Alimentation', 50.0, '', 10.0, 'Kilogramme', '6111222333444', 3000.0, 'SKU-VARY-01', 50, 0, 0, 0.0, 3000.0, 0)")
+                        db.execSQL("INSERT INTO products (id, name, price, category, stock, imageUrl, lowStockThreshold, unit, barcode, wholesalePrice, sku, stock_quantity, gerePeremption, taxable, tauxTaxe, prixAchatUniteBase, isTemplate) VALUES (2, 'Karoty', 1500.0, 'Légumes', 20.0, '', 5.0, 'Kilogramme', '', 1300.0, 'SKU-KAROTY-02', 20, 0, 0, 0.0, 1300.0, 0)")
+                        db.execSQL("INSERT INTO products (id, name, price, category, stock, imageUrl, lowStockThreshold, unit, barcode, wholesalePrice, sku, stock_quantity, gerePeremption, taxable, tauxTaxe, prixAchatUniteBase, isTemplate) VALUES (3, 'Menaka', 7500.0, 'Alimentation', 30.0, '', 5.0, 'Litre', '3017620422003', 7000.0, 'SKU-MENAKA-03', 30, 0, 0, 0.0, 7000.0, 0)")
+                        db.execSQL("INSERT INTO products (id, name, price, category, stock, imageUrl, lowStockThreshold, unit, barcode, wholesalePrice, sku, stock_quantity, gerePeremption, taxable, tauxTaxe, prixAchatUniteBase, isTemplate) VALUES (4, 'Biski', 1000.0, 'Alimentation', 100.0, '', 10.0, 'Pièce', '3250541505351', 850.0, 'SKU-BISKI-04', 100, 0, 0, 0.0, 850.0, 0)")
 
                         // Pre-populate our robust Produits table
                         val now = System.currentTimeMillis()

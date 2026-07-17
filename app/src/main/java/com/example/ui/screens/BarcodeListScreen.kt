@@ -46,9 +46,9 @@ fun BarcodeListScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf(0) } // 0 = With barcode, 1 = Without barcode
     
-    val isDark = MaterialTheme.colorScheme.background == Color(0xFF1B1C1C)
-    val cardBg = if (isDark) Color(0xFF222323) else Color(0xFFF8FAFC)
-    val cardBorderColor = if (isDark) Color(0xFF343535) else Color(0xFFE2E8F0)
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF002114)
+    val cardBg = if (isDark) Color(0xFF1B4332) else Color(0xFFF8FAFC)
+    val cardBorderColor = if (isDark) Color(0xFF2C5E43) else Color(0xFFE2E8F0)
     val mainTextColor = if (isDark) Color.White else Color(0xFF1E293B)
     val secondaryTextColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
 
@@ -143,7 +143,7 @@ fun BarcodeListScreen(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(if (isDark) Color(0xFF2D2E2E) else Color(0xFFF1F5F9))
+                            .background(if (isDark) Color(0xFF1B4332) else Color(0xFFF1F5F9))
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -461,7 +461,7 @@ fun BarcodeListScreen(
                                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(6.dp))
-                                                .background(if (isDark) Color(0xFF1B1C1C) else Color(0xFFE2E8F0).copy(alpha = 0.5f))
+                                                .background(if (isDark) Color(0xFF002114) else Color(0xFFE2E8F0).copy(alpha = 0.5f))
                                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                                         ) {
                                             Icon(
@@ -526,7 +526,7 @@ fun BarcodeListScreen(
                                         modifier = Modifier
                                             .size(36.dp)
                                             .clip(CircleShape)
-                                            .background(if (isDark) Color(0xFF2D2E2E) else Color(0xFFF1F5F9))
+                                            .background(if (isDark) Color(0xFF1B4332) else Color(0xFFF1F5F9))
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Print,

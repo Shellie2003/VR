@@ -185,12 +185,43 @@ fun CommissionScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // Onboarding user tip for clarity and guidance
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Lightbulb,
+                                contentDescription = null,
+                                tint = Color(0xFFEAB308),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Fampiasana: Safidio aloha ny entana. Ampidiro ny isan'ny baoritra sy ny singany ao anatiny, avy eo ny vola manontolo nividianana azy ary farany ny vidiny hivarotanao ny singany iray mba hahitana ny tombony."
+                                    "fr" -> "Mode d'emploi : Sélectionnez d'abord le produit. Entrez le nombre de cartons, les pièces par carton, le montant total payé, puis le prix de vente unitaire pour analyser vos gains."
+                                    else -> "How to use: First select the product. Enter the number of cartons, items per carton, total purchase price, and finally your desired retail selling price per unit to analyze margins."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF475569),
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+
                     // Section Title: Product Selection
                     Text(
                         text = when (activeLang) {
-                            "mg" -> "1. Safidio ny vokatra sy ny mpamatsy"
-                            "fr" -> "1. Choisir le produit & fournisseur"
-                            else -> "1. Select Product & Supplier"
+                            "mg" -> "1. Safidio ny Entana sy ny Mpamatsy"
+                            "fr" -> "1. Choisir le produit et le fournisseur"
+                            else -> "1. Select Product and Supplier"
                         },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
@@ -211,9 +242,9 @@ fun CommissionScreen(
                             label = {
                                 Text(
                                     when (activeLang) {
-                                        "mg" -> "Tadiavo ny vokatra (Vary, Savony...)"
-                                        "fr" -> "Rechercher un produit..."
-                                        else -> "Search Product..."
+                                        "mg" -> "Tadiavo ny Entana (Vary, Savony...)"
+                                        "fr" -> "Rechercher un produit (Riz, Savon...)"
+                                        else -> "Search Product (Rice, Soap...)"
                                     }
                                 )
                             },
@@ -277,8 +308,8 @@ fun CommissionScreen(
                             val activeSupplier = suppliers.find { it.id == selectedFournisseurId }
                             OutlinedTextField(
                                 value = activeSupplier?.nom ?: when (activeLang) {
-                                    "mg" -> "Mpamatsy tsy fantatra"
-                                    "fr" -> "Fournisseur non spécifié"
+                                    "mg" -> "Tsy misy mpamatsy"
+                                    "fr" -> "Aucun fournisseur"
                                     else -> "No Supplier Selected"
                                 },
                                 onValueChange = {},
@@ -286,7 +317,7 @@ fun CommissionScreen(
                                 label = {
                                     Text(
                                         when (activeLang) {
-                                            "mg" -> "Mpamatsy (Fournisseur)"
+                                            "mg" -> "Mpamatsy"
                                             "fr" -> "Fournisseur"
                                             else -> "Supplier"
                                         }
@@ -346,17 +377,52 @@ fun CommissionScreen(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // Section Title: Procurement parameters
-                    Text(
-                        text = when (activeLang) {
-                            "mg" -> "2. Ampidiro ny vidiny sy ny habetsahany"
-                            "fr" -> "2. Entrer les quantités & prix d'achat"
-                            else -> "2. Enter Quantity & Cost prices"
-                        },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1E293B)
-                    )
+                    // Section Title 2: Procurement parameters with Clear Button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "2. Isany sy Vidiny nividianana"
+                                "fr" -> "2. Quantités et prix d'achat"
+                                else -> "2. Quantities & Purchase Prices"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1E293B)
+                        )
+
+                        TextButton(
+                            onClick = {
+                                quantityStr = ""
+                                itemsPerCartonStr = ""
+                                totalCostPriceStr = ""
+                                unitSellingPriceStr = ""
+                            },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteSweep,
+                                contentDescription = "Clear fields",
+                                modifier = Modifier.size(16.dp),
+                                tint = themeColor
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Hamafana"
+                                    "fr" -> "Effacer tout"
+                                    else -> "Clear All"
+                                },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                        }
+                    }
 
                     // Inputs Row 1: Quantity of Cartons & Items per Carton
                     Row(
@@ -369,9 +435,9 @@ fun CommissionScreen(
                             label = {
                                 Text(
                                     when (activeLang) {
-                                        "mg" -> "Isan'ny baoritra / lot"
-                                        "fr" -> "Nbr Cartons / Lots"
-                                        else -> "Quantity (Cartons)"
+                                        "mg" -> "Isan'ny Baoritra / Lot"
+                                        "fr" -> "Nombre de Cartons / Lots"
+                                        else -> "Quantity (Cartons/Lots)"
                                     }
                                 )
                             },
@@ -386,7 +452,7 @@ fun CommissionScreen(
                             label = {
                                 Text(
                                     when (activeLang) {
-                                        "mg" -> "Singany isaky ny baoritra"
+                                        "mg" -> "Singany isaky ny Baoritra"
                                         "fr" -> "Pièces par Carton"
                                         else -> "Items per Carton"
                                     }
@@ -409,9 +475,9 @@ fun CommissionScreen(
                             label = {
                                 Text(
                                     when (activeLang) {
-                                        "mg" -> "Vidiny nividianana azy manontolo"
-                                        "fr" -> "Coût d'achat total"
-                                        else -> "Total Cost Price"
+                                        "mg" -> "Vola manontolo nividianana azy"
+                                        "fr" -> "Prix d'achat total (Gros)"
+                                        else -> "Total Purchase Cost"
                                     }
                                 )
                             },
@@ -427,8 +493,8 @@ fun CommissionScreen(
                             label = {
                                 Text(
                                     when (activeLang) {
-                                        "mg" -> "Vidiny hivorotana azy (Singany)"
-                                        "fr" -> "Prix de vente unit."
+                                        "mg" -> "Vidiny hivarotana (Singany)"
+                                        "fr" -> "Prix de vente unitaire"
                                         else -> "Unit Selling Price"
                                     }
                                 )
@@ -443,20 +509,53 @@ fun CommissionScreen(
                         )
                     }
 
-                    // Profit Calculations Section (Auto-Calculated)
-                    val qVal = quantityStr.toDoubleOrNull() ?: 1.0
-                    val itemsVal = itemsPerCartonStr.toDoubleOrNull() ?: 1.0
+                    // Profit Calculations Section (Auto-Calculated) - Defaults to 0.0 robustly
+                    val qVal = quantityStr.toDoubleOrNull() ?: 0.0
+                    val itemsVal = itemsPerCartonStr.toDoubleOrNull() ?: 0.0
                     val totalCostVal = totalCostPriceStr.toDoubleOrNull() ?: 0.0
                     val sellPriceVal = unitSellingPriceStr.toDoubleOrNull() ?: 0.0
 
                     val totalUnits = qVal * itemsVal
-                    val costPerCarton = if (qVal > 0) totalCostVal / qVal else 0.0
-                    val costPerUnit = if (totalUnits > 0) totalCostVal / totalUnits else 0.0
+                    val costPerCarton = if (qVal > 0.0) totalCostVal / qVal else 0.0
+                    val costPerUnit = if (totalUnits > 0.0) totalCostVal / totalUnits else 0.0
                     val totalRevenue = totalUnits * sellPriceVal
                     val totalProfit = totalRevenue - totalCostVal
-                    val profitPerCarton = if (qVal > 0) totalProfit / qVal else 0.0
-                    val profitPerUnit = sellPriceVal - costPerUnit
-                    val marginPct = if (totalCostVal > 0) (totalProfit / totalCostVal) * 100 else 0.0
+                    val profitPerCarton = if (qVal > 0.0) totalProfit / qVal else 0.0
+                    val profitPerUnit = if (totalUnits > 0.0) sellPriceVal - costPerUnit else 0.0
+                    val marginPct = if (totalCostVal > 0.0) (totalProfit / totalCostVal) * 100.0 else 0.0
+
+                    // Dynamic Margin Health Badge values
+                    val isCalculationActive = totalCostVal > 0.0 && sellPriceVal > 0.0 && totalUnits > 0.0
+                    val marginStatusText = when {
+                        !isCalculationActive -> ""
+                        totalProfit < 0.0 -> when (activeLang) {
+                            "mg" -> "Fatiantoka ⚠️ (Mila ampiakarina ny vidiny)"
+                            "fr" -> "Perte ⚠️ (Augmentez le prix)"
+                            else -> "Loss ⚠️ (Increase price)"
+                        }
+                        totalProfit == 0.0 -> when (activeLang) {
+                            "mg" -> "Tsy misy tombony"
+                            "fr" -> "Marge nulle"
+                            else -> "Zero margin"
+                        }
+                        marginPct < 15.0 -> when (activeLang) {
+                            "mg" -> "Tombony kely (Marge faible) ⚠️"
+                            "fr" -> "Marge faible ⚠️"
+                            else -> "Low margin ⚠️"
+                        }
+                        else -> when (activeLang) {
+                            "mg" -> "Tombony tsara (Marge excellente) ✨"
+                            "fr" -> "Marge excellente ✨"
+                            else -> "Excellent margin ✨"
+                        }
+                    }
+
+                    val marginStatusColor = when {
+                        totalProfit < 0.0 -> Color(0xFFEF4444) // Red
+                        totalProfit == 0.0 -> Color(0xFF64748B) // Slate
+                        marginPct < 15.0 -> Color(0xFFF59E0B) // Amber/Yellow
+                        else -> Color(0xFF10B981) // Emerald Green
+                    }
 
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -471,73 +570,131 @@ fun CommissionScreen(
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.TrendingUp,
-                                    contentDescription = null,
-                                    tint = themeColor
-                                )
-                                Text(
-                                    text = when (activeLang) {
-                                        "mg" -> "Kajy Tombony & Elanelana (Analyse de Marge)"
-                                        "fr" -> "Analyse de Marge & Bénéfices"
-                                        else -> "Margin & Profit Analysis"
-                                    },
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = themeColor
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.TrendingUp,
+                                        contentDescription = null,
+                                        tint = themeColor
+                                    )
+                                    Text(
+                                        text = when (activeLang) {
+                                            "mg" -> "Kajy Tombony & Elanelana"
+                                            "fr" -> "Analyse des Marges"
+                                            else -> "Margin Analysis"
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = themeColor
+                                    )
+                                }
+
+                                if (marginStatusText.isNotEmpty()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(marginStatusColor.copy(alpha = 0.15f))
+                                            .border(1.dp, marginStatusColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = marginStatusText,
+                                            color = marginStatusColor,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
 
                             HorizontalDivider(color = themeColor.copy(alpha = 0.1f))
 
-                            // Outputs grid
+                            // Outputs grid with clean, high-precision fully localized values
                             CalculationRow(
-                                label = if (activeLang == "mg") "Isany manontolo ho tafiditra" else "Total unités approvisionnées",
-                                value = "${totalUnits.toInt()} ${selectedProduct?.unit ?: "Pces"}",
+                                label = when (activeLang) {
+                                    "mg" -> "Isan'ny singany tafiditra manontolo"
+                                    "fr" -> "Nombre d'unités approvisionnées"
+                                    else -> "Total Units Restocked"
+                                },
+                                value = "${totalUnits.toInt()} ${selectedProduct?.unit ?: when (activeLang) {
+                                    "mg" -> "Singany"
+                                    "fr" -> "Pces"
+                                    else -> "Pcs"
+                                }}",
                                 isBold = true
                             )
 
                             CalculationRow(
-                                label = if (activeLang == "mg") "Vidiny nividianana ny 1 Baoritra" else "Coût de revient par Carton",
+                                label = when (activeLang) {
+                                    "mg" -> "Vidiny nividianana ny 1 Baoritra"
+                                    "fr" -> "Prix d'achat par Carton"
+                                    else -> "Purchase Cost per Carton"
+                                },
                                 value = "${FormatUtil.formatPrice(costPerCarton)} Ar"
                             )
 
                             CalculationRow(
-                                label = if (activeLang == "mg") "Vidiny nividianana ny 1 Singany" else "Coût de revient par Singany (unité)",
+                                label = when (activeLang) {
+                                    "mg" -> "Vidiny nividianana ny 1 Singany"
+                                    "fr" -> "Prix d'achat unitaire (Revient)"
+                                    else -> "Purchase Cost per Unit"
+                                },
                                 value = "${FormatUtil.formatPrice(costPerUnit)} Ar"
                             )
 
                             HorizontalDivider(color = themeColor.copy(alpha = 0.1f))
 
                             CalculationRow(
-                                label = if (activeLang == "mg") "Vola maty manontolo (Chiffre d'Affaire)" else "Revenu de vente total",
+                                label = when (activeLang) {
+                                    "mg" -> "Vola miditra manontolo (Chiffre d'Affaires)"
+                                    "fr" -> "Chiffre d'affaires potentiel"
+                                    else -> "Potential Turnover / Revenue"
+                                },
                                 value = "${FormatUtil.formatPrice(totalRevenue)} Ar"
                             )
 
                             CalculationRow(
-                                label = if (activeLang == "mg") "TOMBOM-BAROTRA MANONTOLO (Bénéfice)" else "BÉNÉFICE TOTAL OBTENU",
+                                label = when (activeLang) {
+                                    "mg" -> "TOMBOM-BAROTRA MANONTOLO"
+                                    "fr" -> "BÉNÉFICE GLOBAL POTENTIEL"
+                                    else -> "TOTAL POTENTIAL PROFIT"
+                                },
                                 value = "${FormatUtil.formatPrice(totalProfit)} Ar",
-                                color = if (totalProfit >= 0) Color(0xFF10B981) else Color.Red,
+                                color = if (totalProfit >= 0.0) Color(0xFF10B981) else Color.Red,
                                 isBold = true
                             )
 
                             CalculationRow(
-                                label = if (activeLang == "mg") "Tombony isaky ny Baoritra (Bénéfice/Carton)" else "Bénéfice par Carton",
+                                label = when (activeLang) {
+                                    "mg" -> "Tombony amin'ny 1 Baoritra"
+                                    "fr" -> "Bénéfice net par Carton"
+                                    else -> "Net Profit per Carton"
+                                },
                                 value = "${FormatUtil.formatPrice(profitPerCarton)} Ar",
-                                color = if (profitPerCarton >= 0) Color(0xFF059669) else Color.Red,
+                                color = if (profitPerCarton >= 0.0) Color(0xFF059669) else Color.Red,
                                 isBold = true
                             )
 
                             CalculationRow(
-                                label = if (activeLang == "mg") "Tombony isaky ny Singany (Bénéfice/Unité)" else "Bénéfice par Unité",
+                                label = when (activeLang) {
+                                    "mg" -> "Tombony amin'ny 1 Singany"
+                                    "fr" -> "Bénéfice net par Singany (unité)"
+                                    else -> "Net Profit per Unit"
+                                },
                                 value = "${FormatUtil.formatPrice(profitPerUnit)} Ar",
-                                color = if (profitPerUnit >= 0) Color(0xFF059669) else Color.Red
+                                color = if (profitPerUnit >= 0.0) Color(0xFF059669) else Color.Red
                             )
 
                             CalculationRow(
-                                label = if (activeLang == "mg") "Taux de Marge obtenu" else "Taux de Marge (%)",
+                                label = when (activeLang) {
+                                    "mg" -> "Tahan'ny Tombom-barotra (%)"
+                                    "fr" -> "Taux de Marge (%)"
+                                    else -> "Margin Rate (%)"
+                                },
                                 value = "%.1f %%".format(marginPct),
                                 color = themeColor,
                                 isBold = true
@@ -563,6 +720,21 @@ fun CommissionScreen(
                                 fournisseurId = selectedFournisseurId
                             )
                             viewModel.saveProduct(updatedProduct)
+
+                            // Save Restock History Record
+                            val activeSupplier = suppliers.find { it.id == selectedFournisseurId }
+                            val restockRecord = com.example.data.model.Restock(
+                                productId = prod.id,
+                                productName = prod.name,
+                                cartonsQuantity = qVal,
+                                itemsPerCarton = itemsVal,
+                                totalUnits = totalUnits,
+                                totalCostPrice = totalCostVal,
+                                unitSellingPrice = sellPriceVal,
+                                supplierId = selectedFournisseurId,
+                                supplierName = activeSupplier?.nom
+                            )
+                            viewModel.saveRestock(restockRecord)
 
                             successMessage = when (activeLang) {
                                 "mg" -> "Tafita! Nampiana +${totalUnits.toInt()} ny stock an'i ${prod.name}."
@@ -651,7 +823,7 @@ fun CommissionScreen(
                     ) {
                         Text(
                             text = when (activeLang) {
-                                "mg" -> "Ireto vokatra ireto dia efa ho lany (Mila famatsiana):"
+                                "mg" -> "Efa ho lany ireto Entana ireto ka mila famatsiana:"
                                 "fr" -> "Ces produits nécessitent un réapprovisionnement :"
                                 else -> "These products need restocking soon:"
                             },
