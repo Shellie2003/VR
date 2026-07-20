@@ -1,0 +1,18 @@
+# Ensure binary files are not corrupted by git line ending normalization
+*.jar binary
+*.png binary
+*.webp binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+
+# Ensure gradlew and shell scripts always use Linux line endings (LF)
+gradlew text eol=lf
+*.sh text eol=lf
+
+# Force source, build, and configuration files to be treated as text
+*.kt text
+*.kts text
+*.xml text
+*.json text
+*.properties text
