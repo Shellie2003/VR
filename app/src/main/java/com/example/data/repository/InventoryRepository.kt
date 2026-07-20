@@ -3,7 +3,10 @@ package com.example.data.repository
 import androidx.room.withTransaction
 import com.example.data.local.*
 import com.example.data.model.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
 
 class InventoryRepository(
     private val database: AppDatabase,
@@ -20,36 +23,43 @@ class InventoryRepository(
     val lignesVenteDao: LigneVenteDao,
     val restockDao: RestockDao
 ) {
-    val allProducts: Flow<List<Product>> = productDao.getAllProducts()
-    val allSales: Flow<List<Sale>> = saleDao.getAllSales()
-    val allDebts: Flow<List<Debt>> = debtDao.getAllDebts()
-    val allRestocks: Flow<List<Restock>> = restockDao.getAllRestocks()
-    val allCategories: Flow<List<String>> = productDao.getAllCategories()
+    // Expose flows on IO dispatcher to avoid accidental collection on main thread doing DB work
+    val allProducts: Flow<List<Product>> = productDao.getAllProducts().flowOn(Dispatchers.IO)
+    val allSales: Flow<List<Sale>> = saleDao.getAllSales().flowOn(Dispatchers.IO)
+    val allDebts: Flow<List<Debt>> = debtDao.getAllDebts().flowOn(Dispatchers.IO)
+    val allRestocks: Flow<List<Restock>> = restockDao.getAllRestocks().flowOn(Dispatchers.IO)
+    val allCategories: Flow<List<String>> = productDao.getAllCategories().flowOn(Dispatchers.IO)
 
-    suspend fun insertRestock(restock: Restock) {
+    suspend fun insertRestock(restock: Restock) = withContext(Dispatchers.IO) {
         restockDao.insertRestock(restock)
     }
 
-    suspend fun deleteRestock(restock: Restock) {
+    suspend fun deleteRestock(restock: Restock) = withContext(Dispatchers.IO) {
         restockDao.deleteRestock(restock)
     }
 
-    fun getLimitedProducts(limit: Int): Flow<List<Product>> = productDao.getLimitedProducts(limit)
-    fun searchProducts(query: String, category: String, showLowStockOnly: Boolean): Flow<List<Product>> = 
-        productDao.searchProducts(query, category, showLowStockOnly)
-    fun searchTemplateProducts(query: String, category: String): Flow<List<Product>> = 
-        productDao.searchTemplateProducts(query, category)
-    fun getAllTemplateCategories(): Flow<List<String>> = productDao.getAllTemplateCategories()
-    fun hasProducts(): Flow<Boolean> = productDao.hasProducts()
-    fun hasTemplates(): Flow<Boolean> = productDao.hasTemplates()
-    fun getProductsWithBarcodes(): Flow<List<Product>> = productDao.getProductsWithBarcodes()
-    suspend fun getProductByBarcode(barcode: String): Product? = productDao.getProductByBarcode(barcode)
-    suspend fun getProductByName(name: String): Product? = productDao.getProductByName(name)
+    fun getLimitedProducts(limit: Int): Flow<List<Product>> = productDao.getLimitedProducts(limit).flowOn(Dispatchers.IO)
+    fun searchProducts(query: String, category: String, showLowStockOnly: Boolean): Flow<List<Product>> =
+        productDao.searchProducts(query, category, showLowStockOnly).flowOn(Dispatchers.IO)
+    fun searchTemplateProducts(query: String, category: String): Flow<List<Product>> =
+        productDao.searchTemplateProducts(query, category).flowOn(Dispatchers.IO)
+    fun getAllTemplateCategories(): Flow<List<String>> = productDao.getAllTemplateCategories().flowOn(Dispatchers.IO)
+    fun hasProducts(): Flow<Boolean> = productDao.hasProducts().flowOn(Dispatchers.IO)
+    fun hasTemplates(): Flow<Boolean> = productDao.hasTemplates().flowOn(Dispatchers.IO)
+    fun getProductsWithBarcodes(): Flow<List<Product>> = productDao.getProductsWithBarcodes().flowOn(Dispatchers.IO)
 
-    suspend fun insertProduct(product: Product) {
+    suspend fun getProductByBarcode(barcode: String): Product? = withContext(Dispatchers.IO) {
+        productDao.getProductByBarcode(barcode)
+    }
+
+    suspend fun getProductByName(name: String): Product? = withContext(Dispatchers.IO) {
+        productDao.getProductByName(name)
+    }
+
+    suspend fun insertProduct(product: Product) = withContext(Dispatchers.IO) {
         val generatedId = productDao.insertProduct(product)
         if (product.isTemplate) {
-            return
+            return@withContext
         }
         val productWithId = product.copy(id = generatedId.toInt())
         // Sync to the new relational Produits table
@@ -121,7 +131,7 @@ class InventoryRepository(
         mouvementStockDao.insertMouvement(mvt)
     }
 
-    suspend fun updateProduct(product: Product) {
+    suspend fun updateProduct(product: Product) = withContext(Dispatchers.IO) {
         productDao.updateProduct(product)
         // Sync
         val existingProduit = produitDao.getProduitById(product.id.toLong())
@@ -194,7 +204,7 @@ class InventoryRepository(
         }
     }
 
-    suspend fun deleteProduct(product: Product) {
+    suspend fun deleteProduct(product: Product) = withContext(Dispatchers.IO) {
         productDao.deleteProduct(product)
         val existing = produitDao.getProduitById(product.id.toLong())
         if (existing != null) {
@@ -202,7 +212,7 @@ class InventoryRepository(
         }
     }
 
-    suspend fun deleteProductById(id: Int) {
+    suspend fun deleteProductById(id: Int) = withContext(Dispatchers.IO) {
         productDao.deleteProductById(id)
         val existing = produitDao.getProduitById(id.toLong())
         if (existing != null) {
@@ -210,9 +220,11 @@ class InventoryRepository(
         }
     }
 
-    suspend fun getProductById(id: Int): Product? = productDao.getProductById(id)
+    suspend fun getProductById(id: Int): Product? = withContext(Dispatchers.IO) {
+        productDao.getProductById(id)
+    }
 
-    suspend fun insertSale(sale: Sale) {
+    suspend fun insertSale(sale: Sale) = withContext(Dispatchers.IO) {
         saleDao.insertSale(sale)
 
         // Convert to Vente (relational table)
@@ -301,113 +313,121 @@ class InventoryRepository(
         }
     }
 
-    suspend fun checkoutSale(sale: Sale, decrementStock: Boolean = true) = database.withTransaction {
-        saleDao.insertSale(sale)
+    suspend fun checkoutSale(sale: Sale, decrementStock: Boolean = true) = withContext(Dispatchers.IO) {
+        database.withTransaction {
+            saleDao.insertSale(sale)
 
-        // Convert to Vente (relational table)
-        val newVente = Vente(
-            dateVente = sale.timestamp,
-            montantTotal = sale.totalAmount,
-            modePaiement = "ESPECES"
-        )
-        val venteId = venteDao.insertVente(newVente)
+            // Convert to Vente (relational table)
+            val newVente = Vente(
+                dateVente = sale.timestamp,
+                montantTotal = sale.totalAmount,
+                modePaiement = "ESPECES"
+            )
+            val venteId = venteDao.insertVente(newVente)
 
-        for (item in sale.items) {
-            val originalId = item.productId.toLong()
-            var existingProduit = produitDao.getProduitById(originalId)
+            for (item in sale.items) {
+                val originalId = item.productId.toLong()
+                var existingProduit = produitDao.getProduitById(originalId)
 
-            if (existingProduit == null) {
-                // Fallback to barcode
-                val matchingLegacyProduct = productDao.getProductById(item.productId)
-                if (matchingLegacyProduct != null && matchingLegacyProduct.barcode.isNotEmpty()) {
-                    existingProduit = produitDao.getProduitByBarcode(matchingLegacyProduct.barcode)
+                if (existingProduit == null) {
+                    // Fallback to barcode
+                    val matchingLegacyProduct = productDao.getProductById(item.productId)
+                    if (matchingLegacyProduct != null && matchingLegacyProduct.barcode.isNotEmpty()) {
+                        existingProduit = produitDao.getProduitByBarcode(matchingLegacyProduct.barcode)
+                    }
                 }
-            }
 
-            if (existingProduit == null) {
-                // Fallback to name
-                existingProduit = produitDao.getProduitByName(item.name)
-            }
+                if (existingProduit == null) {
+                    // Fallback to name
+                    existingProduit = produitDao.getProduitByName(item.name)
+                }
 
-            if (existingProduit != null) {
-                val targetId = existingProduit.id
-                // Get or create base UniteProduit
-                var uniteId = 0L
-                val units = if (existingProduit.codeBarrePrincipal?.isNotEmpty() == true) {
-                    uniteProduitDao.getUniteByBarcode(existingProduit.codeBarrePrincipal)
-                } else null
+                if (existingProduit != null) {
+                    val targetId = existingProduit.id
+                    // Get or create base UniteProduit
+                    var uniteId = 0L
+                    val units = if (existingProduit.codeBarrePrincipal?.isNotEmpty() == true) {
+                        uniteProduitDao.getUniteByBarcode(existingProduit.codeBarrePrincipal)
+                    } else null
 
-                val baseUnit = if (units != null) units else uniteProduitDao.getBaseUniteForProduit(targetId)
+                    val baseUnit = if (units != null) units else uniteProduitDao.getBaseUniteForProduit(targetId)
 
-                if (baseUnit != null) {
-                    uniteId = baseUnit.id
-                } else {
-                    val baseUnite = UniteProduit(
+                    if (baseUnit != null) {
+                        uniteId = baseUnit.id
+                    } else {
+                        val baseUnite = UniteProduit(
+                            produitId = targetId,
+                            nomUnite = existingProduit.uniteBase,
+                            facteurVersBase = 1.0,
+                            prixVente = item.price,
+                            prixAchat = existingProduit.prixAchatUniteBase,
+                            codeBarre = existingProduit.codeBarrePrincipal?.ifEmpty { null },
+                            estUniteBase = true,
+                            estUniteVenteDefaut = true,
+                            ordre = 0,
+                            actif = true
+                        )
+                        uniteId = uniteProduitDao.insertUnite(baseUnite)
+                    }
+
+                    // Save LigneVente
+                    val ligne = LigneVente(
+                        venteId = venteId,
                         produitId = targetId,
-                        nomUnite = existingProduit.uniteBase,
-                        facteurVersBase = 1.0,
-                        prixVente = item.price,
-                        prixAchat = existingProduit.prixAchatUniteBase,
-                        codeBarre = existingProduit.codeBarrePrincipal?.ifEmpty { null },
-                        estUniteBase = true,
-                        estUniteVenteDefaut = true,
-                        ordre = 0,
-                        actif = true
+                        uniteId = uniteId,
+                        quantite = item.quantity,
+                        prixUnitaireApplique = item.price,
+                        montantLigne = item.quantity * item.price
                     )
-                    uniteId = uniteProduitDao.insertUnite(baseUnite)
-                }
+                    lignesVenteDao.insertLigneVente(ligne)
 
-                // Save LigneVente
-                val ligne = LigneVente(
-                    venteId = venteId,
-                    produitId = targetId,
-                    uniteId = uniteId,
-                    quantite = item.quantity,
-                    prixUnitaireApplique = item.price,
-                    montantLigne = item.quantity * item.price
-                )
-                lignesVenteDao.insertLigneVente(ligne)
+                    if (decrementStock) {
+                        // Record MouvementStock
+                        val mvt = MouvementStock(
+                            produitId = targetId,
+                            type = "SORTIE_VENTE",
+                            quantite = item.quantity,
+                            quantiteAvant = existingProduit.quantiteStock,
+                            quantiteApres = (existingProduit.quantiteStock - item.quantity).coerceAtLeast(0.0),
+                            referenceId = venteId,
+                            note = "Vente #${venteId}"
+                        )
+                        mouvementStockDao.insertMouvement(mvt)
+
+                        // Update quantity stock of Produit
+                        val updatedProduit = existingProduit.copy(
+                            quantiteStock = (existingProduit.quantiteStock - item.quantity).coerceAtLeast(0.0),
+                            dateDerniereMaj = System.currentTimeMillis()
+                        )
+                        produitDao.updateProduit(updatedProduit)
+                    }
+                }
 
                 if (decrementStock) {
-                    // Record MouvementStock
-                    val mvt = MouvementStock(
-                        produitId = targetId,
-                        type = "SORTIE_VENTE",
-                        quantite = item.quantity,
-                        quantiteAvant = existingProduit.quantiteStock,
-                        quantiteApres = (existingProduit.quantiteStock - item.quantity).coerceAtLeast(0.0),
-                        referenceId = venteId,
-                        note = "Vente #${venteId}"
-                    )
-                    mouvementStockDao.insertMouvement(mvt)
-
-                    // Update quantity stock of Produit
-                    val updatedProduit = existingProduit.copy(
-                        quantiteStock = (existingProduit.quantiteStock - item.quantity).coerceAtLeast(0.0),
-                        dateDerniereMaj = System.currentTimeMillis()
-                    )
-                    produitDao.updateProduit(updatedProduit)
-                }
-            }
-
-            if (decrementStock) {
-                // Update legacy Product model stock to stay synchronized
-                val matchingProduct = productDao.getProductById(item.productId)
-                if (matchingProduct != null) {
-                    val currentStock = matchingProduct.stock
-                    val updatedStock = (currentStock - item.quantity).coerceAtLeast(0.0)
-                    val updatedProduct = matchingProduct.copy(stock = updatedStock)
-                    productDao.updateProduct(updatedProduct)
+                    // Update legacy Product model stock to stay synchronized
+                    val matchingProduct = productDao.getProductById(item.productId)
+                    if (matchingProduct != null) {
+                        val currentStock = matchingProduct.stock
+                        val updatedStock = (currentStock - item.quantity).coerceAtLeast(0.0)
+                        val updatedProduct = matchingProduct.copy(stock = updatedStock)
+                        productDao.updateProduct(updatedProduct)
+                    }
                 }
             }
         }
     }
 
-    suspend fun deleteSale(sale: Sale) {
+    suspend fun deleteSale(sale: Sale) = withContext(Dispatchers.IO) {
         saleDao.deleteSale(sale)
     }
 
-    suspend fun insertDebt(debt: Debt) = debtDao.insertDebt(debt)
-    suspend fun updateDebt(debt: Debt) = debtDao.updateDebt(debt)
-    suspend fun deleteDebt(debt: Debt) = debtDao.deleteDebt(debt)
+    suspend fun insertDebt(debt: Debt) = withContext(Dispatchers.IO) {
+        debtDao.insertDebt(debt)
+    }
+    suspend fun updateDebt(debt: Debt) = withContext(Dispatchers.IO) {
+        debtDao.updateDebt(debt)
+    }
+    suspend fun deleteDebt(debt: Debt) = withContext(Dispatchers.IO) {
+        debtDao.deleteDebt(debt)
+    }
 }
