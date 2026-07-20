@@ -384,11 +384,11 @@ fun HomeScreen(
 
                             Spacer(modifier = Modifier.height(6.dp))
 
-                            // Row with Total Stock and Price
-                            Row(
+                            // Column with Total Stock and Price stacked vertically
+                            Column(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                horizontalAlignment = Alignment.Start
                             ) {
                                 // Stock/Total
                                 val (stockValue, stockUnit) = when (product.unit.lowercase()) {
@@ -434,8 +434,9 @@ fun HomeScreen(
                                 val isWholesaleActive = shopMode == "wholesale" && product.wholesalePrice != null && product.wholesalePrice > 0.0
                                 val displayedPrice = if (isWholesaleActive) product.wholesalePrice!! else product.price
 
-                                Column(
-                                    horizontalAlignment = Alignment.End
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Text(
                                         text = "Ar ${FormatUtil.formatPrice(displayedPrice)}",
