@@ -307,7 +307,7 @@ fun HomeScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(130.dp)
+                                    .height(165.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(Color(0xFFE2E8F0)),
                                 contentAlignment = Alignment.Center
@@ -370,7 +370,7 @@ fun HomeScreen(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
 
                             // Product Name
                             Text(
@@ -382,34 +382,15 @@ fun HomeScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
 
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
 
-                            // Badge + Stock Row
+                            // Row with Total Stock and Price
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFFF1F5F9))
-                                        .padding(horizontal = 6.dp, vertical = 3.dp),
-                                    contentAlignment = Alignment.CenterStart
-                                ) {
-                                    Text(
-                                        text = product.category,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF64748B),
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(6.dp))
-
+                                // Stock/Total
                                 val (stockValue, stockUnit) = when (product.unit.lowercase()) {
                                     "kilogramme", "kg" -> product.stock.toInt().toString() to "kg"
                                     "litre", "l" -> product.stock.toInt().toString() to "L"
@@ -429,59 +410,56 @@ fun HomeScreen(
                                     }
                                 }
 
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
+                                val stockLabel = if (product.unit.isEmpty()) "$stockValue" else "$stockValue $stockUnit"
+
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0xFFFFECE0))
+                                        .padding(horizontal = 6.dp, vertical = 3.dp)
                                 ) {
                                     Text(
-                                        text = stockValue,
-                                        fontSize = 12.sp,
+                                        text = when(activeLang) {
+                                            "mg" -> "Tahiry: $stockLabel"
+                                            "fr" -> "Total: $stockLabel"
+                                            else -> "Total: $stockLabel"
+                                        },
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFF57C00),
-                                        maxLines = 1
-                                    )
-                                    Text(
-                                        text = stockUnit,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFF57C00),
-                                        maxLines = 1
+                                        color = Color(0xFFD35400)
                                     )
                                 }
-                            }
 
-                            Spacer(modifier = Modifier.height(6.dp))
+                                // Price
+                                val isWholesaleActive = shopMode == "wholesale" && product.wholesalePrice != null && product.wholesalePrice > 0.0
+                                val displayedPrice = if (isWholesaleActive) product.wholesalePrice!! else product.price
 
-                            // Price
-                            val isWholesaleActive = shopMode == "wholesale" && product.wholesalePrice != null && product.wholesalePrice > 0.0
-                            val displayedPrice = if (isWholesaleActive) product.wholesalePrice!! else product.price
-                            
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = "Ar ${FormatUtil.formatPrice(displayedPrice)}",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = if (isWholesaleActive) themeColor else Color.Black
-                                )
-                                if (isWholesaleActive) {
-                                    Box(
-                                        modifier = Modifier
-                                            .background(themeColor.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
-                                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = when(activeLang) {
-                                                "mg" -> "Gros"
-                                                "fr" -> "Gros"
-                                                else -> "Gros"
-                                            },
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = themeColor
-                                        )
+                                Column(
+                                    horizontalAlignment = Alignment.End
+                                ) {
+                                    Text(
+                                        text = "Ar ${FormatUtil.formatPrice(displayedPrice)}",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = if (isWholesaleActive) themeColor else Color.Black
+                                    )
+                                    if (isWholesaleActive) {
+                                        Box(
+                                            modifier = Modifier
+                                                .background(themeColor.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+                                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                                        ) {
+                                            Text(
+                                                text = when(activeLang) {
+                                                    "mg" -> "Gros"
+                                                    "fr" -> "Gros"
+                                                    else -> "Gros"
+                                                },
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = themeColor
+                                            )
+                                        }
                                     }
                                 }
                             }

@@ -34,7 +34,7 @@ import com.example.data.model.Restock
         LigneVente::class,
         Restock::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

@@ -331,9 +331,9 @@ class InventoryViewModel(
         debts.filter { !it.isPaid }.sumOf { it.balance }
     }
 
-    // Seeding products on empty state
+    // Seeding products on empty state with Dispatchers.IO to prevent main-thread block
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             repository.hasProducts().take(1).collect { hasProducts ->
                 val hasBackupFile = com.example.util.BackupHelper.hasBackup(context)
                 if (hasBackupFile) {
@@ -346,7 +346,7 @@ class InventoryViewModel(
                 }
             }
         }
-        viewModelScope.launch {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             repository.hasTemplates().take(1).collect { hasTemplates ->
                 if (!hasTemplates || !appPreferences.hasSeededNewCategories) {
                     seedNewCategoriesAndProducts()
@@ -845,6 +845,10 @@ class InventoryViewModel(
     }
 
     fun deleteProduct(product: Product) {
+        if (com.example.sync.SyncManager.isConnected.value && !com.example.sync.SyncManager.isServer.value) {
+            addSyncLog("Tsy mahazo mamafa entana ny Client (La suppression est réservée au Serveur)")
+            return
+        }
         viewModelScope.launch {
             repository.deleteProduct(product)
             removeFromCart("product_${product.id}")
@@ -990,11 +994,23 @@ class InventoryViewModel(
                 obj.put("price", it.price)
                 obj.put("category", it.category)
                 obj.put("stock", it.stock)
+                obj.put("imageUrl", it.imageUrl ?: "")
                 obj.put("unit", it.unit)
                 obj.put("sku", it.sku ?: "")
                 obj.put("lowStockThreshold", it.lowStockThreshold)
                 obj.put("prixAchatUniteBase", it.prixAchatUniteBase ?: 0.0)
                 obj.put("barcode", it.barcode ?: "")
+                obj.put("stock_quantity", it.stock_quantity)
+                obj.put("nomCourt", it.nomCourt ?: "")
+                obj.put("sousCategorie", it.sousCategorie ?: "")
+                obj.put("marque", it.marque ?: "")
+                obj.put("description", it.description ?: "")
+                obj.put("stockMax", it.stockMax ?: 0.0)
+                obj.put("emplacement", it.emplacement ?: "")
+                obj.put("fournisseurId", it.fournisseurId ?: -1L)
+                obj.put("gerePeremption", it.gerePeremption)
+                obj.put("taxable", it.taxable)
+                obj.put("tauxTaxe", it.tauxTaxe)
                 arr.put(obj)
             }
         }
@@ -1012,11 +1028,23 @@ class InventoryViewModel(
                     val price = obj.getDouble("price")
                     val category = obj.getString("category")
                     val stock = obj.getDouble("stock")
+                    val imageUrl = obj.optString("imageUrl", "")
                     val unit = obj.getString("unit")
                     val sku = obj.optString("sku", "")
                     val threshold = obj.optDouble("lowStockThreshold", 0.0)
                     val basePrice = obj.optDouble("prixAchatUniteBase", 0.0)
                     val barcode = obj.optString("barcode", "")
+                    val stockQuantity = obj.optInt("stock_quantity", 0)
+                    val nomCourt = if (obj.has("nomCourt") && !obj.isNull("nomCourt")) obj.getString("nomCourt") else null
+                    val sousCategorie = if (obj.has("sousCategorie") && !obj.isNull("sousCategorie")) obj.getString("sousCategorie") else null
+                    val marque = if (obj.has("marque") && !obj.isNull("marque")) obj.getString("marque") else null
+                    val description = if (obj.has("description") && !obj.isNull("description")) obj.getString("description") else null
+                    val stockMax = if (obj.has("stockMax") && !obj.isNull("stockMax")) obj.getDouble("stockMax") else null
+                    val emplacement = if (obj.has("emplacement") && !obj.isNull("emplacement")) obj.getString("emplacement") else null
+                    val fournisseurId = if (obj.has("fournisseurId") && obj.getLong("fournisseurId") != -1L) obj.getLong("fournisseurId") else null
+                    val gerePeremption = obj.optBoolean("gerePeremption", false)
+                    val taxable = obj.optBoolean("taxable", false)
+                    val tauxTaxe = obj.optDouble("tauxTaxe", 0.0)
 
                     val existing = if (barcode.isNotEmpty()) {
                         repository.getProductByBarcode(barcode)
@@ -1032,11 +1060,23 @@ class InventoryViewModel(
                             price = price,
                             category = category,
                             stock = stock,
+                            imageUrl = imageUrl,
                             unit = unit,
                             sku = sku,
                             lowStockThreshold = threshold,
                             prixAchatUniteBase = basePrice,
-                            barcode = barcode
+                            barcode = barcode,
+                            stock_quantity = stockQuantity,
+                            nomCourt = nomCourt,
+                            sousCategorie = sousCategorie,
+                            marque = marque,
+                            description = description,
+                            stockMax = stockMax,
+                            emplacement = emplacement,
+                            fournisseurId = fournisseurId,
+                            gerePeremption = gerePeremption,
+                            taxable = taxable,
+                            tauxTaxe = tauxTaxe
                         )
                         repository.insertProduct(updated)
                     } else {
@@ -1046,11 +1086,23 @@ class InventoryViewModel(
                             price = price,
                             category = category,
                             stock = stock,
+                            imageUrl = imageUrl,
                             unit = unit,
                             sku = sku,
                             lowStockThreshold = threshold,
                             prixAchatUniteBase = basePrice,
-                            barcode = barcode
+                            barcode = barcode,
+                            stock_quantity = stockQuantity,
+                            nomCourt = nomCourt,
+                            sousCategorie = sousCategorie,
+                            marque = marque,
+                            description = description,
+                            stockMax = stockMax,
+                            emplacement = emplacement,
+                            fournisseurId = fournisseurId,
+                            gerePeremption = gerePeremption,
+                            taxable = taxable,
+                            tauxTaxe = tauxTaxe
                         )
                         repository.insertProduct(newProd)
                     }
@@ -1069,6 +1121,7 @@ class InventoryViewModel(
                 val products = repository.allProducts.first()
                 val sales = repository.allSales.first()
                 val debts = repository.allDebts.first()
+                val restocks = repository.allRestocks.first()
                 val excluded = excludedProductIds.value
 
                 val productsArr = org.json.JSONArray()
@@ -1080,6 +1133,7 @@ class InventoryViewModel(
                         obj.put("price", prod.price)
                         obj.put("category", prod.category)
                         obj.put("stock", prod.stock)
+                        obj.put("imageUrl", prod.imageUrl ?: "")
                         obj.put("unit", prod.unit)
                         obj.put("barcode", prod.barcode)
                         obj.put("wholesalePrice", prod.wholesalePrice ?: 0.0)
@@ -1087,6 +1141,17 @@ class InventoryViewModel(
                         obj.put("lowStockThreshold", prod.lowStockThreshold)
                         obj.put("prixAchatUniteBase", prod.prixAchatUniteBase)
                         obj.put("isTemplate", prod.isTemplate)
+                        obj.put("stock_quantity", prod.stock_quantity)
+                        obj.put("nomCourt", prod.nomCourt ?: "")
+                        obj.put("sousCategorie", prod.sousCategorie ?: "")
+                        obj.put("marque", prod.marque ?: "")
+                        obj.put("description", prod.description ?: "")
+                        obj.put("stockMax", prod.stockMax ?: 0.0)
+                        obj.put("emplacement", prod.emplacement ?: "")
+                        obj.put("fournisseurId", prod.fournisseurId ?: -1L)
+                        obj.put("gerePeremption", prod.gerePeremption)
+                        obj.put("taxable", prod.taxable)
+                        obj.put("tauxTaxe", prod.tauxTaxe)
                         productsArr.put(obj)
                     }
                 }
@@ -1122,10 +1187,28 @@ class InventoryViewModel(
                     debtsArr.put(debtObj)
                 }
 
+                val restocksArr = org.json.JSONArray()
+                restocks.forEach { restock ->
+                    val restockObj = org.json.JSONObject()
+                    restockObj.put("id", restock.id)
+                    restockObj.put("productId", restock.productId)
+                    restockObj.put("productName", restock.productName)
+                    restockObj.put("cartonsQuantity", restock.cartonsQuantity)
+                    restockObj.put("itemsPerCarton", restock.itemsPerCarton)
+                    restockObj.put("totalUnits", restock.totalUnits)
+                    restockObj.put("totalCostPrice", restock.totalCostPrice)
+                    restockObj.put("unitSellingPrice", restock.unitSellingPrice)
+                    restockObj.put("supplierId", restock.supplierId ?: -1L)
+                    restockObj.put("supplierName", restock.supplierName ?: "")
+                    restockObj.put("timestamp", restock.timestamp)
+                    restocksArr.put(restockObj)
+                }
+
                 com.example.sync.SyncSerializer.serializeFullSync(
                     productsArr.toString(),
                     salesArr.toString(),
-                    debtsArr.toString()
+                    debtsArr.toString(),
+                    restocksArr.toString()
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -1135,10 +1218,14 @@ class InventoryViewModel(
     }
 
     fun syncFullDatabaseSync(syncJson: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val (productsStr, salesStr, debtsStr) = com.example.sync.SyncSerializer.deserializeFullSync(syncJson)
-
+                val resultsMap = com.example.sync.SyncSerializer.deserializeFullSync(syncJson)
+                val productsStr = resultsMap["products"] ?: "[]"
+                val salesStr = resultsMap["sales"] ?: "[]"
+                val debtsStr = resultsMap["debts"] ?: "[]"
+                val restocksStr = resultsMap["restocks"] ?: "[]"
+ 
                 // 1. Parse & Merge Products
                 val productsList = mutableListOf<Product>()
                 val prodArr = org.json.JSONArray(productsStr)
@@ -1151,13 +1238,25 @@ class InventoryViewModel(
                             price = obj.getDouble("price"),
                             category = obj.getString("category"),
                             stock = obj.getDouble("stock"),
+                            imageUrl = obj.optString("imageUrl", ""),
                             unit = obj.optString("unit", "Pièce"),
                             barcode = obj.optString("barcode", ""),
-                            wholesalePrice = if (obj.has("wholesalePrice")) obj.getDouble("wholesalePrice") else null,
+                            wholesalePrice = if (obj.has("wholesalePrice") && !obj.isNull("wholesalePrice")) obj.getDouble("wholesalePrice") else null,
                             sku = obj.optString("sku", ""),
                             lowStockThreshold = obj.optDouble("lowStockThreshold", 5.0),
                             prixAchatUniteBase = obj.optDouble("prixAchatUniteBase", 0.0),
-                            isTemplate = obj.optBoolean("isTemplate", false)
+                            isTemplate = obj.optBoolean("isTemplate", false),
+                            stock_quantity = obj.optInt("stock_quantity", 0),
+                            nomCourt = if (obj.has("nomCourt") && !obj.isNull("nomCourt")) obj.getString("nomCourt") else null,
+                            sousCategorie = if (obj.has("sousCategorie") && !obj.isNull("sousCategorie")) obj.getString("sousCategorie") else null,
+                            marque = if (obj.has("marque") && !obj.isNull("marque")) obj.getString("marque") else null,
+                            description = if (obj.has("description") && !obj.isNull("description")) obj.getString("description") else null,
+                            stockMax = if (obj.has("stockMax") && !obj.isNull("stockMax")) obj.getDouble("stockMax") else null,
+                            emplacement = if (obj.has("emplacement") && !obj.isNull("emplacement")) obj.getString("emplacement") else null,
+                            fournisseurId = if (obj.has("fournisseurId") && obj.getLong("fournisseurId") != -1L) obj.getLong("fournisseurId") else null,
+                            gerePeremption = obj.optBoolean("gerePeremption", false),
+                            taxable = obj.optBoolean("taxable", false),
+                            tauxTaxe = obj.optDouble("tauxTaxe", 0.0)
                         )
                     )
                 }
@@ -1179,12 +1278,24 @@ class InventoryViewModel(
                             price = prod.price,
                             category = prod.category,
                             stock = prod.stock,
+                            imageUrl = prod.imageUrl,
                             unit = prod.unit,
                             sku = prod.sku,
                             lowStockThreshold = prod.lowStockThreshold,
                             prixAchatUniteBase = prod.prixAchatUniteBase,
                             barcode = prod.barcode,
-                            isTemplate = prod.isTemplate
+                            isTemplate = prod.isTemplate,
+                            stock_quantity = prod.stock_quantity,
+                            nomCourt = prod.nomCourt,
+                            sousCategorie = prod.sousCategorie,
+                            marque = prod.marque,
+                            description = prod.description,
+                            stockMax = prod.stockMax,
+                            emplacement = prod.emplacement,
+                            fournisseurId = prod.fournisseurId,
+                            gerePeremption = prod.gerePeremption,
+                            taxable = prod.taxable,
+                            tauxTaxe = prod.tauxTaxe
                         )
                         repository.insertProduct(updated)
                     }
@@ -1232,7 +1343,7 @@ class InventoryViewModel(
                                 mappedItems.add(item)
                             }
                         }
-                        repository.checkoutSale(incomingSale.copy(id = 0, items = mappedItems))
+                        repository.checkoutSale(incomingSale.copy(id = 0, items = mappedItems), decrementStock = false)
                         newSalesCount++
                     }
                 }
@@ -1281,6 +1392,43 @@ class InventoryViewModel(
                 }
                 if (newDebtsCount > 0 || updatedDebtsCount > 0) {
                     addSyncLog("Mise à jour dettes: $newDebtsCount nouvelles, $updatedDebtsCount modifiées")
+                }
+
+                // 4. Parse & Merge Restocks
+                val restocksList = mutableListOf<com.example.data.model.Restock>()
+                val restockArr = org.json.JSONArray(restocksStr)
+                for (i in 0 until restockArr.length()) {
+                    val obj = restockArr.getJSONObject(i)
+                    restocksList.add(
+                        com.example.data.model.Restock(
+                            productId = obj.getInt("productId"),
+                            productName = obj.getString("productName"),
+                            cartonsQuantity = obj.getDouble("cartonsQuantity"),
+                            itemsPerCarton = obj.getDouble("itemsPerCarton"),
+                            totalUnits = obj.getDouble("totalUnits"),
+                            totalCostPrice = obj.getDouble("totalCostPrice"),
+                            unitSellingPrice = obj.getDouble("unitSellingPrice"),
+                            supplierId = if (obj.has("supplierId") && obj.getLong("supplierId") != -1L) obj.getLong("supplierId") else null,
+                            supplierName = if (obj.has("supplierName")) obj.getString("supplierName") else null,
+                            timestamp = obj.getLong("timestamp")
+                        )
+                    )
+                }
+
+                var newRestocksCount = 0
+                restocksList.forEach { incomingRestock ->
+                    val restockExists = allRestocks.value.any {
+                        it.productId == incomingRestock.productId && 
+                        Math.abs(it.timestamp - incomingRestock.timestamp) < 60000 && 
+                        Math.abs(it.totalUnits - incomingRestock.totalUnits) < 0.01
+                    }
+                    if (!restockExists) {
+                        repository.insertRestock(incomingRestock.copy(id = 0))
+                        newRestocksCount++
+                    }
+                }
+                if (newRestocksCount > 0) {
+                    addSyncLog("Mise à jour approvisionnements: $newRestocksCount enregistrés")
                 }
 
                 addSyncLog("Nahomby ny fampitoviana ny tahiry rehetra!")

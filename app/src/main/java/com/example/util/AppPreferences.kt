@@ -38,7 +38,7 @@ class AppPreferences(context: Context) {
         set(value) = prefs.edit().putString(KEY_THEME_MODE, value).apply()
 
     var isActivated: Boolean
-        get() = true
+        get() = prefs.getBoolean(KEY_ACTIVATED, false)
         set(value) = prefs.edit().putBoolean(KEY_ACTIVATED, value).apply()
 
     var hasSeededNewCategories: Boolean

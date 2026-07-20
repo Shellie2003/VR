@@ -71,19 +71,22 @@ object SyncSerializer {
     }
 
     // Bidirectional Full Database Sync Serialization (Decoupled from App Models)
-    fun serializeFullSync(productsJson: String, salesJson: String, debtsJson: String): String {
+    fun serializeFullSync(productsJson: String, salesJson: String, debtsJson: String, restocksJson: String = "[]"): String {
         val root = JSONObject()
         root.put("products", JSONArray(productsJson))
         root.put("sales", JSONArray(salesJson))
         root.put("debts", JSONArray(debtsJson))
+        root.put("restocks", JSONArray(restocksJson))
         return root.toString()
     }
 
-    fun deserializeFullSync(jsonStr: String): Triple<String, String, String> {
+    fun deserializeFullSync(jsonStr: String): Map<String, String> {
         val root = JSONObject(jsonStr)
-        val products = root.optJSONArray("products")?.toString() ?: "[]"
-        val sales = root.optJSONArray("sales")?.toString() ?: "[]"
-        val debts = root.optJSONArray("debts")?.toString() ?: "[]"
-        return Triple(products, sales, debts)
+        val result = mutableMapOf<String, String>()
+        result["products"] = root.optJSONArray("products")?.toString() ?: "[]"
+        result["sales"] = root.optJSONArray("sales")?.toString() ?: "[]"
+        result["debts"] = root.optJSONArray("debts")?.toString() ?: "[]"
+        result["restocks"] = root.optJSONArray("restocks")?.toString() ?: "[]"
+        return result
     }
 }

@@ -159,8 +159,8 @@ fun MainLifecycleContainer() {
             }
         }
 
-        // 2.5 seconds Splash screen simulation
-        delay(2500)
+        // 1.0 second Splash screen simulation for ultra fast startup
+        delay(1000)
         isSplashVisible = false
     }
 
@@ -176,6 +176,9 @@ fun MainLifecycleContainer() {
         when {
             isSplashVisible -> {
                 SplashScreen(t)
+            }
+            !isActivated -> {
+                ActivationScreen(viewModel = viewModel, t = t)
             }
             else -> {
                 MainAppLayout(viewModel = viewModel, t = t)
@@ -295,7 +298,8 @@ fun ActivationScreen(viewModel: InventoryViewModel, t: (String) -> String) {
                         .clip(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                         .padding(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
                         text = t("installation_id"),
@@ -309,6 +313,27 @@ fun ActivationScreen(viewModel: InventoryViewModel, t: (String) -> String) {
                         color = MaterialTheme.colorScheme.primary,
                         letterSpacing = 3.sp
                     )
+
+                    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+                    val context = androidx.compose.ui.platform.LocalContext.current
+
+                    TextButton(
+                        onClick = {
+                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(viewModel.installationId))
+                            android.widget.Toast.makeText(context, t("copy_success"), android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = t("copy_id"),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(t("copy_id"), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    }
                 }
 
                 OutlinedTextField(

@@ -163,8 +163,8 @@ data class Vente(
     tableName = "lignes_vente",
     foreignKeys = [
         ForeignKey(entity = Vente::class, parentColumns = ["id"], childColumns = ["venteId"], onDelete = ForeignKey.CASCADE),
-        ForeignKey(entity = Produit::class, parentColumns = ["id"], childColumns = ["produitId"]),
-        ForeignKey(entity = UniteProduit::class, parentColumns = ["id"], childColumns = ["uniteId"])
+        ForeignKey(entity = Produit::class, parentColumns = ["id"], childColumns = ["produitId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = UniteProduit::class, parentColumns = ["id"], childColumns = ["uniteId"], onDelete = ForeignKey.CASCADE)
     ],
     indices = [Index("venteId"), Index("produitId"), Index("uniteId")]
 )

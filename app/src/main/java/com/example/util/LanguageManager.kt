@@ -45,6 +45,16 @@ object LanguageManager {
             "fr" to "Code d'activation invalide !",
             "en" to "Invalid activation code!"
         ),
+        "copy_id" to mapOf(
+            "mg" to "Kopiavo ny ID",
+            "fr" to "Copier l'ID",
+            "en" to "Copy ID"
+        ),
+        "copy_success" to mapOf(
+            "mg" to "Voadika ny ID!",
+            "fr" to "ID copié avec succès !",
+            "en" to "ID copied successfully!"
+        ),
         "trial_mode" to mapOf(
             "mg" to "Andrana (24 Ora)",
             "fr" to "Mode d'essai gratuit (24h)",

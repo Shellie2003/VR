@@ -48,6 +48,9 @@ class InventoryRepository(
 
     suspend fun insertProduct(product: Product) {
         val generatedId = productDao.insertProduct(product)
+        if (product.isTemplate) {
+            return
+        }
         val productWithId = product.copy(id = generatedId.toInt())
         // Sync to the new relational Produits table
         val existingProduit = produitDao.getProduitById(generatedId)
@@ -298,7 +301,7 @@ class InventoryRepository(
         }
     }
 
-    suspend fun checkoutSale(sale: Sale) = database.withTransaction {
+    suspend fun checkoutSale(sale: Sale, decrementStock: Boolean = true) = database.withTransaction {
         saleDao.insertSale(sale)
 
         // Convert to Vente (relational table)
@@ -365,33 +368,37 @@ class InventoryRepository(
                 )
                 lignesVenteDao.insertLigneVente(ligne)
 
-                // Record MouvementStock
-                val mvt = MouvementStock(
-                    produitId = targetId,
-                    type = "SORTIE_VENTE",
-                    quantite = item.quantity,
-                    quantiteAvant = existingProduit.quantiteStock,
-                    quantiteApres = (existingProduit.quantiteStock - item.quantity).coerceAtLeast(0.0),
-                    referenceId = venteId,
-                    note = "Vente #${venteId}"
-                )
-                mouvementStockDao.insertMouvement(mvt)
+                if (decrementStock) {
+                    // Record MouvementStock
+                    val mvt = MouvementStock(
+                        produitId = targetId,
+                        type = "SORTIE_VENTE",
+                        quantite = item.quantity,
+                        quantiteAvant = existingProduit.quantiteStock,
+                        quantiteApres = (existingProduit.quantiteStock - item.quantity).coerceAtLeast(0.0),
+                        referenceId = venteId,
+                        note = "Vente #${venteId}"
+                    )
+                    mouvementStockDao.insertMouvement(mvt)
 
-                // Update quantity stock of Produit
-                val updatedProduit = existingProduit.copy(
-                    quantiteStock = (existingProduit.quantiteStock - item.quantity).coerceAtLeast(0.0),
-                    dateDerniereMaj = System.currentTimeMillis()
-                )
-                produitDao.updateProduit(updatedProduit)
+                    // Update quantity stock of Produit
+                    val updatedProduit = existingProduit.copy(
+                        quantiteStock = (existingProduit.quantiteStock - item.quantity).coerceAtLeast(0.0),
+                        dateDerniereMaj = System.currentTimeMillis()
+                    )
+                    produitDao.updateProduit(updatedProduit)
+                }
             }
 
-            // Update legacy Product model stock to stay synchronized
-            val matchingProduct = productDao.getProductById(item.productId)
-            if (matchingProduct != null) {
-                val currentStock = matchingProduct.stock
-                val updatedStock = (currentStock - item.quantity).coerceAtLeast(0.0)
-                val updatedProduct = matchingProduct.copy(stock = updatedStock)
-                productDao.updateProduct(updatedProduct)
+            if (decrementStock) {
+                // Update legacy Product model stock to stay synchronized
+                val matchingProduct = productDao.getProductById(item.productId)
+                if (matchingProduct != null) {
+                    val currentStock = matchingProduct.stock
+                    val updatedStock = (currentStock - item.quantity).coerceAtLeast(0.0)
+                    val updatedProduct = matchingProduct.copy(stock = updatedStock)
+                    productDao.updateProduct(updatedProduct)
+                }
             }
         }
     }
