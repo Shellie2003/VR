@@ -22,6 +22,7 @@ object CameraManager {
      * Binds the camera preview and analyzer use cases to the ProcessLifecycleOwner.
      * Configures the ImageAnalysis use case with STRATEGY_KEEP_ONLY_LATEST.
      */
+    @androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)
     fun bindScanner(
         context: Context,
         lifecycleOwner: androidx.lifecycle.LifecycleOwner,

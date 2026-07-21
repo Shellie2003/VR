@@ -1,4 +1,4 @@
-name: Build Android APK (Release)
+name: Build Android APK
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    name: Build Release APK
+    name: Build APK
     runs-on: ubuntu-latest
 
     steps:
@@ -23,31 +23,13 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Regenerate Gradle Wrapper
+      - name: Decode Debug Keystore
         run: |
-          # Remove potentially corrupt wrapper files
-          rm -f gradle/wrapper/gradle-wrapper.jar
-          rm -f gradlew
-          rm -f gradlew.bat
-          
-          # Download and extract Gradle
-          GRADLE_VERSION="9.3.1"
-          wget https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip
-          unzip -q gradle-${GRADLE_VERSION}-bin.zip
-          
-          # Generate wrapper using the downloaded Gradle
-          ./gradle-${GRADLE_VERSION}/bin/gradle wrapper --gradle-version ${GRADLE_VERSION}
-          
-          # Clean up
-          rm -rf gradle-${GRADLE_VERSION} gradle-${GRADLE_VERSION}-bin.zip
-
-      - name: Decode Release Keystore
-        run: |
-          if [ -f release.keystore.base64 ]; then
-            echo "Decoding release.keystore.base64 to release.keystore..."
-            base64 -d release.keystore.base64 > release.keystore
+          if [ -f debug.keystore.base64 ]; then
+            echo "Decoding debug.keystore.base64 to debug.keystore..."
+            base64 -d debug.keystore.base64 > debug.keystore
           else
-            echo "release.keystore.base64 not found. Fallback to default behavior."
+            echo "debug.keystore.base64 not found. Fallback to default behavior."
           fi
 
       - name: Set up local environments
@@ -60,11 +42,11 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --no-daemon
 
-      - name: Upload Release APK
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: varotra-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          name: varotra-debug-apk
+          path: app/build/outputs/apk/debug/*.apk

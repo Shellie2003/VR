@@ -85,6 +85,7 @@ private fun triggerSuccessFeedback(context: Context) {
 }
 
 @OptIn(ExperimentalPermissionsApi::class)
+@androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
 @Composable
 fun BarcodeScannerView(
     onBarcodeScanned: (String) -> Unit,
@@ -107,6 +108,7 @@ fun BarcodeScannerView(
     )
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
     var manualBarcodeValue by remember { mutableStateOf("") }
     var sessionScannedProductIds by remember { mutableStateOf(setOf<Int>()) }
@@ -140,8 +142,15 @@ fun BarcodeScannerView(
     }
 
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
-    DisposableEffect(cameraExecutor) {
+    DisposableEffect(lifecycleOwner, cameraExecutor) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_DESTROY) {
+                cameraExecutor.shutdown()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
             cameraExecutor.shutdown()
         }
     }
@@ -275,8 +284,6 @@ fun BarcodeScannerView(
                     contentAlignment = Alignment.Center
                 ) {
                     if (hasCameraPermission) {
-                        val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-
                         AndroidView(
                             factory = { ctx ->
                                 PreviewView(ctx).apply {
@@ -334,34 +341,39 @@ fun BarcodeScannerView(
                                             }
                                         },
                                         analyzer = { imageProxy ->
-                                            val mediaImage = imageProxy.image
-                                            if (mediaImage != null) {
-                                                val image = InputImage.fromMediaImage(
-                                                    mediaImage,
-                                                    imageProxy.imageInfo.rotationDegrees
-                                                )
-                                                scanner.process(image)
-                                                    .addOnSuccessListener { barcodes ->
-                                                        for (barcode in barcodes) {
-                                                            val rawValue = barcode.rawValue
-                                                            if (!rawValue.isNullOrEmpty()) {
-                                                                val currentTime = System.currentTimeMillis()
-                                                                if (rawValue != lastScannedCode || currentTime - lastScanTime > 1500L) {
-                                                                    lastScannedCode = rawValue
-                                                                    lastScanTime = currentTime
-                                                                    handleScannedBarcode(rawValue)
+                                            try {
+                                                val mediaImage = imageProxy.image
+                                                if (mediaImage != null) {
+                                                    val image = InputImage.fromMediaImage(
+                                                        mediaImage,
+                                                        imageProxy.imageInfo.rotationDegrees
+                                                    )
+                                                    scanner.process(image)
+                                                        .addOnSuccessListener { barcodes ->
+                                                            for (barcode in barcodes) {
+                                                                val rawValue = barcode.rawValue
+                                                                if (!rawValue.isNullOrEmpty()) {
+                                                                    val currentTime = System.currentTimeMillis()
+                                                                    if (rawValue != lastScannedCode || currentTime - lastScanTime > 1500L) {
+                                                                        lastScannedCode = rawValue
+                                                                        lastScanTime = currentTime
+                                                                        handleScannedBarcode(rawValue)
+                                                                     }
+                                                                     break
                                                                 }
-                                                                break
                                                             }
                                                         }
-                                                    }
-                                                    .addOnFailureListener { e ->
-                                                        Log.e("BarcodeScanner", "Barcode detection failed", e)
-                                                    }
-                                                    .addOnCompleteListener {
-                                                        imageProxy.close()
-                                                    }
-                                            } else {
+                                                        .addOnFailureListener { e ->
+                                                            Log.e("BarcodeScanner", "Barcode detection failed", e)
+                                                        }
+                                                        .addOnCompleteListener {
+                                                            imageProxy.close()
+                                                        }
+                                                } else {
+                                                    imageProxy.close()
+                                                }
+                                            } catch (e: Exception) {
+                                                Log.e("BarcodeScanner", "Analyzer exception thrown", e)
                                                 imageProxy.close()
                                             }
                                         },
@@ -398,11 +410,14 @@ fun BarcodeScannerView(
 
                     // Inside Frame Text Indicator
                     if (!hasCameraPermission) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(16.dp)
+                        ) {
                             Text(
                                 text = "📸",
-                                fontSize = 32.sp,
-                                modifier = Modifier.padding(bottom = 8.dp)
+                                fontSize = 32.sp
                             )
                             Text(
                                 text = "CAMERA EN ATTENTE",
@@ -414,9 +429,23 @@ fun BarcodeScannerView(
                                 text = infoPermission,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color.LightGray.copy(alpha = 0.7f),
-                                modifier = Modifier.padding(horizontal = 24.dp),
                                 textAlign = TextAlign.Center
                             )
+                            Button(
+                                onClick = { cameraPermissionState.launchPermissionRequest() },
+                                colors = ButtonDefaults.buttonColors(containerColor = themeColor),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = when (language) {
+                                        "mg" -> "Omeo fahazoan-dalana"
+                                        "fr" -> "Autoriser l'appareil photo"
+                                        else -> "Grant Camera Permission"
+                                    },
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     } else {
                         // Soft dark overlay

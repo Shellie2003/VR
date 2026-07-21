@@ -145,7 +145,7 @@ fun CalculatorScreen(
                             value = pickerSearchQuery,
                             onValueChange = { pickerSearchQuery = it },
                             placeholder = { Text(t("search_placeholder"), fontSize = 12.sp) },
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                            leadingIcon = { Icon(androidx.compose.material.icons.Icons.Default.Search, contentDescription = null, modifier = Modifier.size(16.dp)) },
                             trailingIcon = {
                                 IconButton(onClick = { showRealCameraScanner = true }) {
                                     Icon(
@@ -294,7 +294,7 @@ fun CalculatorScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.ShoppingCart,
-                                    contentDescription = null,
+                            contentDescription = null,
                                     modifier = Modifier.size(40.dp),
                                     tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
                                 )
@@ -509,7 +509,7 @@ fun CalculatorScreen(
                                     onValueChange = { amountReceivedStr = it },
                                     placeholder = { Text("${t("cash_given")} (Ar)", fontSize = 11.sp) },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    leadingIcon = { Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(14.dp)) },
+                            leadingIcon = { Icon(androidx.compose.material.icons.Icons.Default.Search, contentDescription = null, modifier = Modifier.size(14.dp)) },
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedContainerColor = MaterialTheme.colorScheme.surface,
                                         unfocusedContainerColor = MaterialTheme.colorScheme.surface
@@ -541,7 +541,7 @@ fun CalculatorScreen(
                                         ) {
                                             Icon(
                                                 imageVector = if (isSufficient) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
-                                                contentDescription = null,
+                            contentDescription = null,
                                                 tint = boxColor,
                                                 modifier = Modifier.size(12.dp)
                                             )
@@ -675,7 +675,7 @@ fun CalculatorScreen(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.CheckCircleOutline,
-                                            contentDescription = null,
+                            contentDescription = null,
                                             tint = Color.White,
                                             modifier = Modifier.size(18.dp)
                                         )
@@ -954,7 +954,7 @@ fun CalculatorScreen(
                         value = pickerSearchQuery,
                         onValueChange = { pickerSearchQuery = it },
                         placeholder = { Text(t("search_placeholder"), fontSize = 12.sp) },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(14.dp)) },
+                            leadingIcon = { Icon(androidx.compose.material.icons.Icons.Default.Search, contentDescription = null, modifier = Modifier.size(14.dp)) },
                         trailingIcon = {
                             IconButton(onClick = { showRealCameraScanner = true }) {
                                 Icon(
@@ -1107,7 +1107,7 @@ fun CalculatorScreen(
                             onValueChange = { amountReceivedStr = it },
                             placeholder = { Text("${t("cash_given")} (Ar)", fontSize = 11.sp) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            leadingIcon = { Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(14.dp)) },
+                            leadingIcon = { Icon(androidx.compose.material.icons.Icons.Default.Search, contentDescription = null, modifier = Modifier.size(14.dp)) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                                 unfocusedContainerColor = MaterialTheme.colorScheme.surface
@@ -1139,7 +1139,7 @@ fun CalculatorScreen(
                                 ) {
                                     Icon(
                                         imageVector = if (isSufficient) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
-                                        contentDescription = null,
+                            contentDescription = null,
                                         tint = boxColor,
                                         modifier = Modifier.size(12.dp)
                                     )
@@ -1275,7 +1275,7 @@ fun CalculatorScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.CheckCircleOutline,
-                                    contentDescription = null,
+                            contentDescription = null,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -1523,7 +1523,7 @@ fun CalculatorScreen(
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Default.Payments,
-                                        contentDescription = null,
+                            contentDescription = null,
                                         tint = Color.White,
                                         modifier = Modifier.size(18.dp)
                                     )
@@ -2026,7 +2026,7 @@ fun CalculatorScreen(
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.AddShoppingCart,
-                                                contentDescription = null,
+                            contentDescription = null,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
@@ -2118,7 +2118,7 @@ fun CalculatorScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.CheckCircleOutline,
-                                contentDescription = null,
+                            contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -2228,7 +2228,7 @@ fun CalculatorScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.CameraAlt,
-                        contentDescription = null,
+                            contentDescription = null,
                         tint = themeColor
                     )
                     Text(
@@ -2332,7 +2332,7 @@ fun CalculatorScreen(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = null,
+                            contentDescription = null,
                                         tint = Color(0xFF4ADE80),
                                         modifier = Modifier.size(36.dp)
                                     )
@@ -2349,7 +2349,7 @@ fun CalculatorScreen(
                         } else {
                             Icon(
                                 imageVector = Icons.Default.CameraAlt,
-                                contentDescription = null,
+                            contentDescription = null,
                                 tint = themeColor.copy(alpha = 0.25f),
                                 modifier = Modifier
                                     .size(64.dp)
@@ -2398,7 +2398,7 @@ fun CalculatorScreen(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.CameraAlt,
-                                            contentDescription = null,
+                            contentDescription = null,
                                             tint = themeColor,
                                             modifier = Modifier.size(14.dp)
                                         )
@@ -2862,7 +2862,9 @@ fun CashRegisterProductCard(
                 ) {
                     if (product.imageUrl.isNotEmpty()) {
                         AsyncImage(
-                            model = product.imageUrl,
+                            model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current).data(product.imageUrl).crossfade(true).size(200).build(),
+                            placeholder = androidx.compose.ui.graphics.painter.ColorPainter(androidx.compose.ui.graphics.Color(0xFFE2E8F0)),
+                            error = androidx.compose.ui.graphics.painter.ColorPainter(androidx.compose.ui.graphics.Color(0xFFFFCDD2)),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()

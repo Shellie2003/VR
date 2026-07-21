@@ -1,5 +1,6 @@
 package com.example.util
 
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -28,6 +29,7 @@ object NotificationHelper {
         }
     }
 
+    @SuppressLint("MissingPermission")
     fun showLowStockNotification(context: Context, product: Product) {
         // Create an explicit intent for MainActivity
         val intent = Intent(context, MainActivity::class.java).apply {

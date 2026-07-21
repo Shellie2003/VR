@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.os.StrictMode
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -50,8 +49,6 @@ import com.example.ui.viewmodel.InventoryViewModelFactory
 import com.example.util.FormatUtil
 import com.example.util.LanguageManager
 import com.example.util.NotificationHelper
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 
 enum class ScreenTab {
@@ -69,22 +66,6 @@ enum class ScreenTab {
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Enable StrictMode in debug builds to catch accidental I/O on the main thread
-        if (BuildConfig.DEBUG) {
-            StrictMode.setThreadPolicy(
-                StrictMode.ThreadPolicy.Builder()
-                    .detectAll()
-                    .penaltyLog()
-                    .build()
-            )
-            StrictMode.setVmPolicy(
-                StrictMode.VmPolicy.Builder()
-                    .detectAll()
-                    .penaltyLog()
-                    .build()
-            )
-        }
-
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
@@ -96,57 +77,28 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainLifecycleContainer() {
     val context = LocalContext.current
-
-    // Initialize DB off the UI thread to avoid blocking composition / causing StrictMode violations
-    var database by remember { mutableStateOf<AppDatabase?>(null) }
-    var repository by remember { mutableStateOf<InventoryRepository?>(null) }
-
-    LaunchedEffect(Unit) {
-        // perform database build on IO dispatcher
-        val db = withContext(Dispatchers.IO) {
-            AppDatabase.getDatabase(context.applicationContext)
-        }
-        database = db
-        repository = InventoryRepository(
-            db,
-            db.productDao(),
-            db.saleDao(),
-            db.debtDao(),
-            db.produitDao(),
-            db.uniteProduitDao(),
-            db.reglePrixDao(),
-            db.fournisseurDao(),
-            db.mouvementStockDao(),
-            db.lotProduitDao(),
-            db.venteDao(),
-            db.lignesVenteDao(),
-            db.restockDao()
-        )
+    val database = remember { AppDatabase.getDatabase(context) }
+    // Initialize repository with all DAOs for robust relational model sync
+    val repository = remember { 
+        InventoryRepository(
+            database,
+            database.productDao(),
+            database.saleDao(),
+            database.debtDao(),
+            database.produitDao(),
+            database.uniteProduitDao(),
+            database.reglePrixDao(),
+            database.fournisseurDao(),
+            database.mouvementStockDao(),
+            database.lotProduitDao(),
+            database.venteDao(),
+            database.lignesVenteDao(),
+            database.restockDao()
+        ) 
     }
-
-    // Show a lightweight loading UI while DB/repository are initializing
-    if (repository == null) {
-        MyApplicationTheme {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator()
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("Initialisation...", style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-        }
-        return
-    }
-
-    // repository is non-null here
-    val repo = repository!!
+    
     val viewModel: InventoryViewModel = viewModel(
-        factory = InventoryViewModelFactory(repo, context.applicationContext)
+        factory = InventoryViewModelFactory(repository, context.applicationContext)
     )
 
     LaunchedEffect(viewModel) {
@@ -195,7 +147,7 @@ fun MainLifecycleContainer() {
     LaunchedEffect(Unit) {
         // Init channels
         NotificationHelper.createNotificationChannel(context.applicationContext)
-
+        
         // Request on Tiramisu+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val hasPermission = ContextCompat.checkSelfPermission(
@@ -235,5 +187,1103 @@ fun MainLifecycleContainer() {
     }
 }
 
-// ... rest of file remains unchanged (SplashScreen, ActivationScreen, MainAppLayout, TopAppBarSection, BottomNavBarSection, etc.)
+@Composable
+fun SplashScreen(t: (String) -> String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.primary),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(96.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color.White.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.ShoppingBasket,
+                    contentDescription = null,
+                    tint = Color(0xFFFFB300),
+                    modifier = Modifier.size(56.dp)
+                )
+            }
 
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "VAROTRA",
+                    style = MaterialTheme.typography.displayMedium,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White,
+                    letterSpacing = 4.sp
+                )
+                Text(
+                    text = "Caisse & Stock Hors-ligne",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            CircularProgressIndicator(
+                color = Color(0xFFFFB300),
+                modifier = Modifier.size(36.dp)
+            )
+        }
+
+        Text(
+            text = "Dévéloppée par AinaDigit",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color.White.copy(alpha = 0.7f),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 32.dp)
+        )
+    }
+}
+
+@Composable
+fun ActivationScreen(viewModel: InventoryViewModel, t: (String) -> String) {
+    var codeInput by remember { mutableStateOf("") }
+    var codeError by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
+            .navigationBarsPadding(),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(48.dp)
+                )
+
+                Text(
+                    text = t("activation_required"),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Installation ID card info
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = t("installation_id"),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Text(
+                        text = viewModel.installationId,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = 3.sp
+                    )
+
+                    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+                    val context = androidx.compose.ui.platform.LocalContext.current
+
+                    TextButton(
+                        onClick = {
+                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(viewModel.installationId))
+                            android.widget.Toast.makeText(context, t("copy_success"), android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = t("copy_id"),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(t("copy_id"), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                OutlinedTextField(
+                    value = codeInput,
+                    onValueChange = {
+                        codeInput = it
+                        codeError = false
+                    },
+                    label = { Text(t("activation_code_label")) },
+                    isError = codeError,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    supportingText = {
+                        if (codeError) {
+                            Text(t("activation_error"), color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                )
+
+                Button(
+                    onClick = {
+                        val success = viewModel.submitActivationCode(codeInput)
+                        if (!success) {
+                            codeError = true
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("activate_app_button"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(t("activate_btn"), fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MainAppLayout(
+    viewModel: InventoryViewModel,
+    t: (String) -> String
+) {
+    var currentTab by remember { mutableStateOf(ScreenTab.Fandraisana) }
+    var productToEdit by remember { mutableStateOf<Product?>(null) }
+    val isActivated by viewModel.isActivated.collectAsState()
+    var calculatorInitialSubTab by remember { mutableStateOf("checkout") }
+
+    // Navigation redirects
+    val navigateToHome = {
+        currentTab = ScreenTab.Fandraisana
+        productToEdit = null
+        viewModel.searchQuery.value = ""
+    }
+
+    val navigateToList = {
+        currentTab = ScreenTab.Tahiry
+        productToEdit = null
+        viewModel.searchQuery.value = ""
+        viewModel.selectedCategory.value = "All"
+    }
+
+    val navigateToCaisse = {
+        currentTab = ScreenTab.Caisse
+        productToEdit = null
+        viewModel.searchQuery.value = ""
+        calculatorInitialSubTab = "checkout"
+    }
+
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
+
+    if (isTablet) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            TabletDrawerSection(
+                viewModel = viewModel,
+                currentTab = currentTab,
+                onTabSelected = { tab ->
+                    if (tab == ScreenTab.Manampy) {
+                        currentTab = ScreenTab.Manampy
+                        productToEdit = null
+                    } else {
+                        if (tab == ScreenTab.Caisse) {
+                            calculatorInitialSubTab = "checkout"
+                        }
+                        currentTab = tab
+                        productToEdit = null
+                    }
+                },
+                t = t
+            )
+
+            Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation) {
+                    TopAppBarSection(
+                        viewModel = viewModel,
+                        onNavigateToSettings = { currentTab = ScreenTab.Parametres },
+                        isTablet = true
+                    )
+                }
+
+                Box(modifier = Modifier.fillMaxSize()) {
+                    when (currentTab) {
+                        ScreenTab.Fandraisana -> HomeScreen(
+                            viewModel = viewModel,
+                            onNavigateToAddProduct = { currentTab = ScreenTab.Manampy },
+                            onNavigateToList = navigateToList,
+                            onNavigateToSettings = { currentTab = ScreenTab.Parametres }
+                        )
+                        ScreenTab.Caisse -> CalculatorScreen(
+                            viewModel = viewModel,
+                            onNavigateToHome = navigateToHome,
+                            initialSubTab = calculatorInitialSubTab
+                        )
+                        ScreenTab.Manampy -> AddProductScreen(
+                            viewModel = viewModel,
+                            editingProduct = productToEdit,
+                            onSaveProduct = { product ->
+                                viewModel.saveProduct(product)
+                                productToEdit = null
+                                navigateToList()
+                            },
+                            onCancel = {
+                                productToEdit = null
+                                navigateToHome()
+                            }
+                        )
+                        ScreenTab.Tahiry -> InventoryListScreen(
+                            viewModel = viewModel,
+                            onEditProduct = { product ->
+                                productToEdit = product
+                                currentTab = ScreenTab.Manampy
+                            },
+                            onNavigateToAddProduct = { currentTab = ScreenTab.Manampy }
+                        )
+                        ScreenTab.Dettes -> DebtsScreen(
+                            viewModel = viewModel
+                        )
+                        ScreenTab.Historique -> SalesHistoryScreen(
+                            viewModel = viewModel,
+                            onNavigateToCaisse = navigateToCaisse
+                        )
+                        ScreenTab.Parametres -> SettingsScreen(
+                            viewModel = viewModel,
+                            onNavigateToHistory = { currentTab = ScreenTab.Historique },
+                            onNavigateToCommission = { currentTab = ScreenTab.Commission },
+                            onNavigateToBarcodes = { currentTab = ScreenTab.BarcodeList },
+                            onNavigateToHome = navigateToHome,
+                            onNavigateToSync = { currentTab = ScreenTab.Synchronisation }
+                        )
+                        ScreenTab.Commission -> CommissionScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = { currentTab = ScreenTab.Parametres }
+                        )
+                        ScreenTab.BarcodeList -> BarcodeListScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = { currentTab = ScreenTab.Parametres }
+                        )
+                        ScreenTab.Synchronisation -> SyncScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = { currentTab = ScreenTab.Parametres }
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            topBar = {
+                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation) {
+                    TopAppBarSection(
+                        viewModel = viewModel,
+                        onNavigateToSettings = { currentTab = ScreenTab.Parametres },
+                        isTablet = false
+                    )
+                }
+            },
+            bottomBar = {
+                BottomNavBarSection(
+                    viewModel = viewModel,
+                    currentTab = currentTab,
+                    onTabSelected = { tab ->
+                        if (tab == ScreenTab.Manampy) {
+                            calculatorInitialSubTab = "quick_misc"
+                            currentTab = ScreenTab.Caisse
+                        } else {
+                            if (tab == ScreenTab.Caisse) {
+                                calculatorInitialSubTab = "checkout"
+                            }
+                            currentTab = tab
+                            productToEdit = null
+                        }
+                    }
+                )
+            },
+            floatingActionButton = {}
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                when (currentTab) {
+                    ScreenTab.Fandraisana -> HomeScreen(
+                        viewModel = viewModel,
+                        onNavigateToAddProduct = { currentTab = ScreenTab.Manampy },
+                        onNavigateToList = navigateToList,
+                        onNavigateToSettings = { currentTab = ScreenTab.Parametres }
+                    )
+                    ScreenTab.Caisse -> CalculatorScreen(
+                        viewModel = viewModel,
+                        onNavigateToHome = navigateToHome,
+                        initialSubTab = calculatorInitialSubTab
+                    )
+                    ScreenTab.Manampy -> AddProductScreen(
+                        viewModel = viewModel,
+                        editingProduct = productToEdit,
+                        onSaveProduct = { product ->
+                            viewModel.saveProduct(product)
+                            productToEdit = null
+                            navigateToList()
+                        },
+                        onCancel = {
+                            productToEdit = null
+                            navigateToHome()
+                        }
+                    )
+                    ScreenTab.Tahiry -> InventoryListScreen(
+                        viewModel = viewModel,
+                        onEditProduct = { product ->
+                            productToEdit = product
+                            currentTab = ScreenTab.Manampy
+                        },
+                        onNavigateToAddProduct = { currentTab = ScreenTab.Manampy }
+                    )
+                    ScreenTab.Dettes -> DebtsScreen(
+                        viewModel = viewModel
+                    )
+                    ScreenTab.Historique -> SalesHistoryScreen(
+                        viewModel = viewModel,
+                        onNavigateToCaisse = navigateToCaisse
+                    )
+                    ScreenTab.Parametres -> SettingsScreen(
+                        viewModel = viewModel,
+                        onNavigateToHistory = { currentTab = ScreenTab.Historique },
+                        onNavigateToCommission = { currentTab = ScreenTab.Commission },
+                        onNavigateToBarcodes = { currentTab = ScreenTab.BarcodeList },
+                        onNavigateToHome = navigateToHome,
+                        onNavigateToSync = { currentTab = ScreenTab.Synchronisation }
+                    )
+                    ScreenTab.Commission -> CommissionScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { currentTab = ScreenTab.Parametres }
+                    )
+                    ScreenTab.BarcodeList -> BarcodeListScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { currentTab = ScreenTab.Parametres }
+                    )
+                    ScreenTab.Synchronisation -> SyncScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { currentTab = ScreenTab.Parametres }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TopAppBarSection(
+    viewModel: InventoryViewModel,
+    onNavigateToSettings: () -> Unit,
+    isTablet: Boolean = false
+) {
+    val themeColor by viewModel.themeColor.collectAsState()
+    val groceryNameVal by viewModel.groceryName.collectAsState()
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding(),
+        tonalElevation = 1.dp,
+        color = MaterialTheme.colorScheme.background
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp)
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (!isTablet) {
+                // Branding header
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(themeColor),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ShoppingBasket,
+                            contentDescription = null,
+                            tint = Color(0xFFFFB300),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text(
+                        text = groceryNameVal,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Black,
+                        color = themeColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 140.dp)
+                    )
+                }
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+
+            var showSyncDialog by remember { mutableStateOf(false) }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Sync control button
+                IconButton(
+                    onClick = { showSyncDialog = true },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(themeColor.copy(alpha = 0.12f))
+                        .testTag("app_bar_sync_exclusion_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Sync,
+                        contentDescription = "Fampitoviana ny Tahiry",
+                        tint = themeColor
+                    )
+                }
+
+                // Settings icon button
+                IconButton(
+                    onClick = onNavigateToSettings,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(themeColor.copy(alpha = 0.12f))
+                        .testTag("app_bar_settings_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Paramètres",
+                        tint = themeColor
+                    )
+                }
+            }
+
+            if (showSyncDialog) {
+                val activeLang by viewModel.language.collectAsState()
+                val products by viewModel.allProducts.collectAsState()
+                val excludedSet by viewModel.excludedProductIds.collectAsState()
+                var dialogSearchQuery by remember { mutableStateOf("") }
+
+                val filteredProducts = remember(products, excludedSet, dialogSearchQuery) {
+                    products.filter {
+                        it.name.contains(dialogSearchQuery, ignoreCase = true) ||
+                        it.sku.contains(dialogSearchQuery, ignoreCase = true) ||
+                        it.barcode.contains(dialogSearchQuery, ignoreCase = true)
+                    }
+                }
+
+                Dialog(onDismissRequest = { showSyncDialog = false }) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(0.85f)
+                            .testTag("sync_exclusion_dialog_card"),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Header
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Sync,
+                                        contentDescription = null,
+                                        tint = themeColor,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Text(
+                                        text = when (activeLang) {
+                                            "mg" -> "Fampitoviana"
+                                            "fr" -> "Synchronisation"
+                                            else -> "Sync Control"
+                                        },
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { showSyncDialog = false }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Close"
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Safidio ny entana tiana hajanona tsy hampitoviana (tsindrio ny fako)."
+                                    "fr" -> "Sélectionnez les produits à exclure de la synchronisation réseau (cliquez sur la corbeille)."
+                                    else -> "Select products to exclude from network sync (click the delete icon)."
+                                },
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            // Search box
+                            OutlinedTextField(
+                                value = dialogSearchQuery,
+                                onValueChange = { dialogSearchQuery = it },
+                                modifier = Modifier.fillMaxWidth().testTag("sync_dialog_search_input"),
+                                placeholder = {
+                                    Text(
+                                        text = when (activeLang) {
+                                            "mg" -> "Hikaroka entana..."
+                                            "fr" -> "Rechercher..."
+                                            else -> "Search..."
+                                        },
+                                        fontSize = 13.sp
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                },
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = themeColor,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                                )
+                            )
+
+                            // List
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                            ) {
+                                if (filteredProducts.isEmpty()) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = when (activeLang) {
+                                                "mg" -> "Tsy misy entana hita"
+                                                "fr" -> "Aucun produit trouvé"
+                                                else -> "No products found"
+                                            },
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                } else {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        items(filteredProducts, key = { it.id }) { prod ->
+                                            val isExcluded = excludedSet.contains(prod.id.toString())
+                                            
+                                            Card(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = if (isExcluded) {
+                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                                    } else {
+                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
+                                                    }
+                                                )
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Column(
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        Text(
+                                                            text = prod.name,
+                                                            fontSize = 14.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (isExcluded) {
+                                                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                                            } else {
+                                                                MaterialTheme.colorScheme.onSurface
+                                                            }
+                                                        )
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                        ) {
+                                                            Text(
+                                                                text = prod.category,
+                                                                fontSize = 11.sp,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                                            )
+                                                            
+                                                            // Status badge
+                                                            Surface(
+                                                                shape = RoundedCornerShape(6.dp),
+                                                                color = if (isExcluded) {
+                                                                    Color(0xFFFFCDD2).copy(alpha = 0.8f) // light red
+                                                                } else {
+                                                                    Color(0xFFC8E6C9).copy(alpha = 0.8f) // light green
+                                                                },
+                                                                modifier = Modifier.padding(vertical = 2.dp)
+                                                            ) {
+                                                                Text(
+                                                                    text = if (isExcluded) {
+                                                                        when (activeLang) {
+                                                                            "mg" -> "Tsy ampitoviana"
+                                                                            "fr" -> "Sync annulée"
+                                                                            else -> "Sync off"
+                                                                        }
+                                                                    } else {
+                                                                        when (activeLang) {
+                                                                            "mg" -> "Mampitovy"
+                                                                            "fr" -> "Synchronisé"
+                                                                            else -> "Sync on"
+                                                                        }
+                                                                    },
+                                                                    fontSize = 9.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = if (isExcluded) {
+                                                                        Color(0xFFC62828) // red
+                                                                    } else {
+                                                                        Color(0xFF2E7D32) // green
+                                                                    },
+                                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+
+                                                    IconButton(
+                                                        onClick = {
+                                                            viewModel.toggleProductSyncExclusion(prod.id)
+                                                        },
+                                                        modifier = Modifier.testTag("toggle_sync_btn_${prod.id}")
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = if (isExcluded) {
+                                                                Icons.Default.AddCircle
+                                                            } else {
+                                                                Icons.Default.Delete
+                                                            },
+                                                            contentDescription = if (isExcluded) "Inclure" else "Exclure",
+                                                            tint = if (isExcluded) {
+                                                                themeColor
+                                                            } else {
+                                                                Color(0xFFC62828)
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Bottom Action Button
+                            Button(
+                                onClick = { showSyncDialog = false },
+                                modifier = Modifier.fillMaxWidth().height(44.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = themeColor,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Text(
+                                    text = when (activeLang) {
+                                        "mg" -> "Hanidy"
+                                        "fr" -> "Fermer"
+                                        else -> "Close"
+                                    },
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BottomNavBarSection(
+    viewModel: InventoryViewModel,
+    currentTab: ScreenTab,
+    onTabSelected: (ScreenTab) -> Unit
+) {
+    val activeLang by viewModel.language.collectAsState()
+    val t = { key: String -> LanguageManager.translate(key, activeLang) }
+
+    val navTabs = listOf(
+        NavigationTab(ScreenTab.Fandraisana, t("tab_home"), Icons.Default.Home),
+        NavigationTab(ScreenTab.Caisse, t("tab_pos"), Icons.Default.Inventory),
+        NavigationTab(ScreenTab.Manampy, t("quick_misc_btn"), Icons.Default.Calculate),
+        NavigationTab(ScreenTab.Tahiry, t("tab_inventory"), Icons.AutoMirrored.Filled.List),
+        NavigationTab(ScreenTab.Dettes, t("tab_debts"), Icons.Default.People)
+    )
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding(),
+        tonalElevation = 1.dp,
+        color = Color.White
+    ) {
+        Column {
+            HorizontalDivider(color = Color(0xFFF1F5F9))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(68.dp)
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                navTabs.forEach { tabItem ->
+                    if (tabItem.tab == ScreenTab.Manampy) {
+                        // Custom central yellow/orange FAB matching screenshot 100%
+                        Box(
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(Color(0xFFFFB300))
+                                    .clickable { onTabSelected(ScreenTab.Manampy) }
+                                    .testTag("nav_tab_manampy"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Calculate,
+                                    contentDescription = tabItem.label,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        val isSelected = currentTab == tabItem.tab
+                        val iconColor = if (isSelected) Color(0xFF13503C) else Color(0xFF94A3B8)
+
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onTabSelected(tabItem.tab) }
+                                .padding(vertical = 4.dp)
+                                .testTag("nav_tab_${tabItem.tab.name.lowercase()}"),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = tabItem.icon,
+                                contentDescription = tabItem.label,
+                                tint = iconColor,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(
+                                text = tabItem.label,
+                                fontSize = 10.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = iconColor,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            // Small orange dot centered under active tab's text
+                            if (isSelected) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(4.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFF57C00))
+                                )
+                            } else {
+                                Spacer(modifier = Modifier.height(6.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+data class NavigationTab(
+    val tab: ScreenTab,
+    val label: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
+)
+
+@Composable
+fun TabletDrawerSection(
+    viewModel: InventoryViewModel,
+    currentTab: ScreenTab,
+    onTabSelected: (ScreenTab) -> Unit,
+    t: (String) -> String
+) {
+    val themeColor by viewModel.themeColor.collectAsState()
+    val activeLang by viewModel.language.collectAsState()
+    val groceryNameVal by viewModel.groceryName.collectAsState()
+    var expandedLanguageMenu by remember { mutableStateOf(false) }
+
+    val drawerTabs = listOf(
+        NavigationTab(ScreenTab.Fandraisana, t("tab_home"), Icons.Default.Home),
+        NavigationTab(ScreenTab.Caisse, t("tab_pos"), Icons.Default.Inventory),
+        NavigationTab(ScreenTab.Tahiry, t("tab_inventory"), Icons.AutoMirrored.Filled.List),
+        NavigationTab(ScreenTab.Dettes, t("tab_debts"), Icons.Default.People),
+        NavigationTab(ScreenTab.Manampy, t("tab_add"), Icons.Default.Add),
+        NavigationTab(ScreenTab.Parametres, t("tab_settings"), Icons.Default.Settings)
+    )
+
+    Surface(
+        modifier = Modifier
+            .width(260.dp)
+            .fillMaxHeight(),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Branding Header
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(bottom = 12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(themeColor),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ShoppingBasket,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = groceryNameVal,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Black,
+                            color = themeColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "Epicerie Pro",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+
+                HorizontalDivider(thickness = 0.5.dp)
+
+                // Navigation Items List
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    drawerTabs.forEach { tabItem ->
+                        val isSelected = currentTab == tabItem.tab
+                        val bgSelectedColor = themeColor.copy(alpha = 0.12f)
+                        val textAndIconColor = if (isSelected) themeColor else MaterialTheme.colorScheme.onSurfaceVariant
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) bgSelectedColor else Color.Transparent)
+                                .clickable { onTabSelected(tabItem.tab) }
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = tabItem.icon,
+                                contentDescription = tabItem.label,
+                                tint = textAndIconColor,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = tabItem.label,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = textAndIconColor,
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            if (isSelected) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(themeColor)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Bottom Section: Languages & Offline Status
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                HorizontalDivider(thickness = 0.5.dp)
+
+                // Language Select Dropdown
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { expandedLanguageMenu = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ) {
+                        Icon(Icons.Default.Translate, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Malagasy (MG)"
+                                "fr" -> "Français (FR)"
+                                "en" -> "English (EN)"
+                                else -> activeLang.uppercase()
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp))
+                    }
+
+                    DropdownMenu(
+                        expanded = expandedLanguageMenu,
+                        onDismissRequest = { expandedLanguageMenu = false },
+                        modifier = Modifier.width(220.dp)
+                    ) {
+                        LanguageManager.LANGUAGES.forEach { (code, name) ->
+                            DropdownMenuItem(
+                                text = { Text(name, fontWeight = FontWeight.Bold) },
+                                onClick = {
+                                    viewModel.changeLanguage(code)
+                                    expandedLanguageMenu = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Off-line Status Indicator
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFE8F5E9))
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF2E7D32))
+                        )
+                        Text(
+                            text = "100% OFF-LINE MODE",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF2E7D32)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}

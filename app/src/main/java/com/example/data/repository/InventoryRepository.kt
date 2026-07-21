@@ -3,8 +3,6 @@ package com.example.data.repository
 import androidx.room.withTransaction
 import com.example.data.local.*
 import com.example.data.model.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 
@@ -23,43 +21,40 @@ class InventoryRepository(
     val lignesVenteDao: LigneVenteDao,
     val restockDao: RestockDao
 ) {
-    // Expose flows on IO dispatcher to avoid accidental collection on main thread doing DB work
-    val allProducts: Flow<List<Product>> = productDao.getAllProducts().flowOn(Dispatchers.IO)
-    val allSales: Flow<List<Sale>> = saleDao.getAllSales().flowOn(Dispatchers.IO)
-    val allDebts: Flow<List<Debt>> = debtDao.getAllDebts().flowOn(Dispatchers.IO)
-    val allRestocks: Flow<List<Restock>> = restockDao.getAllRestocks().flowOn(Dispatchers.IO)
-    val allCategories: Flow<List<String>> = productDao.getAllCategories().flowOn(Dispatchers.IO)
+    val allProducts: Flow<List<Product>> = productDao.getAllProducts().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    val allSales: Flow<List<Sale>> = saleDao.getAllSales().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    val allDebts: Flow<List<Debt>> = debtDao.getAllDebts().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    val allRestocks: Flow<List<Restock>> = restockDao.getAllRestocks().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    val allCategories: Flow<List<String>> = productDao.getAllCategories().flowOn(kotlinx.coroutines.Dispatchers.IO)
 
-    suspend fun insertRestock(restock: Restock) = withContext(Dispatchers.IO) {
+    suspend fun insertRestock(restock: Restock) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         restockDao.insertRestock(restock)
     }
 
-    suspend fun deleteRestock(restock: Restock) = withContext(Dispatchers.IO) {
+    suspend fun deleteRestock(restock: Restock) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         restockDao.deleteRestock(restock)
     }
 
-    fun getLimitedProducts(limit: Int): Flow<List<Product>> = productDao.getLimitedProducts(limit).flowOn(Dispatchers.IO)
-    fun searchProducts(query: String, category: String, showLowStockOnly: Boolean): Flow<List<Product>> =
-        productDao.searchProducts(query, category, showLowStockOnly).flowOn(Dispatchers.IO)
-    fun searchTemplateProducts(query: String, category: String): Flow<List<Product>> =
-        productDao.searchTemplateProducts(query, category).flowOn(Dispatchers.IO)
-    fun getAllTemplateCategories(): Flow<List<String>> = productDao.getAllTemplateCategories().flowOn(Dispatchers.IO)
-    fun hasProducts(): Flow<Boolean> = productDao.hasProducts().flowOn(Dispatchers.IO)
-    fun hasTemplates(): Flow<Boolean> = productDao.hasTemplates().flowOn(Dispatchers.IO)
-    fun getProductsWithBarcodes(): Flow<List<Product>> = productDao.getProductsWithBarcodes().flowOn(Dispatchers.IO)
-
-    suspend fun getProductByBarcode(barcode: String): Product? = withContext(Dispatchers.IO) {
+    fun getLimitedProducts(limit: Int): Flow<List<Product>> = productDao.getLimitedProducts(limit).flowOn(kotlinx.coroutines.Dispatchers.IO)
+    fun searchProducts(query: String, category: String, showLowStockOnly: Boolean): Flow<List<Product>> = 
+        productDao.searchProducts(query, category, showLowStockOnly).flowOn(kotlinx.coroutines.Dispatchers.IO)
+    fun searchTemplateProducts(query: String, category: String): Flow<List<Product>> = 
+        productDao.searchTemplateProducts(query, category).flowOn(kotlinx.coroutines.Dispatchers.IO)
+    fun getAllTemplateCategories(): Flow<List<String>> = productDao.getAllTemplateCategories().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    fun hasProducts(): Flow<Boolean> = productDao.hasProducts().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    fun hasTemplates(): Flow<Boolean> = productDao.hasTemplates().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    fun getProductsWithBarcodes(): Flow<List<Product>> = productDao.getProductsWithBarcodes().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    suspend fun getProductByBarcode(barcode: String): Product? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         productDao.getProductByBarcode(barcode)
     }
-
-    suspend fun getProductByName(name: String): Product? = withContext(Dispatchers.IO) {
+    suspend fun getProductByName(name: String): Product? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         productDao.getProductByName(name)
     }
 
-    suspend fun insertProduct(product: Product) = withContext(Dispatchers.IO) {
+    suspend fun insertProduct(product: Product) {
         val generatedId = productDao.insertProduct(product)
         if (product.isTemplate) {
-            return@withContext
+            return
         }
         val productWithId = product.copy(id = generatedId.toInt())
         // Sync to the new relational Produits table
@@ -131,7 +126,7 @@ class InventoryRepository(
         mouvementStockDao.insertMouvement(mvt)
     }
 
-    suspend fun updateProduct(product: Product) = withContext(Dispatchers.IO) {
+    suspend fun updateProduct(product: Product) {
         productDao.updateProduct(product)
         // Sync
         val existingProduit = produitDao.getProduitById(product.id.toLong())
@@ -204,7 +199,7 @@ class InventoryRepository(
         }
     }
 
-    suspend fun deleteProduct(product: Product) = withContext(Dispatchers.IO) {
+    suspend fun deleteProduct(product: Product) {
         productDao.deleteProduct(product)
         val existing = produitDao.getProduitById(product.id.toLong())
         if (existing != null) {
@@ -212,7 +207,7 @@ class InventoryRepository(
         }
     }
 
-    suspend fun deleteProductById(id: Int) = withContext(Dispatchers.IO) {
+    suspend fun deleteProductById(id: Int) {
         productDao.deleteProductById(id)
         val existing = produitDao.getProduitById(id.toLong())
         if (existing != null) {
@@ -220,11 +215,11 @@ class InventoryRepository(
         }
     }
 
-    suspend fun getProductById(id: Int): Product? = withContext(Dispatchers.IO) {
+    suspend fun getProductById(id: Int): Product? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         productDao.getProductById(id)
     }
 
-    suspend fun insertSale(sale: Sale) = withContext(Dispatchers.IO) {
+    suspend fun insertSale(sale: Sale) {
         saleDao.insertSale(sale)
 
         // Convert to Vente (relational table)
@@ -313,121 +308,119 @@ class InventoryRepository(
         }
     }
 
-    suspend fun checkoutSale(sale: Sale, decrementStock: Boolean = true) = withContext(Dispatchers.IO) {
-        database.withTransaction {
-            saleDao.insertSale(sale)
+    suspend fun checkoutSale(sale: Sale, decrementStock: Boolean = true) = database.withTransaction {
+        saleDao.insertSale(sale)
 
-            // Convert to Vente (relational table)
-            val newVente = Vente(
-                dateVente = sale.timestamp,
-                montantTotal = sale.totalAmount,
-                modePaiement = "ESPECES"
-            )
-            val venteId = venteDao.insertVente(newVente)
+        // Convert to Vente (relational table)
+        val newVente = Vente(
+            dateVente = sale.timestamp,
+            montantTotal = sale.totalAmount,
+            modePaiement = "ESPECES"
+        )
+        val venteId = venteDao.insertVente(newVente)
 
-            for (item in sale.items) {
-                val originalId = item.productId.toLong()
-                var existingProduit = produitDao.getProduitById(originalId)
+        for (item in sale.items) {
+            val originalId = item.productId.toLong()
+            var existingProduit = produitDao.getProduitById(originalId)
 
-                if (existingProduit == null) {
-                    // Fallback to barcode
-                    val matchingLegacyProduct = productDao.getProductById(item.productId)
-                    if (matchingLegacyProduct != null && matchingLegacyProduct.barcode.isNotEmpty()) {
-                        existingProduit = produitDao.getProduitByBarcode(matchingLegacyProduct.barcode)
-                    }
+            if (existingProduit == null) {
+                // Fallback to barcode
+                val matchingLegacyProduct = productDao.getProductById(item.productId)
+                if (matchingLegacyProduct != null && matchingLegacyProduct.barcode.isNotEmpty()) {
+                    existingProduit = produitDao.getProduitByBarcode(matchingLegacyProduct.barcode)
                 }
+            }
 
-                if (existingProduit == null) {
-                    // Fallback to name
-                    existingProduit = produitDao.getProduitByName(item.name)
-                }
+            if (existingProduit == null) {
+                // Fallback to name
+                existingProduit = produitDao.getProduitByName(item.name)
+            }
 
-                if (existingProduit != null) {
-                    val targetId = existingProduit.id
-                    // Get or create base UniteProduit
-                    var uniteId = 0L
-                    val units = if (existingProduit.codeBarrePrincipal?.isNotEmpty() == true) {
-                        uniteProduitDao.getUniteByBarcode(existingProduit.codeBarrePrincipal)
-                    } else null
+            if (existingProduit != null) {
+                val targetId = existingProduit.id
+                // Get or create base UniteProduit
+                var uniteId = 0L
+                val units = if (existingProduit.codeBarrePrincipal?.isNotEmpty() == true) {
+                    uniteProduitDao.getUniteByBarcode(existingProduit.codeBarrePrincipal)
+                } else null
 
-                    val baseUnit = if (units != null) units else uniteProduitDao.getBaseUniteForProduit(targetId)
+                val baseUnit = if (units != null) units else uniteProduitDao.getBaseUniteForProduit(targetId)
 
-                    if (baseUnit != null) {
-                        uniteId = baseUnit.id
-                    } else {
-                        val baseUnite = UniteProduit(
-                            produitId = targetId,
-                            nomUnite = existingProduit.uniteBase,
-                            facteurVersBase = 1.0,
-                            prixVente = item.price,
-                            prixAchat = existingProduit.prixAchatUniteBase,
-                            codeBarre = existingProduit.codeBarrePrincipal?.ifEmpty { null },
-                            estUniteBase = true,
-                            estUniteVenteDefaut = true,
-                            ordre = 0,
-                            actif = true
-                        )
-                        uniteId = uniteProduitDao.insertUnite(baseUnite)
-                    }
-
-                    // Save LigneVente
-                    val ligne = LigneVente(
-                        venteId = venteId,
+                if (baseUnit != null) {
+                    uniteId = baseUnit.id
+                } else {
+                    val baseUnite = UniteProduit(
                         produitId = targetId,
-                        uniteId = uniteId,
-                        quantite = item.quantity,
-                        prixUnitaireApplique = item.price,
-                        montantLigne = item.quantity * item.price
+                        nomUnite = existingProduit.uniteBase,
+                        facteurVersBase = 1.0,
+                        prixVente = item.price,
+                        prixAchat = existingProduit.prixAchatUniteBase,
+                        codeBarre = existingProduit.codeBarrePrincipal?.ifEmpty { null },
+                        estUniteBase = true,
+                        estUniteVenteDefaut = true,
+                        ordre = 0,
+                        actif = true
                     )
-                    lignesVenteDao.insertLigneVente(ligne)
-
-                    if (decrementStock) {
-                        // Record MouvementStock
-                        val mvt = MouvementStock(
-                            produitId = targetId,
-                            type = "SORTIE_VENTE",
-                            quantite = item.quantity,
-                            quantiteAvant = existingProduit.quantiteStock,
-                            quantiteApres = (existingProduit.quantiteStock - item.quantity).coerceAtLeast(0.0),
-                            referenceId = venteId,
-                            note = "Vente #${venteId}"
-                        )
-                        mouvementStockDao.insertMouvement(mvt)
-
-                        // Update quantity stock of Produit
-                        val updatedProduit = existingProduit.copy(
-                            quantiteStock = (existingProduit.quantiteStock - item.quantity).coerceAtLeast(0.0),
-                            dateDerniereMaj = System.currentTimeMillis()
-                        )
-                        produitDao.updateProduit(updatedProduit)
-                    }
+                    uniteId = uniteProduitDao.insertUnite(baseUnite)
                 }
+
+                // Save LigneVente
+                val ligne = LigneVente(
+                    venteId = venteId,
+                    produitId = targetId,
+                    uniteId = uniteId,
+                    quantite = item.quantity,
+                    prixUnitaireApplique = item.price,
+                    montantLigne = item.quantity * item.price
+                )
+                lignesVenteDao.insertLigneVente(ligne)
 
                 if (decrementStock) {
-                    // Update legacy Product model stock to stay synchronized
-                    val matchingProduct = productDao.getProductById(item.productId)
-                    if (matchingProduct != null) {
-                        val currentStock = matchingProduct.stock
-                        val updatedStock = (currentStock - item.quantity).coerceAtLeast(0.0)
-                        val updatedProduct = matchingProduct.copy(stock = updatedStock)
-                        productDao.updateProduct(updatedProduct)
-                    }
+                    // Record MouvementStock
+                    val mvt = MouvementStock(
+                        produitId = targetId,
+                        type = "SORTIE_VENTE",
+                        quantite = item.quantity,
+                        quantiteAvant = existingProduit.quantiteStock,
+                        quantiteApres = (existingProduit.quantiteStock - item.quantity).coerceAtLeast(0.0),
+                        referenceId = venteId,
+                        note = "Vente #${venteId}"
+                    )
+                    mouvementStockDao.insertMouvement(mvt)
+
+                    // Update quantity stock of Produit
+                    val updatedProduit = existingProduit.copy(
+                        quantiteStock = (existingProduit.quantiteStock - item.quantity).coerceAtLeast(0.0),
+                        dateDerniereMaj = System.currentTimeMillis()
+                    )
+                    produitDao.updateProduit(updatedProduit)
+                }
+            }
+
+            if (decrementStock) {
+                // Update legacy Product model stock to stay synchronized
+                val matchingProduct = productDao.getProductById(item.productId)
+                if (matchingProduct != null) {
+                    val currentStock = matchingProduct.stock
+                    val updatedStock = (currentStock - item.quantity).coerceAtLeast(0.0)
+                    val updatedProduct = matchingProduct.copy(stock = updatedStock)
+                    productDao.updateProduct(updatedProduct)
                 }
             }
         }
     }
 
-    suspend fun deleteSale(sale: Sale) = withContext(Dispatchers.IO) {
+    suspend fun deleteSale(sale: Sale) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         saleDao.deleteSale(sale)
     }
 
-    suspend fun insertDebt(debt: Debt) = withContext(Dispatchers.IO) {
+    suspend fun insertDebt(debt: Debt) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         debtDao.insertDebt(debt)
     }
-    suspend fun updateDebt(debt: Debt) = withContext(Dispatchers.IO) {
+    suspend fun updateDebt(debt: Debt) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         debtDao.updateDebt(debt)
     }
-    suspend fun deleteDebt(debt: Debt) = withContext(Dispatchers.IO) {
+    suspend fun deleteDebt(debt: Debt) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         debtDao.deleteDebt(debt)
     }
 }

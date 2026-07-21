@@ -35,6 +35,10 @@ class InventoryViewModel(
     private val context: Context
 ) : ViewModel() {
 
+    private val coroutineExceptionHandler = kotlinx.coroutines.CoroutineExceptionHandler { _, exception ->
+        android.util.Log.e("InventoryViewModel", "Hadisoana Coroutine: ${exception.localizedMessage ?: exception.message}", exception)
+    }
+
     val appPreferences = AppPreferences(context)
 
     // Observable Preference States
@@ -131,14 +135,14 @@ class InventoryViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun saveRestock(restock: com.example.data.model.Restock) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             repository.insertRestock(restock)
             triggerLocalSafetyBackup()
         }
     }
 
     fun deleteRestock(restock: com.example.data.model.Restock) {
-        viewModelScope.launch {
+        viewModelScope.launch(coroutineExceptionHandler) {
             repository.deleteRestock(restock)
             triggerLocalSafetyBackup()
         }
@@ -333,7 +337,7 @@ class InventoryViewModel(
 
     // Seeding products on empty state with Dispatchers.IO to prevent main-thread block
     init {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
             repository.hasProducts().take(1).collect { hasProducts ->
                 val hasBackupFile = com.example.util.BackupHelper.hasBackup(context)
                 if (hasBackupFile) {
@@ -346,7 +350,7 @@ class InventoryViewModel(
                 }
             }
         }
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
             repository.hasTemplates().take(1).collect { hasTemplates ->
                 if (!hasTemplates || !appPreferences.hasSeededNewCategories) {
                     seedNewCategoriesAndProducts()
@@ -1464,6 +1468,11 @@ class InventoryViewModel(
             e.printStackTrace()
             false
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        android.util.Log.d("InventoryViewModel", "InventoryViewModel onCleared - viewModelScope automatically cancelled")
     }
 }
 

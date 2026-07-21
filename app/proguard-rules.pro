@@ -12,6 +12,9 @@
 -keep class * extends androidx.room.RoomDatabase
 -dontwarn androidx.room.paging.**
 -keep class androidx.room.RoomDatabase { *; }
+-keepclassmembers class * {
+    @androidx.room.* *;
+}
 
 # Moshi rules
 -keep class com.squareup.moshi.** { *; }
@@ -19,6 +22,10 @@
 -dontwarn com.squareup.moshi.**
 -keepclassmembers class * {
     @com.squareup.moshi.Json <fields>;
+}
+-keep class * extends com.squareup.moshi.JsonAdapter { *; }
+-keepclassmembers class * extends com.squareup.moshi.JsonAdapter {
+    public <init>(...);
 }
 
 # Retrofit rules

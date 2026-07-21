@@ -314,7 +314,9 @@ fun HomeScreen(
                             ) {
                                 if (product.imageUrl.isNotEmpty()) {
                                     AsyncImage(
-                                        model = product.imageUrl,
+                                        model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current).data(product.imageUrl).crossfade(true).size(200).build(),
+                                        placeholder = androidx.compose.ui.graphics.painter.ColorPainter(androidx.compose.ui.graphics.Color(0xFFE2E8F0)),
+                                        error = androidx.compose.ui.graphics.painter.ColorPainter(androidx.compose.ui.graphics.Color(0xFFFFCDD2)),
                                         contentDescription = product.name,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier.fillMaxSize()

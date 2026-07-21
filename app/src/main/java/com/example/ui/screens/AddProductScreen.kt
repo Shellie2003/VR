@@ -362,7 +362,7 @@ fun AddProductScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Search,
-                                contentDescription = null,
+                                                        contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.align(Alignment.Center)
                             )
@@ -415,7 +415,7 @@ fun AddProductScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.List,
-                                contentDescription = null,
+                                                        contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSecondary,
                                 modifier = Modifier.align(Alignment.Center)
                             )
@@ -460,7 +460,7 @@ fun AddProductScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                                        Icon(androidx.compose.material.icons.Icons.Default.Info, contentDescription = null, tint = androidx.compose.material3.MaterialTheme.colorScheme.primary)
                         Text(
                             text = when(activeLang) {
                                 "mg" -> "Fampahafantarana ny entana"
@@ -615,7 +615,7 @@ fun AddProductScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                                        Icon(androidx.compose.material.icons.Icons.Default.Info, contentDescription = null, tint = androidx.compose.material3.MaterialTheme.colorScheme.primary)
                         Text(
                             text = when(activeLang) {
                                 "mg" -> "Vidiny, Refy & Tahiry"
@@ -866,7 +866,7 @@ fun AddProductScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.Settings, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                                        Icon(androidx.compose.material.icons.Icons.Default.Info, contentDescription = null, tint = androidx.compose.material3.MaterialTheme.colorScheme.primary)
                         Text(
                             text = when(activeLang) {
                                 "mg" -> "Fitsipika & Fitsirihana"
@@ -1131,7 +1131,7 @@ fun AddProductScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(Icons.Default.Home, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                                        Icon(androidx.compose.material.icons.Icons.Default.Info, contentDescription = null, tint = androidx.compose.material3.MaterialTheme.colorScheme.primary)
                             Text(
                                 text = when(activeLang) {
                                     "mg" -> "Mpanome Entana (Fournisseur)"
@@ -1148,7 +1148,7 @@ fun AddProductScreen(
                             onClick = { showAddSupplierDialog = true },
                             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                        Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = when(activeLang) {
@@ -1459,7 +1459,7 @@ fun AddProductScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Search,
-                                contentDescription = null,
+                                                        contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary
                             )
                             Text(
@@ -1594,7 +1594,7 @@ fun AddProductScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Search,
-                                    contentDescription = null,
+                                                        contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                     modifier = Modifier.size(48.dp)
                                 )
@@ -1651,7 +1651,9 @@ fun AddProductScreen(
                                             ) {
                                                 if (!p.imageUrl.isNullOrBlank()) {
                                                     AsyncImage(
-                                                        model = p.imageUrl,
+                                                        model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current).data(p.imageUrl).crossfade(true).size(100).build(),
+                                                        placeholder = androidx.compose.ui.graphics.painter.ColorPainter(androidx.compose.ui.graphics.Color(0xFFE2E8F0)),
+                                                        error = androidx.compose.ui.graphics.painter.ColorPainter(androidx.compose.ui.graphics.Color(0xFFFFCDD2)),
                                                         contentDescription = null,
                                                         contentScale = ContentScale.Crop,
                                                         modifier = Modifier.fillMaxSize()
@@ -1691,7 +1693,7 @@ fun AddProductScreen(
                                                     ) {
                                                         Icon(
                                                             imageVector = Icons.AutoMirrored.Filled.Label,
-                                                            contentDescription = null,
+                                                        contentDescription = null,
                                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                             modifier = Modifier.size(12.dp)
                                                         )
@@ -1706,7 +1708,7 @@ fun AddProductScreen(
 
                                             Icon(
                                                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                                contentDescription = null,
+                                                        contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.primary
                                             )
                                         }
@@ -1762,7 +1764,7 @@ fun AddProductScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.List,
-                                contentDescription = null,
+                                                        contentDescription = null,
                                 tint = MaterialTheme.colorScheme.secondary
                             )
                             Text(

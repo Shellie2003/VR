@@ -84,6 +84,7 @@ private fun triggerQrSuccessFeedback(context: Context) {
 }
 
 @OptIn(ExperimentalPermissionsApi::class)
+@androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
 @Composable
 fun QrCodeScannerView(
     onQrCodeScanned: (String) -> Unit,
@@ -92,6 +93,7 @@ fun QrCodeScannerView(
     themeColor: Color = MaterialTheme.colorScheme.primary
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
     var manualIpValue by remember { mutableStateOf("") }
 
@@ -117,8 +119,15 @@ fun QrCodeScannerView(
     }
 
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
-    DisposableEffect(cameraExecutor) {
+    DisposableEffect(lifecycleOwner, cameraExecutor) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_DESTROY) {
+                cameraExecutor.shutdown()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
             cameraExecutor.shutdown()
         }
     }
@@ -249,8 +258,6 @@ fun QrCodeScannerView(
                     contentAlignment = Alignment.Center
                 ) {
                     if (hasCameraPermission) {
-                        val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-
                         AndroidView(
                             factory = { ctx ->
                                 PreviewView(ctx).apply {
@@ -307,34 +314,39 @@ fun QrCodeScannerView(
                                             }
                                         },
                                         analyzer = { imageProxy ->
-                                            val mediaImage = imageProxy.image
-                                            if (mediaImage != null) {
-                                                val image = InputImage.fromMediaImage(
-                                                    mediaImage,
-                                                    imageProxy.imageInfo.rotationDegrees
-                                                )
-                                                scanner.process(image)
-                                                    .addOnSuccessListener { barcodes ->
-                                                        for (barcode in barcodes) {
-                                                            val rawValue = barcode.rawValue
-                                                            if (!rawValue.isNullOrEmpty()) {
-                                                                val currentTime = System.currentTimeMillis()
-                                                                if (rawValue != lastScannedCode || currentTime - lastScanTime > 1500L) {
-                                                                    lastScannedCode = rawValue
-                                                                    lastScanTime = currentTime
-                                                                    handleScannedQr(rawValue)
+                                            try {
+                                                val mediaImage = imageProxy.image
+                                                if (mediaImage != null) {
+                                                    val image = InputImage.fromMediaImage(
+                                                        mediaImage,
+                                                        imageProxy.imageInfo.rotationDegrees
+                                                    )
+                                                    scanner.process(image)
+                                                        .addOnSuccessListener { barcodes ->
+                                                            for (barcode in barcodes) {
+                                                                val rawValue = barcode.rawValue
+                                                                if (!rawValue.isNullOrEmpty()) {
+                                                                    val currentTime = System.currentTimeMillis()
+                                                                    if (rawValue != lastScannedCode || currentTime - lastScanTime > 1500L) {
+                                                                        lastScannedCode = rawValue
+                                                                        lastScanTime = currentTime
+                                                                        handleScannedQr(rawValue)
+                                                                    }
+                                                                    break
                                                                 }
-                                                                break
                                                             }
                                                         }
-                                                    }
-                                                    .addOnFailureListener { e ->
-                                                        Log.e("QrCodeScanner", "QR Code detection failed", e)
-                                                    }
-                                                    .addOnCompleteListener {
-                                                        imageProxy.close()
-                                                    }
-                                            } else {
+                                                        .addOnFailureListener { e ->
+                                                            Log.e("QrCodeScanner", "QR Code detection failed", e)
+                                                        }
+                                                        .addOnCompleteListener {
+                                                            imageProxy.close()
+                                                        }
+                                                } else {
+                                                    imageProxy.close()
+                                                }
+                                            } catch (e: Exception) {
+                                                Log.e("QrCodeScanner", "Analyzer exception thrown", e)
                                                 imageProxy.close()
                                             }
                                         },
@@ -378,12 +390,12 @@ fun QrCodeScannerView(
                     if (!hasCameraPermission) {
                         Column(
                             modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
                                 text = "📸",
-                                fontSize = 36.sp,
-                                modifier = Modifier.padding(bottom = 8.dp)
+                                fontSize = 36.sp
                             )
                             Text(
                                 text = infoPermission,
@@ -391,6 +403,21 @@ fun QrCodeScannerView(
                                 color = Color.White.copy(alpha = 0.8f),
                                 textAlign = TextAlign.Center
                             )
+                            Button(
+                                onClick = { cameraPermissionState.launchPermissionRequest() },
+                                colors = ButtonDefaults.buttonColors(containerColor = themeColor),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = when (language) {
+                                        "mg" -> "Omeo fahazoan-dalana"
+                                        "fr" -> "Autoriser l'appareil photo"
+                                        else -> "Grant Camera Permission"
+                                    },
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     } else {
                         // Floating zoom controls specifically for the QR Code Scanner

@@ -18,7 +18,10 @@ import kotlinx.coroutines.launch
 
 class SyncService : Service() {
 
-    private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val exceptionHandler = kotlinx.coroutines.CoroutineExceptionHandler { _, exception ->
+        android.util.Log.e("SyncService", "Hadisoana Coroutine: ${exception.localizedMessage ?: exception.message}", exception)
+    }
+    private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob() + exceptionHandler)
 
     companion object {
         const val CHANNEL_ID = "varotra_sync_channel"

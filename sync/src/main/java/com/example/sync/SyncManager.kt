@@ -18,7 +18,11 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 object SyncManager {
-    private val mainScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val exceptionHandler = CoroutineExceptionHandler { _, exception ->
+        log("Hadisoana Coroutine: ${exception.localizedMessage ?: exception.message}")
+        exception.printStackTrace()
+    }
+    private val mainScope = CoroutineScope(Dispatchers.Default + SupervisorJob() + exceptionHandler)
 
     var syncBridge: SyncBridge? = null
     val deviceId: String = UUID.randomUUID().toString().take(6).uppercase()
