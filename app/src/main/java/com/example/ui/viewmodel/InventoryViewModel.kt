@@ -1183,6 +1183,7 @@ class InventoryViewModel(
                         obj.put("category", prod.category)
                         obj.put("stock", prod.stock)
                         obj.put("imageUrl", prod.imageUrl ?: "")
+                        obj.put("imageData", com.example.util.ImageBackupUtil.encodeLocalImage(prod.imageUrl) ?: "")
                         obj.put("unit", prod.unit)
                         obj.put("barcode", prod.barcode)
                         obj.put("wholesalePrice", prod.wholesalePrice ?: 0.0)
@@ -1307,6 +1308,10 @@ class InventoryViewModel(
                 val prodArr = org.json.JSONArray(productsStr)
                 for (i in 0 until prodArr.length()) {
                     val obj = prodArr.getJSONObject(i)
+                    val incomingImageUrl = obj.optString("imageUrl", "")
+                    // Recreate the local photo file if it's missing (fresh install, data wipe,
+                    // new device) but was captured in this backup as base64 (see ImageBackupUtil).
+                    com.example.util.ImageBackupUtil.restoreLocalImageIfMissing(incomingImageUrl, obj.optString("imageData", ""))
                     productsList.add(
                         Product(
                             id = obj.optInt("id", 0),
@@ -1314,7 +1319,7 @@ class InventoryViewModel(
                             price = obj.getDouble("price"),
                             category = obj.getString("category"),
                             stock = obj.getDouble("stock"),
-                            imageUrl = obj.optString("imageUrl", ""),
+                            imageUrl = incomingImageUrl,
                             unit = obj.optString("unit", "Pièce"),
                             barcode = obj.optString("barcode", ""),
                             wholesalePrice = if (obj.has("wholesalePrice") && !obj.isNull("wholesalePrice")) obj.getDouble("wholesalePrice") else null,

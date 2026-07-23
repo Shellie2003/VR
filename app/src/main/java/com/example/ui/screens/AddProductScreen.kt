@@ -1904,12 +1904,28 @@ fun AddProductScreen(
     }
 }
 
+// Product photos are kept small on purpose: this also lets them be embedded as base64 inside
+// the JSON backups (local safety backup + Firebase) so they survive a data wipe or new device,
+// without needing any paid image storage (see ImageBackupUtil).
+private const val MAX_PRODUCT_IMAGE_DIMENSION = 1024
+
+private fun downscaleBitmapIfNeeded(bitmap: Bitmap, maxDimension: Int = MAX_PRODUCT_IMAGE_DIMENSION): Bitmap {
+    val width = bitmap.width
+    val height = bitmap.height
+    if (width <= maxDimension && height <= maxDimension) return bitmap
+    val ratio = minOf(maxDimension.toFloat() / width, maxDimension.toFloat() / height)
+    val newWidth = (width * ratio).toInt().coerceAtLeast(1)
+    val newHeight = (height * ratio).toInt().coerceAtLeast(1)
+    return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+}
+
 fun saveBitmapToLocalFile(context: android.content.Context, bitmap: Bitmap): String? {
     return try {
+        val resized = downscaleBitmapIfNeeded(bitmap)
         val fileName = "product_img_${System.currentTimeMillis()}.jpg"
         val file = File(context.filesDir, fileName)
         FileOutputStream(file).use { out ->
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+            resized.compress(Bitmap.CompressFormat.JPEG, 82, out)
         }
         file.absolutePath
     } catch (e: Exception) {
@@ -1920,12 +1936,14 @@ fun saveBitmapToLocalFile(context: android.content.Context, bitmap: Bitmap): Str
 
 fun saveUriToLocalFile(context: android.content.Context, uri: Uri): String? {
     return try {
+        val bitmap = context.contentResolver.openInputStream(uri)?.use { input ->
+            android.graphics.BitmapFactory.decodeStream(input)
+        } ?: return null
+        val resized = downscaleBitmapIfNeeded(bitmap)
         val fileName = "product_img_${System.currentTimeMillis()}.jpg"
         val file = File(context.filesDir, fileName)
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            FileOutputStream(file).use { output ->
-                input.copyTo(output)
-            }
+        FileOutputStream(file).use { out ->
+            resized.compress(Bitmap.CompressFormat.JPEG, 82, out)
         }
         file.absolutePath
     } catch (e: Exception) {
