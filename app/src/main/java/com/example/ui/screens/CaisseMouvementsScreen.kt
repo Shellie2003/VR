@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -24,7 +25,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.MouvementCaisse
+import com.example.ui.components.SelectionExportToolbar
 import com.example.ui.viewmodel.InventoryViewModel
+import com.example.util.ExportFormat
+import com.example.util.ExportUtil
 import com.example.util.FormatUtil
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -39,10 +43,16 @@ fun CaisseMouvementsScreen(
     viewModel: InventoryViewModel,
     onNavigateBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val activeLang by viewModel.language.collectAsState()
     val themeColor by viewModel.themeColor.collectAsState()
     val mouvements by viewModel.allMouvementsCaisse.collectAsState()
     val soldeCaisse by viewModel.soldeCaisse.collectAsState()
+
+    // Multi-selection state (checkbox mode for bulk delete)
+    var isSelectionMode by remember { mutableStateOf(false) }
+    var selectedMouvementIds by remember { mutableStateOf(setOf<Long>()) }
+    var showMultiDeleteConfirm by remember { mutableStateOf(false) }
 
     val isDark = MaterialTheme.colorScheme.background == Color(0xFF002114)
     val mainTextColor = if (isDark) Color.White else Color(0xFF1E293B)
@@ -233,6 +243,20 @@ fun CaisseMouvementsScreen(
                 }
             }
 
+            SelectionExportToolbar(
+                activeLang = activeLang,
+                isSelectionMode = isSelectionMode,
+                selectedCount = selectedMouvementIds.size,
+                onToggleSelectionMode = {
+                    isSelectionMode = !isSelectionMode
+                    if (!isSelectionMode) selectedMouvementIds = emptySet()
+                },
+                onSelectAll = { selectedMouvementIds = mouvements.map { it.id }.toSet() },
+                onDeleteSelected = { showMultiDeleteConfirm = true },
+                onExportPdf = { ExportUtil.exportCaisseMouvements(context, mouvements, ExportFormat.PDF) },
+                onExportCsv = { ExportUtil.exportCaisseMouvements(context, mouvements, ExportFormat.CSV) }
+            )
+
             if (mouvements.isEmpty()) {
                 Box(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -264,6 +288,15 @@ fun CaisseMouvementsScreen(
                             mouvement = mouvement,
                             mainTextColor = mainTextColor,
                             secondaryTextColor = secondaryTextColor,
+                            isSelectionMode = isSelectionMode,
+                            isSelected = selectedMouvementIds.contains(mouvement.id),
+                            onToggleSelect = {
+                                selectedMouvementIds = if (selectedMouvementIds.contains(mouvement.id)) {
+                                    selectedMouvementIds - mouvement.id
+                                } else {
+                                    selectedMouvementIds + mouvement.id
+                                }
+                            },
                             onDelete = { mouvementToDelete = mouvement }
                         )
                     }
@@ -388,6 +421,45 @@ fun CaisseMouvementsScreen(
             }
         )
     }
+
+    // Multi-selection bulk delete confirmation
+    if (showMultiDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showMultiDeleteConfirm = false },
+            title = { Text(deleteConfirmMsg, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    when (activeLang) {
+                        "mg" -> "Hofafana ny mouvement ${selectedMouvementIds.size} voafidy?"
+                        "fr" -> "Supprimer les ${selectedMouvementIds.size} mouvements sélectionnés ?"
+                        else -> "Delete the ${selectedMouvementIds.size} selected movements?"
+                    }
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        mouvements.filter { selectedMouvementIds.contains(it.id) }.forEach { viewModel.deleteMouvementCaisse(it) }
+                        selectedMouvementIds = emptySet()
+                        isSelectionMode = false
+                        showMultiDeleteConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(when (activeLang) {
+                        "mg" -> "Hamafa"
+                        "fr" -> "Supprimer"
+                        else -> "Delete"
+                    }, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMultiDeleteConfirm = false }) {
+                    Text(cancelBtnText)
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -395,6 +467,9 @@ private fun MouvementCaisseCard(
     mouvement: MouvementCaisse,
     mainTextColor: Color,
     secondaryTextColor: Color,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
     onDelete: () -> Unit
 ) {
     val isEntree = mouvement.type == TYPE_ENTREE
@@ -402,14 +477,27 @@ private fun MouvementCaisseCard(
     val formatter = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.FRANCE) }
 
     Card(
-        modifier = Modifier.fillMaxWidth().testTag("caisse_mouvement_card_${mouvement.id}"),
+        modifier = Modifier
+            .fillMaxWidth()
+            .let { if (isSelectionMode) it.clickable { onToggleSelect() } else it }
+            .testTag("caisse_mouvement_card_${mouvement.id}"),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface
+        )
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (isSelectionMode) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { onToggleSelect() },
+                    modifier = Modifier.testTag("caisse_checkbox_${mouvement.id}")
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
             Box(
                 modifier = Modifier
                     .size(36.dp)
@@ -459,13 +547,15 @@ private fun MouvementCaisseCard(
                 color = accentColor
             )
 
-            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                Icon(
-                    imageVector = Icons.Default.DeleteOutline,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(16.dp)
-                )
+            if (!isSelectionMode) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteOutline,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
     }
