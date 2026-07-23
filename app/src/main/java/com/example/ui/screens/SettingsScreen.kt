@@ -37,7 +37,8 @@ fun SettingsScreen(
     onNavigateToBarcodes: () -> Unit,
     onNavigateToHome: () -> Unit,
     onNavigateToSync: () -> Unit,
-    onNavigateToCaisseMouvements: () -> Unit
+    onNavigateToCaisseMouvements: () -> Unit,
+    onNavigateToDashboard: () -> Unit
 ) {
     val activeLang by viewModel.language.collectAsState()
     val groceryNameVal by viewModel.groceryName.collectAsState()
@@ -958,6 +959,76 @@ fun SettingsScreen(
                                     "mg" -> "Hisoratra ny fidiran-bola sy ny fivoahan-bola an-kesty"
                                     "fr" -> "Enregistrer les entrées et sorties d'espèces de la caisse"
                                     else -> "Record manual cash-in and cash-out movements"
+                                },
+                                fontSize = 11.sp,
+                                color = secondaryTextColor
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = themeColor,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            // CARD REDIRECT TO REPORTS & DASHBOARD
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .clickable { onNavigateToDashboard() }
+                    .testTag("settings_dashboard_button"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = themeColor.copy(alpha = 0.08f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, themeColor.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(themeColor),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.BarChart,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Kajy sy Tatitra"
+                                    "fr" -> "Rapports & Tableau de bord"
+                                    else -> "Reports & Dashboard"
+                                },
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Vola miditra, tombom-barotra ary entana be mpividy"
+                                    "fr" -> "Chiffre d'affaires, marges et produits les plus vendus"
+                                    else -> "Revenue, margins and top selling products"
                                 },
                                 fontSize = 11.sp,
                                 color = secondaryTextColor

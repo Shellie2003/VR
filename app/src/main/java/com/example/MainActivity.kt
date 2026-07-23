@@ -62,7 +62,8 @@ enum class ScreenTab {
     Commission,  // Restocking & supply commission calculator
     BarcodeList, // Barcode management and sheet printing
     Synchronisation, // Multi-terminal synchronization screen
-    CaisseMouvements // Cash drawer manual in/out movements journal
+    CaisseMouvements, // Cash drawer manual in/out movements journal
+    Dashboard // Reports & dashboard: revenue chart, top products
 }
 
 class MainActivity : ComponentActivity() {
@@ -431,7 +432,7 @@ fun MainAppLayout(
             )
 
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements) {
+                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements && currentTab != ScreenTab.Dashboard) {
                     TopAppBarSection(
                         viewModel = viewModel,
                         onNavigateToSettings = { currentTab = ScreenTab.Parametres },
@@ -487,7 +488,8 @@ fun MainAppLayout(
                             onNavigateToBarcodes = { currentTab = ScreenTab.BarcodeList },
                             onNavigateToHome = navigateToHome,
                             onNavigateToSync = { currentTab = ScreenTab.Synchronisation },
-                            onNavigateToCaisseMouvements = { currentTab = ScreenTab.CaisseMouvements }
+                            onNavigateToCaisseMouvements = { currentTab = ScreenTab.CaisseMouvements },
+                            onNavigateToDashboard = { currentTab = ScreenTab.Dashboard }
                         )
                         ScreenTab.Commission -> CommissionScreen(
                             viewModel = viewModel,
@@ -505,6 +507,10 @@ fun MainAppLayout(
                             viewModel = viewModel,
                             onNavigateBack = { currentTab = ScreenTab.Parametres }
                         )
+                        ScreenTab.Dashboard -> DashboardScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = { currentTab = ScreenTab.Parametres }
+                        )
                     }
                 }
             }
@@ -513,7 +519,7 @@ fun MainAppLayout(
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {
-                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements) {
+                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements && currentTab != ScreenTab.Dashboard) {
                     TopAppBarSection(
                         viewModel = viewModel,
                         onNavigateToSettings = { currentTab = ScreenTab.Parametres },
@@ -593,7 +599,8 @@ fun MainAppLayout(
                         onNavigateToBarcodes = { currentTab = ScreenTab.BarcodeList },
                         onNavigateToHome = navigateToHome,
                         onNavigateToSync = { currentTab = ScreenTab.Synchronisation },
-                        onNavigateToCaisseMouvements = { currentTab = ScreenTab.CaisseMouvements }
+                        onNavigateToCaisseMouvements = { currentTab = ScreenTab.CaisseMouvements },
+                        onNavigateToDashboard = { currentTab = ScreenTab.Dashboard }
                     )
                     ScreenTab.Commission -> CommissionScreen(
                         viewModel = viewModel,
@@ -608,6 +615,10 @@ fun MainAppLayout(
                         onNavigateBack = { currentTab = ScreenTab.Parametres }
                     )
                     ScreenTab.CaisseMouvements -> CaisseMouvementsScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { currentTab = ScreenTab.Parametres }
+                    )
+                    ScreenTab.Dashboard -> DashboardScreen(
                         viewModel = viewModel,
                         onNavigateBack = { currentTab = ScreenTab.Parametres }
                     )
