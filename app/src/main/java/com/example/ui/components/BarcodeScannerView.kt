@@ -40,11 +40,6 @@ import kotlinx.coroutines.launch
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.Preview
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
-import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.ui.viewinterop.AndroidView
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -196,6 +191,12 @@ fun BarcodeScannerView(
         else -> "The scanner requires camera access."
     }
 
+    val productNotFoundMsg = when (language) {
+        "mg" -> "Tsy misy entana mifanaraka amin'ity kaody bar ity"
+        "fr" -> "Aucun produit ne correspond à ce code-barres"
+        else -> "No product matches this barcode"
+    }
+
     fun handleScannedBarcode(scannedCode: String) {
         val trimmed = scannedCode.trim()
         if (trimmed.isNotEmpty()) {
@@ -207,6 +208,10 @@ fun BarcodeScannerView(
                     if (match != null) {
                         viewModel.addToCart(match, 1.0)
                         sessionScannedProductIds = sessionScannedProductIds + match.id
+                    } else {
+                        // Without this, a scan of an unknown barcode gave the same success
+                        // beep/vibration as a real match while silently adding nothing to the cart.
+                        android.widget.Toast.makeText(context, productNotFoundMsg, android.widget.Toast.LENGTH_SHORT).show()
                     }
                 }
             }

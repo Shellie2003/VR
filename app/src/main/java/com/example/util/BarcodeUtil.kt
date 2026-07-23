@@ -42,12 +42,25 @@ object BarcodeUtil {
     )
 
     /**
+     * Our Code 39 table only encodes digits, space and the start/stop character. Any other
+     * character (letters, symbols) cannot be represented and must never be silently dropped,
+     * since that would print a barcode label that doesn't match the product's real code.
+     */
+    fun isFullyEncodableAsCode39(text: String): Boolean {
+        val cleaned = text.trim().uppercase()
+        return cleaned.isNotEmpty() && cleaned.all { CODE39_MAP.containsKey(it) }
+    }
+
+    /**
      * Translates a string into a list of booleans representing narrow (false) and wide (true) alternating elements of Code 39.
      * true = black bar, false = white space
      */
     fun generateCode39Pattern(text: String): List<Boolean> {
-        val uppercaseText = text.uppercase().filter { CODE39_MAP.containsKey(it) }
-        if (uppercaseText.isEmpty()) return emptyList()
+        // Reject rather than silently drop unsupported characters: a partial pattern would look
+        // like a valid barcode but would not scan back to the actual stored value.
+        if (!isFullyEncodableAsCode39(text)) return emptyList()
+
+        val uppercaseText = text.trim().uppercase()
 
         val fullText = "*$uppercaseText*"
         val booleanList = mutableListOf<Boolean>()

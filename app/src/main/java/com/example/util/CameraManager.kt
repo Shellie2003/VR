@@ -9,7 +9,6 @@ import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.ProcessLifecycleOwner
 import java.util.concurrent.ExecutorService
 import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
@@ -19,7 +18,9 @@ object CameraManager {
     private const val TAG = "CameraManager"
 
     /**
-     * Binds the camera preview and analyzer use cases to the ProcessLifecycleOwner.
+     * Binds the camera preview and analyzer use cases to the given [lifecycleOwner] (the
+     * screen's own lifecycle, not the app-wide ProcessLifecycleOwner), so the camera is
+     * released automatically when that screen is destroyed.
      * Configures the ImageAnalysis use case with STRATEGY_KEEP_ONLY_LATEST.
      */
     @androidx.annotation.OptIn(androidx.camera.camera2.interop.ExperimentalCamera2Interop::class)
