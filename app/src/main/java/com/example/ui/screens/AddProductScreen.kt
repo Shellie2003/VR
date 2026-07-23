@@ -56,6 +56,11 @@ fun AddProductScreen(
     val activeLang by viewModel.language.collectAsState()
     val t = { key: String -> LanguageManager.translate(key, activeLang) }
 
+    // Tablet/large-screen layout: cap the form's width and center it instead of letting every
+    // field stretch edge-to-edge on a wide screen.
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
+
     // Suppliers (Fournisseurs) state
     val suppliers by viewModel.allFournisseurs.collectAsState()
     var showAddSupplierDialog by remember { mutableStateOf(false) }
@@ -320,11 +325,13 @@ fun AddProductScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(rememberScrollState()),
+        contentAlignment = if (isTablet) Alignment.TopCenter else Alignment.TopStart
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .then(if (isTablet) Modifier.widthIn(max = 640.dp) else Modifier)
                 .padding(bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {

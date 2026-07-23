@@ -43,6 +43,10 @@ fun DashboardScreen(
     val allSales by viewModel.allSales.collectAsState()
     val allProducts by viewModel.allProducts.collectAsState()
 
+    // Tablet/large-screen layout: cap the report column's width and center it.
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
+
     val isDark = MaterialTheme.colorScheme.background == Color(0xFF002114)
     val mainTextColor = if (isDark) Color.White else Color(0xFF1E293B)
     val secondaryTextColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
@@ -91,6 +95,10 @@ fun DashboardScreen(
     }
     val totalProfit = totalRevenue - totalCost
     val marginPct = if (totalCost > 0.0) (totalProfit / totalCost) * 100.0 else 0.0
+    // B.2: VAT already included in totalRevenue (tax-inclusive pricing) — shown separately for reporting.
+    val totalTax = remember(filteredSales) {
+        filteredSales.sumOf { sale -> sale.items.sumOf { it.taxAmount } }
+    }
 
     // Daily revenue buckets for the bar chart
     val dailyRevenue = remember(filteredSales, rangeStart, dayCount) {
@@ -182,11 +190,17 @@ fun DashboardScreen(
             }
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(MaterialTheme.colorScheme.background)
+                .background(MaterialTheme.colorScheme.background),
+            contentAlignment = if (isTablet) Alignment.TopCenter else Alignment.TopStart
+        ) {
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .then(if (isTablet) Modifier.widthIn(max = 720.dp) else Modifier.fillMaxWidth())
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
@@ -242,6 +256,20 @@ fun DashboardScreen(
                     else -> Color(0xFF2E7D32)
                 }
             )
+
+            if (totalTax > 0.0) {
+                Spacer(modifier = Modifier.height(10.dp))
+                SummaryStatCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    label = when (activeLang) {
+                        "mg" -> "TVA (efa tafiditra ao anaty vola miditra)"
+                        "fr" -> "TVA collectée (incluse dans le CA)"
+                        else -> "VAT collected (included in revenue)"
+                    },
+                    value = "${FormatUtil.formatPrice(totalTax)} Ar",
+                    color = Color(0xFF6A1B9A)
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -354,6 +382,7 @@ fun DashboardScreen(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+        }
         }
     }
 }

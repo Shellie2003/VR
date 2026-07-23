@@ -96,6 +96,10 @@ fun CalculatorScreen(
     var editingQuantityStr by remember { mutableStateOf("") }
     val isTrosaMode = amountReceivedStr.trim().isEmpty()
 
+    // B.1: Real payment mode selection (ESPECES / MVOLA / ORANGE_MONEY). Trosa sales are always
+    // recorded as CREDIT regardless of this selector (see isTrosaMode above).
+    var selectedPaymentMode by remember { mutableStateOf("ESPECES") }
+
     // New state variables for QuickMiscPage sub-tabs and multiplier inputs
     var quickMiscSubTab by remember { mutableStateOf(0) }
     var calcPriceStr by remember { mutableStateOf("0") }
@@ -109,6 +113,7 @@ fun CalculatorScreen(
         miscQtyStr = "1"
         calcPriceStr = "0"
         calcQtyStr = "0"
+        selectedPaymentMode = "ESPECES"
     }
 
     val calcPrice = calcPriceStr.toDoubleOrNull() ?: 0.0
@@ -577,6 +582,11 @@ fun CalculatorScreen(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
+                            if (!isTrosaMode) {
+                                PaymentModeRow(selectedPaymentMode, { selectedPaymentMode = it }, activeLang, themeColor)
+                                Spacer(modifier = Modifier.height(6.dp))
+                            }
+
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
@@ -656,10 +666,11 @@ fun CalculatorScreen(
                                             val totalSnapshot = totalAmount
                                             val receivedSnapshot = amountReceived
                                             val changeSnapshot = (receivedSnapshot - totalSnapshot).coerceAtLeast(0.0)
-                                            val success = viewModel.checkoutCart()
+                                            val success = viewModel.checkoutCart(selectedPaymentMode)
                                             if (success) {
                                                 receiptToOffer = com.example.util.ReceiptUtil.generateReceiptPdf(
-                                                    context, groceryNameVal, cartSnapshot, totalSnapshot, receivedSnapshot, changeSnapshot
+                                                    context, groceryNameVal, cartSnapshot, totalSnapshot, receivedSnapshot, changeSnapshot,
+                                                    modePaiement = selectedPaymentMode
                                                 )
                                                 resetAllFields()
                                                 Toast.makeText(context, t("checkout_success"), Toast.LENGTH_SHORT).show()
@@ -1182,6 +1193,11 @@ fun CalculatorScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
+                    if (!isTrosaMode) {
+                        PaymentModeRow(selectedPaymentMode, { selectedPaymentMode = it }, activeLang, MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+
                     // Line 3: Billing grand total and main checkout buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1264,10 +1280,11 @@ fun CalculatorScreen(
                                     val totalSnapshot = totalAmount
                                     val receivedSnapshot = amountReceived
                                     val changeSnapshot = (receivedSnapshot - totalSnapshot).coerceAtLeast(0.0)
-                                    val success = viewModel.checkoutCart()
+                                    val success = viewModel.checkoutCart(selectedPaymentMode)
                                     if (success) {
                                         receiptToOffer = com.example.util.ReceiptUtil.generateReceiptPdf(
-                                            context, groceryNameVal, cartSnapshot, totalSnapshot, receivedSnapshot, changeSnapshot
+                                            context, groceryNameVal, cartSnapshot, totalSnapshot, receivedSnapshot, changeSnapshot,
+                                            modePaiement = selectedPaymentMode
                                         )
                                         resetAllFields()
                                         Toast.makeText(context, t("checkout_success"), Toast.LENGTH_SHORT).show()
@@ -2068,6 +2085,11 @@ fun CalculatorScreen(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
+                if (!isTrosaMode) {
+                    PaymentModeRow(selectedPaymentMode, { selectedPaymentMode = it }, activeLang, Color(0xFF2E7D32))
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+
                 // 6. Global Bottom Action bar
                 Row(
                     modifier = Modifier
@@ -2117,10 +2139,11 @@ fun CalculatorScreen(
                                 val totalSnapshot = totalAmount
                                 val receivedSnapshot = amountReceived
                                 val changeSnapshot = (receivedSnapshot - totalSnapshot).coerceAtLeast(0.0)
-                                val success = viewModel.checkoutCart()
+                                val success = viewModel.checkoutCart(selectedPaymentMode)
                                 if (success) {
                                     receiptToOffer = com.example.util.ReceiptUtil.generateReceiptPdf(
-                                        context, groceryNameVal, cartSnapshot, totalSnapshot, receivedSnapshot, changeSnapshot
+                                        context, groceryNameVal, cartSnapshot, totalSnapshot, receivedSnapshot, changeSnapshot,
+                                        modePaiement = selectedPaymentMode
                                     )
                                     resetAllFields()
                                     subTab = "checkout"
@@ -2782,10 +2805,11 @@ fun CalculatorScreen(
                             viewModel.saveDebt(newDebt)
                             val cartSnapshot = cart
                             val totalSnapshot = totalAmount
-                            val success = viewModel.checkoutCart()
+                            val success = viewModel.checkoutCart("CREDIT")
                             if (success) {
                                 receiptToOffer = com.example.util.ReceiptUtil.generateReceiptPdf(
-                                    context, groceryNameVal, cartSnapshot, totalSnapshot, 0.0, 0.0
+                                    context, groceryNameVal, cartSnapshot, totalSnapshot, 0.0, 0.0,
+                                    modePaiement = "CREDIT"
                                 )
                                 resetAllFields()
                                 showTrosaDialog = false
@@ -2885,6 +2909,43 @@ fun CalculatorScreen(
                 }
             }
         )
+    }
+}
+
+// B.1: Compact selector for the real payment mode of a cash sale (Espèces / Mvola / Orange Money).
+// Not shown in Trosa mode since credit sales are always recorded as CREDIT.
+@Composable
+fun PaymentModeRow(
+    selected: String,
+    onSelect: (String) -> Unit,
+    activeLang: String,
+    themeColor: Color
+) {
+    val options = listOf(
+        "ESPECES" to when (activeLang) {
+            "mg" -> "Vola"
+            "fr" -> "Espèces"
+            else -> "Cash"
+        },
+        "MVOLA" to "Mvola",
+        "ORANGE_MONEY" to "Orange Money"
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        options.forEach { (value, label) ->
+            FilterChip(
+                selected = selected == value,
+                onClick = { onSelect(value) },
+                label = { Text(label, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = themeColor.copy(alpha = 0.18f),
+                    selectedLabelColor = themeColor
+                ),
+                modifier = Modifier.weight(1f).height(30.dp)
+            )
+        }
     }
 }
 

@@ -45,6 +45,10 @@ fun SettingsScreen(
     onNavigateToDashboard: () -> Unit
 ) {
     val context = LocalContext.current
+    // Tablet/large-screen layout: cap the settings column's width and center it instead of
+    // stretching every card edge-to-edge on a wide screen.
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
     val activeLang by viewModel.language.collectAsState()
     val groceryNameVal by viewModel.groceryName.collectAsState()
     val currentThemeKey by viewModel.colorTheme.collectAsState()
@@ -197,11 +201,13 @@ fun SettingsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(MaterialTheme.colorScheme.background),
+        contentAlignment = if (isTablet) Alignment.TopCenter else Alignment.TopStart
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxHeight()
+                .then(if (isTablet) Modifier.widthIn(max = 640.dp) else Modifier.fillMaxWidth())
                 .verticalScroll(scrollState)
                 .padding(horizontal = 16.dp)
         ) {

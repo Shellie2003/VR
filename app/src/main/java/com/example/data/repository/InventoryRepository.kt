@@ -229,14 +229,14 @@ class InventoryRepository(
         productDao.getProductById(id)
     }
 
-    suspend fun checkoutSale(sale: Sale, decrementStock: Boolean = true) = database.withTransaction {
+    suspend fun checkoutSale(sale: Sale, decrementStock: Boolean = true, modePaiement: String = "ESPECES") = database.withTransaction {
         saleDao.insertSale(sale)
 
         // Convert to Vente (relational table)
         val newVente = Vente(
             dateVente = sale.timestamp,
             montantTotal = sale.totalAmount,
-            modePaiement = "ESPECES"
+            modePaiement = modePaiement
         )
         val venteId = venteDao.insertVente(newVente)
 

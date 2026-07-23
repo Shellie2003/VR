@@ -28,13 +28,18 @@ object ReceiptUtil {
         totalAmount: Double,
         amountReceived: Double,
         change: Double,
-        timestamp: Long = System.currentTimeMillis()
+        timestamp: Long = System.currentTimeMillis(),
+        modePaiement: String = "ESPECES"
     ): File? {
         if (items.isEmpty()) return null
 
+        // B.2: total VAT already included in the displayed prices (tax-inclusive pricing), shown
+        // as an informational breakdown line — it never changes the amount charged to the customer.
+        val totalTax = items.sumOf { it.taxAmount }
+
         val lineHeight = 16f
         val headerHeight = 90f
-        val footerHeight = 90f
+        val footerHeight = 118f + (if (totalTax > 0.0) 14f else 0f)
         val pageHeight = (headerHeight + items.size * lineHeight + footerHeight).toInt().coerceAtLeast(250)
 
         val pdfDocument = PdfDocument()
@@ -112,9 +117,26 @@ object ReceiptUtil {
             canvas.drawText("${FormatUtil.formatPrice(totalAmount)} Ar", PAGE_WIDTH - 10f, y, totalAmountPaint)
             y += 16f
 
+            val smallLabelPaint = Paint().apply { color = Color.DKGRAY; textSize = 8.5f; isAntiAlias = true }
+            val smallAmountPaint = Paint(smallLabelPaint).apply { textAlign = Paint.Align.RIGHT }
+
+            if (totalTax > 0.0) {
+                canvas.drawText("Dont TVA", 10f, y, smallLabelPaint)
+                canvas.drawText("${FormatUtil.formatPrice(totalTax)} Ar", PAGE_WIDTH - 10f, y, smallAmountPaint)
+                y += 14f
+            }
+
+            val modeLabel = when (modePaiement) {
+                "MVOLA" -> "Mvola"
+                "ORANGE_MONEY" -> "Orange Money"
+                "CREDIT" -> "Crédit (Trosa)"
+                else -> "Espèces"
+            }
+            canvas.drawText("Mode de paiement", 10f, y, smallLabelPaint)
+            canvas.drawText(modeLabel, PAGE_WIDTH - 10f, y, smallAmountPaint)
+            y += 14f
+
             if (amountReceived > 0.0) {
-                val smallLabelPaint = Paint().apply { color = Color.DKGRAY; textSize = 8.5f; isAntiAlias = true }
-                val smallAmountPaint = Paint(smallLabelPaint).apply { textAlign = Paint.Align.RIGHT }
                 canvas.drawText("Espèces reçues", 10f, y, smallLabelPaint)
                 canvas.drawText("${FormatUtil.formatPrice(amountReceived)} Ar", PAGE_WIDTH - 10f, y, smallAmountPaint)
                 y += 14f

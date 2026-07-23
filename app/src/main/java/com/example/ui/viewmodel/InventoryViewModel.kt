@@ -26,9 +26,16 @@ data class CartItem(
     val productId: Int? = null, // null for misc items
     val maxStock: Double = 99999.0,
     val regularPrice: Double = price,
-    val wholesalePrice: Double? = null
+    val wholesalePrice: Double? = null,
+    // B.2: price is always tax-inclusive (what the customer pays); taxable/tauxTaxe are used only
+    // to break out the VAT portion already contained in `price` for receipts and reporting.
+    val taxable: Boolean = false,
+    val tauxTaxe: Double = 0.0
 ) {
     val totalPrice: Double get() = price * quantity
+
+    // Portion of totalPrice that is tax (0.0 when not taxable), assuming tax-inclusive pricing.
+    val taxAmount: Double get() = if (taxable && tauxTaxe > 0.0) totalPrice * tauxTaxe / (100.0 + tauxTaxe) else 0.0
 }
 
 class InventoryViewModel(
@@ -655,7 +662,9 @@ class InventoryViewModel(
             if (cappedQty > 0) {
                 current[existingIndex] = current[existingIndex].copy(
                     quantity = cappedQty,
-                    price = activePrice
+                    price = activePrice,
+                    taxable = product.taxable,
+                    tauxTaxe = product.tauxTaxe
                 )
             }
         } else {
@@ -671,7 +680,9 @@ class InventoryViewModel(
                         productId = product.id,
                         maxStock = product.stock,
                         regularPrice = product.price,
-                        wholesalePrice = product.wholesalePrice
+                        wholesalePrice = product.wholesalePrice,
+                        taxable = product.taxable,
+                        tauxTaxe = product.tauxTaxe
                     )
                 )
             }
@@ -738,7 +749,8 @@ class InventoryViewModel(
     }
 
     // Checkout (creates sale record & decrements inventory stocks)
-    fun checkoutCart(): Boolean {
+    // modePaiement: "ESPECES" | "MVOLA" | "ORANGE_MONEY" | "CREDIT" (see Vente.modePaiement)
+    fun checkoutCart(modePaiement: String = "ESPECES"): Boolean {
         val cartSnapshot = _cart.value
         if (cartSnapshot.isEmpty()) return false
 
@@ -758,7 +770,9 @@ class InventoryViewModel(
                     productId = it.productId ?: 0,
                     name = it.name,
                     quantity = it.quantity,
-                    price = it.price
+                    price = it.price,
+                    taxable = it.taxable,
+                    tauxTaxe = it.tauxTaxe
                 )
             }
             val total = cartSnapshot.sumOf { it.totalPrice }
@@ -767,11 +781,12 @@ class InventoryViewModel(
                 totalAmount = total,
                 items = soldItemsForSale
             )
-            
+
             // Convert Sale to JSON using standard JSONObject
             val saleJsonObj = org.json.JSONObject()
             saleJsonObj.put("timestamp", newSale.timestamp)
             saleJsonObj.put("totalAmount", newSale.totalAmount)
+            saleJsonObj.put("modePaiement", modePaiement)
             val itemsArr = org.json.JSONArray()
             newSale.items.forEach {
                 val itemObj = org.json.JSONObject()
@@ -779,6 +794,8 @@ class InventoryViewModel(
                 itemObj.put("name", it.name)
                 itemObj.put("quantity", it.quantity)
                 itemObj.put("price", it.price)
+                itemObj.put("taxable", it.taxable)
+                itemObj.put("tauxTaxe", it.tauxTaxe)
                 itemsArr.put(itemObj)
             }
             saleJsonObj.put("items", itemsArr)
@@ -804,7 +821,9 @@ class InventoryViewModel(
                         productId = it.productId ?: 0,
                         name = it.name,
                         quantity = it.quantity,
-                        price = it.price
+                        price = it.price,
+                        taxable = it.taxable,
+                        tauxTaxe = it.tauxTaxe
                     )
                 }
                 val total = cartSnapshot.sumOf { it.totalPrice }
@@ -815,7 +834,7 @@ class InventoryViewModel(
                 )
 
                 // 1. Perform atomic transaction
-                repository.checkoutSale(newSale)
+                repository.checkoutSale(newSale, modePaiement = modePaiement)
 
                 // 2. Alert if any product fell into low-stock state
                 for (cartItem in cartSnapshot) {
@@ -983,6 +1002,7 @@ class InventoryViewModel(
             val obj = org.json.JSONObject(saleJson)
             val timestamp = obj.getLong("timestamp")
             val totalAmount = obj.getDouble("totalAmount")
+            val modePaiement = obj.optString("modePaiement", "ESPECES")
             val itemsArr = obj.getJSONArray("items")
             val list = mutableListOf<SoldItem>()
             for (i in 0 until itemsArr.length()) {
@@ -992,7 +1012,9 @@ class InventoryViewModel(
                         productId = itemObj.getInt("productId"),
                         name = itemObj.getString("name"),
                         quantity = itemObj.getDouble("quantity"),
-                        price = itemObj.getDouble("price")
+                        price = itemObj.getDouble("price"),
+                        taxable = itemObj.optBoolean("taxable", false),
+                        tauxTaxe = itemObj.optDouble("tauxTaxe", 0.0)
                     )
                 )
             }
@@ -1002,7 +1024,7 @@ class InventoryViewModel(
                 items = list
             )
             kotlinx.coroutines.runBlocking {
-                repository.checkoutSale(sale)
+                repository.checkoutSale(sale, modePaiement = modePaiement)
             }
             true
         } catch (e: Exception) {
