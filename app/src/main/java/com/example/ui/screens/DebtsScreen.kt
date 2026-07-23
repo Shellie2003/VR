@@ -66,6 +66,9 @@ fun DebtsScreen(
     var debtNote by remember { mutableStateOf("") }
     var nameError by remember { mutableStateOf(false) }
     var amountError by remember { mutableStateOf(false) }
+    // C.3: optional due date (échéance) for a payment reminder
+    var dueDateMillis by remember { mutableStateOf<Long?>(null) }
+    var showDueDatePicker by remember { mutableStateOf(false) }
 
     // Repayment Form states
     var repayAmountStr by remember { mutableStateOf("") }
@@ -242,6 +245,7 @@ fun DebtsScreen(
                 debtNote = ""
                 nameError = false
                 amountError = false
+                dueDateMillis = null
                 showAddDebtDialog = false
             },
             title = { Text(t("new_debt"), fontWeight = FontWeight.Black) },
@@ -280,6 +284,34 @@ fun DebtsScreen(
                         label = { Text(t("debt_note")) },
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    // C.3: optional due date (échéance)
+                    val dueDateLabel = dueDateMillis?.let {
+                        SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE).format(Date(it))
+                    } ?: when (activeLang) {
+                        "mg" -> "Tsy misy fetr'andro (safidy)"
+                        "fr" -> "Aucune échéance (optionnel)"
+                        else -> "No due date (optional)"
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedButton(
+                            onClick = { showDueDatePicker = true },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(dueDateLabel, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        if (dueDateMillis != null) {
+                            IconButton(onClick = { dueDateMillis = null }) {
+                                Icon(Icons.Default.Clear, contentDescription = null)
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -298,7 +330,8 @@ fun DebtsScreen(
                                 balance = amt,
                                 date = System.currentTimeMillis(),
                                 note = debtNote.trim(),
-                                isPaid = false
+                                isPaid = false,
+                                dueDate = dueDateMillis
                             )
                             viewModel.saveDebt(d)
                             // Reset and dismiss
@@ -307,6 +340,7 @@ fun DebtsScreen(
                             debtNote = ""
                             nameError = false
                             amountError = false
+                            dueDateMillis = null
                             showAddDebtDialog = false
                         }
                     }
@@ -322,6 +356,7 @@ fun DebtsScreen(
                         debtNote = ""
                         nameError = false
                         amountError = false
+                        dueDateMillis = null
                         showAddDebtDialog = false
                     }
                 ) {
@@ -329,6 +364,31 @@ fun DebtsScreen(
                 }
             }
         )
+    }
+
+    // C.3: due-date picker for the new-debt form above
+    if (showDueDatePicker) {
+        val datePickerState = androidx.compose.material3.rememberDatePickerState(
+            initialSelectedDateMillis = dueDateMillis ?: System.currentTimeMillis()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDueDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    dueDateMillis = datePickerState.selectedDateMillis
+                    showDueDatePicker = false
+                }) {
+                    Text(t("save_debt_btn"))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDueDatePicker = false }) {
+                    Text(t("cancel_btn"))
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
     }
 
     // Repay Partial Dialog Form
@@ -534,12 +594,41 @@ fun DebtCard(
                                 color = if (debt.isPaid) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
                             )
                         }
+                        // C.3: overdue (échéance dépassée) badge
+                        if (debt.isOverdue()) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFFD32F2F).copy(alpha = 0.15f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = when (activeLang) {
+                                        "mg" -> "TARA"
+                                        "fr" -> "EN RETARD"
+                                        else -> "OVERDUE"
+                                    },
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color(0xFFD32F2F)
+                                )
+                            }
+                        }
                     }
                     Text(
                         text = dateStr,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline
                     )
+                    debt.dueDate?.let {
+                        val dueDateStr = remember(it) { SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE).format(Date(it)) }
+                        Text(
+                            text = "${when (activeLang) { "mg" -> "Fetr'andro"; "fr" -> "Échéance"; else -> "Due" }}: $dueDateStr",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (debt.isOverdue()) Color(0xFFD32F2F) else MaterialTheme.colorScheme.outline,
+                            fontWeight = if (debt.isOverdue()) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
                 }
 
                 Row(

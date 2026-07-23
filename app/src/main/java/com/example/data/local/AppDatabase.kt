@@ -36,7 +36,7 @@ import com.example.data.model.MouvementCaisse
         Restock::class,
         MouvementCaisse::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

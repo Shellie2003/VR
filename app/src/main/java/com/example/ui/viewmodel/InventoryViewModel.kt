@@ -401,6 +401,25 @@ class InventoryViewModel(
                 }
             }
         }
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
+            checkOverdueDebtsNotification()
+        }
+    }
+
+    // C.3: notify about overdue (unpaid, past due date) debts at most once per calendar day.
+    private suspend fun checkOverdueDebtsNotification() {
+        val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+        if (appPreferences.lastOverdueDebtCheckDate == todayStr) return
+
+        val overdue = repository.allDebts.first().filter { it.isOverdue() }
+        if (overdue.isNotEmpty()) {
+            try {
+                NotificationHelper.showOverdueDebtsNotification(context, overdue.size, overdue.sumOf { it.balance })
+            } catch (nt: Throwable) {
+                nt.printStackTrace()
+            }
+        }
+        appPreferences.lastOverdueDebtCheckDate = todayStr
     }
 
     fun changeLanguage(lang: String) {
@@ -1256,6 +1275,7 @@ class InventoryViewModel(
                     debtObj.put("date", debt.date)
                     debtObj.put("note", debt.note)
                     debtObj.put("isPaid", debt.isPaid)
+                    debtObj.put("dueDate", debt.dueDate ?: org.json.JSONObject.NULL)
                     debtsArr.put(debtObj)
                 }
 
@@ -1466,7 +1486,8 @@ class InventoryViewModel(
                             balance = obj.getDouble("balance"),
                             date = obj.getLong("date"),
                             note = obj.optString("note", ""),
-                            isPaid = obj.optBoolean("isPaid", false)
+                            isPaid = obj.optBoolean("isPaid", false),
+                            dueDate = if (obj.isNull("dueDate")) null else obj.optLong("dueDate")
                         )
                     )
                 }
@@ -1482,11 +1503,12 @@ class InventoryViewModel(
                         repository.insertDebt(incomingDebt.copy(id = 0))
                         newDebtsCount++
                     } else {
-                        if (incomingDebt.balance < existingDebt.balance || incomingDebt.isPaid != existingDebt.isPaid) {
+                        if (incomingDebt.balance < existingDebt.balance || incomingDebt.isPaid != existingDebt.isPaid || incomingDebt.dueDate != existingDebt.dueDate) {
                             val updatedDebt = existingDebt.copy(
                                 balance = incomingDebt.balance,
                                 isPaid = incomingDebt.isPaid,
-                                note = incomingDebt.note
+                                note = incomingDebt.note,
+                                dueDate = incomingDebt.dueDate
                             )
                             repository.updateDebt(updatedDebt)
                             updatedDebtsCount++

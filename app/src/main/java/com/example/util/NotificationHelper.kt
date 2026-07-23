@@ -20,6 +20,11 @@ object NotificationHelper {
     private const val NOTIFICATION_ID_BASE = 1000
     private const val GROUP_KEY_LOW_STOCK = "com.example.LOW_STOCK_GROUP"
 
+    private const val DEBT_CHANNEL_ID = "overdue_debt_alerts"
+    private const val DEBT_CHANNEL_NAME = "Fampahatsiahivana Trosa"
+    private const val DEBT_CHANNEL_DESC = "Mandefa fampandrenesana raha misy trosa tara fandoavana"
+    private const val NOTIFICATION_ID_OVERDUE_DEBTS = 2000
+
     // Same alert red used across the app's own low-stock badges (InventoryListScreen, Dettes).
     private val ALERT_RED = Color.parseColor("#D32F2F")
 
@@ -33,8 +38,52 @@ object NotificationHelper {
                 enableVibration(true)
                 vibrationPattern = longArrayOf(0, 250, 150, 250)
             }
+            val debtChannel = NotificationChannel(DEBT_CHANNEL_ID, DEBT_CHANNEL_NAME, importance).apply {
+                description = DEBT_CHANNEL_DESC
+                enableLights(true)
+                lightColor = ALERT_RED
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 250, 150, 250)
+            }
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
+            notificationManager.createNotificationChannel(debtChannel)
+        }
+    }
+
+    // C.3: fired at most once per day (throttled by InventoryViewModel via AppPreferences) when at
+    // least one debt has a due date in the past and is still unpaid.
+    @SuppressLint("MissingPermission")
+    fun showOverdueDebtsNotification(context: Context, count: Int, totalAmount: Double) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        val pendingIntent = PendingIntent.getActivity(context, 0, intent, pendingIntentFlags)
+
+        val title = "⚠️ $count trosa tara fandoavana"
+        val bodyText = "Vola tokony ho voaray: ${FormatUtil.formatPrice(totalAmount)} Ar"
+
+        val builder = NotificationCompat.Builder(context, DEBT_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setColor(ALERT_RED)
+            .setColorized(false)
+            .setContentTitle(title)
+            .setContentText(bodyText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bodyText).setBigContentTitle(title))
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+
+        try {
+            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_OVERDUE_DEBTS, builder.build())
+        } catch (e: Throwable) {
+            e.printStackTrace()
         }
     }
 

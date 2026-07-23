@@ -339,20 +339,25 @@ object ExportUtil {
 
     fun exportDebts(context: Context, debts: List<Debt>, format: ExportFormat) {
         val dateFmt = SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE)
-        val headers = listOf("Débiteur", "Date", "Montant initial (Ar)", "Solde restant (Ar)", "Statut", "Note")
+        val headers = listOf("Débiteur", "Date", "Montant initial (Ar)", "Solde restant (Ar)", "Statut", "Échéance", "Note")
         val rows = debts.sortedByDescending { it.date }.map { d ->
             listOf(
                 d.debtorName,
                 dateFmt.format(Date(d.date)),
                 FormatUtil.formatPrice(d.amount),
                 FormatUtil.formatPrice(d.balance),
-                if (d.isPaid) "Payée" else "En cours",
+                when {
+                    d.isPaid -> "Payée"
+                    d.isOverdue() -> "En retard"
+                    else -> "En cours"
+                },
+                d.dueDate?.let { dateFmt.format(Date(it)) } ?: "-",
                 d.note
             )
         }
         generateAndShare(
             context, format, "dettes_${System.currentTimeMillis()}", "Dettes clients",
-            headers, rows, listOf(1.6f, 1f, 1.3f, 1.3f, 1f, 2f)
+            headers, rows, listOf(1.6f, 1f, 1.3f, 1.3f, 1f, 1f, 2f)
         )
     }
 

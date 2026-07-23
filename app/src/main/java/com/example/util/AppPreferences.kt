@@ -17,7 +17,14 @@ class AppPreferences(context: Context) {
         private const val KEY_THEME_MODE = "key_theme_mode"
         private const val KEY_FIREBASE_DATABASE_URL = "key_firebase_database_url"
         private const val KEY_FIREBASE_BACKUP_TOKEN = "key_firebase_backup_token"
+        private const val KEY_LAST_OVERDUE_DEBT_CHECK = "key_last_overdue_debt_check"
     }
+
+    // C.3: yyyy-MM-dd of the last time an overdue-debts notification was shown, so we notify at
+    // most once per day instead of on every app launch.
+    var lastOverdueDebtCheckDate: String
+        get() = prefs.getString(KEY_LAST_OVERDUE_DEBT_CHECK, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_LAST_OVERDUE_DEBT_CHECK, value).apply()
 
     var firebaseDatabaseUrl: String
         get() = prefs.getString(KEY_FIREBASE_DATABASE_URL, "") ?: ""
