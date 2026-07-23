@@ -55,7 +55,11 @@ fun CalculatorScreen(
     val totalAmount by viewModel.cartTotal.collectAsState(0.0)
     val activeLang by viewModel.language.collectAsState()
     val themeColor by viewModel.themeColor.collectAsState()
+    val groceryNameVal by viewModel.groceryName.collectAsState()
     val coroutineScope = rememberCoroutineScope()
+
+    // Receipt printing: file generated right after a successful sale, offered via a small dialog
+    var receiptToOffer by remember { mutableStateOf<java.io.File?>(null) }
 
     // UI Translation helper
     val t = { key: String -> LanguageManager.translate(key, activeLang) }
@@ -648,8 +652,15 @@ fun CalculatorScreen(
                                             }
                                             Toast.makeText(context, errStr, Toast.LENGTH_LONG).show()
                                         } else {
+                                            val cartSnapshot = cart
+                                            val totalSnapshot = totalAmount
+                                            val receivedSnapshot = amountReceived
+                                            val changeSnapshot = (receivedSnapshot - totalSnapshot).coerceAtLeast(0.0)
                                             val success = viewModel.checkoutCart()
                                             if (success) {
+                                                receiptToOffer = com.example.util.ReceiptUtil.generateReceiptPdf(
+                                                    context, groceryNameVal, cartSnapshot, totalSnapshot, receivedSnapshot, changeSnapshot
+                                                )
                                                 resetAllFields()
                                                 Toast.makeText(context, t("checkout_success"), Toast.LENGTH_SHORT).show()
                                             } else {
@@ -2160,6 +2171,73 @@ fun CalculatorScreen(
             dismissButton = {
                 TextButton(onClick = { showClearConfirm = false }) {
                     Text(t("cancel_btn"))
+                }
+            }
+        )
+    }
+
+    // Post-checkout receipt (ticket de caisse): offer to print or share the PDF just generated
+    receiptToOffer?.let { receiptFile ->
+        AlertDialog(
+            onDismissRequest = { receiptToOffer = null },
+            title = {
+                Text(
+                    text = when (activeLang) {
+                        "mg" -> "Reçu vokatra"
+                        "fr" -> "Reçu de vente"
+                        else -> "Sale Receipt"
+                    },
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = when (activeLang) {
+                        "mg" -> "Hitondra na hizara ny reçu-n'ity varotra ity?"
+                        "fr" -> "Imprimer ou partager le reçu de cette vente ?"
+                        else -> "Print or share this sale's receipt?"
+                    }
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        com.example.util.BarcodeUtil.printBarcode(context, receiptFile)
+                        receiptToOffer = null
+                    },
+                    modifier = Modifier.testTag("receipt_print_button")
+                ) {
+                    Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Hitondra"
+                            "fr" -> "Imprimer"
+                            else -> "Print"
+                        }
+                    )
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(
+                        onClick = {
+                            com.example.util.ExportUtil.shareFile(context, receiptFile, "application/pdf")
+                            receiptToOffer = null
+                        },
+                        modifier = Modifier.testTag("receipt_share_button")
+                    ) {
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Hizara"
+                                "fr" -> "Partager"
+                                else -> "Share"
+                            }
+                        )
+                    }
+                    TextButton(onClick = { receiptToOffer = null }) {
+                        Text(t("cancel_btn"))
+                    }
                 }
             }
         )
