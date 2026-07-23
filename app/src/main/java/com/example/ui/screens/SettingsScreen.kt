@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +26,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.viewmodel.InventoryViewModel
+import com.example.util.BackupHelper
+import com.example.util.ExportUtil
 import com.example.util.FirebaseBackupManager
 import com.example.util.LanguageManager
 import kotlinx.coroutines.launch
@@ -40,6 +44,7 @@ fun SettingsScreen(
     onNavigateToCaisseMouvements: () -> Unit,
     onNavigateToDashboard: () -> Unit
 ) {
+    val context = LocalContext.current
     val activeLang by viewModel.language.collectAsState()
     val groceryNameVal by viewModel.groceryName.collectAsState()
     val currentThemeKey by viewModel.colorTheme.collectAsState()
@@ -144,6 +149,39 @@ fun SettingsScreen(
     val coroutineScope = rememberCoroutineScope()
     var showSnackbar by remember { mutableStateOf(false) }
     var snackbarMessage by remember { mutableStateOf("") }
+
+    // Import a backup file picked from anywhere (WhatsApp download, Bluetooth, SD card, USB...)
+    // — no Firebase project or email required, just a file someone can send you.
+    val importBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val jsonText = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    try {
+                        context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+                if (jsonText.isNullOrBlank()) {
+                    snackbarMessage = when (activeLang) {
+                        "mg" -> "Hadisoana: tsy voavaky ilay rakitra nosafidianao."
+                        "fr" -> "Échec : impossible de lire le fichier sélectionné."
+                        else -> "Failed: could not read the selected file."
+                    }
+                } else {
+                    viewModel.syncFullDatabaseSync(jsonText)
+                    snackbarMessage = when (activeLang) {
+                        "mg" -> "Tafita! Nalaina avy amin'ilay rakitra ny tahiry."
+                        "fr" -> "Importation réussie ! Les données du fichier ont été restaurées."
+                        else -> "Import successful! Data from the file has been restored."
+                    }
+                }
+                showSnackbar = true
+            }
+        }
+    }
 
     // Firebase cloud backup local UI state
     var firebaseDatabaseUrlInput by remember(firebaseDatabaseUrlVal) { mutableStateOf(firebaseDatabaseUrlVal) }
@@ -1191,6 +1229,75 @@ fun SettingsScreen(
                                     "mg" -> "Haverina"
                                     "fr" -> "Restaurer"
                                     else -> "Restore"
+                                },
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Tsy manana Firebase na mailaka? Alefaso amin'ny WhatsApp, Bluetooth, na carte SD ny rakitra hitahirizana, ary alao amin'ny finday hafa."
+                            "fr" -> "Pas de Firebase ni d'email ? Envoie le fichier de sauvegarde par WhatsApp, Bluetooth ou carte SD, et importe-le sur un autre téléphone."
+                            else -> "No Firebase or email? Send the backup file via WhatsApp, Bluetooth or SD card, and import it on another phone."
+                        },
+                        fontSize = 11.sp,
+                        color = secondaryTextColor
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Share backup file button (WhatsApp, Bluetooth, SD card, USB...)
+                        OutlinedButton(
+                            onClick = {
+                                val file = BackupHelper.getShareableBackupFile(context)
+                                if (file != null) {
+                                    ExportUtil.shareFile(context, file, "application/json")
+                                } else {
+                                    snackbarMessage = when (activeLang) {
+                                        "mg" -> "Hadisoana: Tsy misy backup hita ao amin'ny finday."
+                                        "fr" -> "Échec : Aucun fichier de sauvegarde trouvé."
+                                        else -> "Failed: No backup file found on this device."
+                                    }
+                                    showSnackbar = true
+                                }
+                            },
+                            modifier = Modifier.weight(1f).height(40.dp).testTag("share_backup_button"),
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, themeColor),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = themeColor)
+                        ) {
+                            Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Hizara"
+                                    "fr" -> "Partager"
+                                    else -> "Share"
+                                },
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        // Import backup file button
+                        OutlinedButton(
+                            onClick = { importBackupLauncher.launch("*/*") },
+                            modifier = Modifier.weight(1f).height(40.dp).testTag("import_backup_button"),
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, themeColor),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = themeColor)
+                        ) {
+                            Icon(imageVector = Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Importer"
+                                    "fr" -> "Importer"
+                                    else -> "Import"
                                 },
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
