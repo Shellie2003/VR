@@ -424,6 +424,9 @@ class InventoryViewModel(
         debts.filter { !it.isPaid }.sumOf { it.balance }
     }
 
+    // Handle to the live connectivity callback registered below, kept for cleanup in onCleared().
+    private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
+
     // Seeding products on empty state with Dispatchers.IO to prevent main-thread block
     init {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
@@ -449,6 +452,11 @@ class InventoryViewModel(
         }
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
             checkOverdueDebtsNotification()
+        }
+        // Auto Firebase Cloud Backup: push immediately whenever the device regains internet
+        // access, so data created while offline is not stuck waiting for the next mutation.
+        networkCallback = com.example.util.NetworkMonitor.observeOnline(context) {
+            maybeAutoBackupToFirebase()
         }
     }
 
@@ -1712,6 +1720,31 @@ class InventoryViewModel(
                 e.printStackTrace()
             }
         }
+        maybeAutoBackupToFirebase()
+    }
+
+    // Auto Firebase Cloud Backup: silently pushes the latest database to Firebase Realtime
+    // Database whenever the user (a) has configured a Cloud Backup URL in Paramètres and (b) has a
+    // working internet connection right now — no manual "Envoyer" click needed. Called after every
+    // mutation (piggy-backing on triggerLocalSafetyBackup) and once immediately whenever the device
+    // regains connectivity after being offline (see the NetworkMonitor callback registered in init).
+    private fun maybeAutoBackupToFirebase() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
+            val dbUrl = appPreferences.firebaseDatabaseUrl
+            if (dbUrl.isBlank()) return@launch
+            if (!com.example.util.NetworkMonitor.isOnline(context)) return@launch
+            try {
+                val dbJson = getFullDatabaseJsonSync()
+                val result = com.example.util.FirebaseBackupManager.uploadBackup(
+                    dbUrl, appPreferences.firebaseBackupToken, dbJson
+                )
+                if (result.isSuccess) {
+                    addSyncLog("Sauvegarde Firebase automatique nahomby (${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())})")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     fun restoreLocalSafetyBackup(): Boolean {
@@ -1731,6 +1764,7 @@ class InventoryViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        com.example.util.NetworkMonitor.stopObserving(context, networkCallback)
         android.util.Log.d("InventoryViewModel", "InventoryViewModel onCleared - viewModelScope automatically cancelled")
     }
 }

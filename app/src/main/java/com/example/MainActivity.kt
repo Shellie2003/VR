@@ -437,6 +437,7 @@ fun MainAppLayout(
                     TopAppBarSection(
                         viewModel = viewModel,
                         onNavigateToSettings = { currentTab = ScreenTab.Parametres },
+                        onNavigateToSync = { currentTab = ScreenTab.Synchronisation },
                         isTablet = true
                     )
                 }
@@ -524,6 +525,7 @@ fun MainAppLayout(
                     TopAppBarSection(
                         viewModel = viewModel,
                         onNavigateToSettings = { currentTab = ScreenTab.Parametres },
+                        onNavigateToSync = { currentTab = ScreenTab.Synchronisation },
                         isTablet = false
                     )
                 }
@@ -633,10 +635,14 @@ fun MainAppLayout(
 fun TopAppBarSection(
     viewModel: InventoryViewModel,
     onNavigateToSettings: () -> Unit,
+    onNavigateToSync: () -> Unit = {},
     isTablet: Boolean = false
 ) {
     val themeColor by viewModel.themeColor.collectAsState()
     val groceryNameVal by viewModel.groceryName.collectAsState()
+    val activeLang by viewModel.language.collectAsState()
+    val isSyncConnected by com.example.sync.SyncManager.isConnected.collectAsState()
+    val context = LocalContext.current
 
     Surface(
         modifier = Modifier
@@ -687,26 +693,52 @@ fun TopAppBarSection(
                 Spacer(modifier = Modifier.weight(1f))
             }
 
-            var showSyncDialog by remember { mutableStateOf(false) }
-
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Sync control button
-                IconButton(
-                    onClick = { showSyncDialog = true },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(themeColor.copy(alpha = 0.12f))
-                        .testTag("app_bar_sync_exclusion_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Sync,
-                        contentDescription = "Fampitoviana ny Tahiry",
-                        tint = themeColor
-                    )
+                // Sync button: force an immediate P2P data sync with connected devices when a
+                // connection is already active, otherwise open the Sync screen to set one up.
+                Box {
+                    IconButton(
+                        onClick = {
+                            if (isSyncConnected) {
+                                com.example.sync.SyncManager.triggerDatabaseSync()
+                                val msg = when (activeLang) {
+                                    "mg" -> "Fampitoviana mivantana atao..."
+                                    "fr" -> "Synchronisation en cours..."
+                                    else -> "Syncing now..."
+                                }
+                                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                onNavigateToSync()
+                            }
+                        },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(themeColor.copy(alpha = 0.12f))
+                            .testTag("app_bar_sync_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Sync,
+                            contentDescription = when (activeLang) {
+                                "mg" -> "Fampitoviana ny Tahiry"
+                                "fr" -> "Synchroniser les appareils"
+                                else -> "Sync devices"
+                            },
+                            tint = themeColor
+                        )
+                    }
+                    if (isSyncConnected) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF2E7D32))
+                        )
+                    }
                 }
 
                 // Settings icon button
@@ -723,273 +755,6 @@ fun TopAppBarSection(
                         contentDescription = "Paramètres",
                         tint = themeColor
                     )
-                }
-            }
-
-            if (showSyncDialog) {
-                val activeLang by viewModel.language.collectAsState()
-                val products by viewModel.allProducts.collectAsState()
-                val excludedSet by viewModel.excludedProductIds.collectAsState()
-                var dialogSearchQuery by remember { mutableStateOf("") }
-
-                val filteredProducts = remember(products, excludedSet, dialogSearchQuery) {
-                    products.filter {
-                        it.name.contains(dialogSearchQuery, ignoreCase = true) ||
-                        it.sku.contains(dialogSearchQuery, ignoreCase = true) ||
-                        it.barcode.contains(dialogSearchQuery, ignoreCase = true)
-                    }
-                }
-
-                Dialog(onDismissRequest = { showSyncDialog = false }) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .fillMaxHeight(0.85f)
-                            .testTag("sync_exclusion_dialog_card"),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            // Header
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Sync,
-                                        contentDescription = null,
-                                        tint = themeColor,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Text(
-                                        text = when (activeLang) {
-                                            "mg" -> "Fampitoviana"
-                                            "fr" -> "Synchronisation"
-                                            else -> "Sync Control"
-                                        },
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                                IconButton(
-                                    onClick = { showSyncDialog = false }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Close"
-                                    )
-                                }
-                            }
-
-                            Text(
-                                text = when (activeLang) {
-                                    "mg" -> "Safidio ny entana tiana hajanona tsy hampitoviana (tsindrio ny fako)."
-                                    "fr" -> "Sélectionnez les produits à exclure de la synchronisation réseau (cliquez sur la corbeille)."
-                                    else -> "Select products to exclude from network sync (click the delete icon)."
-                                },
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            // Search box
-                            OutlinedTextField(
-                                value = dialogSearchQuery,
-                                onValueChange = { dialogSearchQuery = it },
-                                modifier = Modifier.fillMaxWidth().testTag("sync_dialog_search_input"),
-                                placeholder = {
-                                    Text(
-                                        text = when (activeLang) {
-                                            "mg" -> "Hikaroka entana..."
-                                            "fr" -> "Rechercher..."
-                                            else -> "Search..."
-                                        },
-                                        fontSize = 13.sp
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Search,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                },
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = themeColor,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                                )
-                            )
-
-                            // List
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth()
-                            ) {
-                                if (filteredProducts.isEmpty()) {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = when (activeLang) {
-                                                "mg" -> "Tsy misy entana hita"
-                                                "fr" -> "Aucun produit trouvé"
-                                                else -> "No products found"
-                                            },
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                            fontSize = 13.sp
-                                        )
-                                    }
-                                } else {
-                                    LazyColumn(
-                                        modifier = Modifier.fillMaxSize(),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        items(filteredProducts, key = { it.id }) { prod ->
-                                            val isExcluded = excludedSet.contains(prod.id.toString())
-                                            
-                                            Card(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                shape = RoundedCornerShape(12.dp),
-                                                colors = CardDefaults.cardColors(
-                                                    containerColor = if (isExcluded) {
-                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                                    } else {
-                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
-                                                    }
-                                                )
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Column(
-                                                        modifier = Modifier.weight(1f)
-                                                    ) {
-                                                        Text(
-                                                            text = prod.name,
-                                                            fontSize = 14.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = if (isExcluded) {
-                                                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                                            } else {
-                                                                MaterialTheme.colorScheme.onSurface
-                                                            }
-                                                        )
-                                                        Row(
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                                        ) {
-                                                            Text(
-                                                                text = prod.category,
-                                                                fontSize = 11.sp,
-                                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                                                            )
-                                                            
-                                                            // Status badge
-                                                            Surface(
-                                                                shape = RoundedCornerShape(6.dp),
-                                                                color = if (isExcluded) {
-                                                                    Color(0xFFFFCDD2).copy(alpha = 0.8f) // light red
-                                                                } else {
-                                                                    Color(0xFFC8E6C9).copy(alpha = 0.8f) // light green
-                                                                },
-                                                                modifier = Modifier.padding(vertical = 2.dp)
-                                                            ) {
-                                                                Text(
-                                                                    text = if (isExcluded) {
-                                                                        when (activeLang) {
-                                                                            "mg" -> "Tsy ampitoviana"
-                                                                            "fr" -> "Sync annulée"
-                                                                            else -> "Sync off"
-                                                                        }
-                                                                    } else {
-                                                                        when (activeLang) {
-                                                                            "mg" -> "Mampitovy"
-                                                                            "fr" -> "Synchronisé"
-                                                                            else -> "Sync on"
-                                                                        }
-                                                                    },
-                                                                    fontSize = 9.sp,
-                                                                    fontWeight = FontWeight.Bold,
-                                                                    color = if (isExcluded) {
-                                                                        Color(0xFFC62828) // red
-                                                                    } else {
-                                                                        Color(0xFF2E7D32) // green
-                                                                    },
-                                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                                )
-                                                            }
-                                                        }
-                                                    }
-
-                                                    IconButton(
-                                                        onClick = {
-                                                            viewModel.toggleProductSyncExclusion(prod.id)
-                                                        },
-                                                        modifier = Modifier.testTag("toggle_sync_btn_${prod.id}")
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = if (isExcluded) {
-                                                                Icons.Default.AddCircle
-                                                            } else {
-                                                                Icons.Default.Delete
-                                                            },
-                                                            contentDescription = if (isExcluded) "Inclure" else "Exclure",
-                                                            tint = if (isExcluded) {
-                                                                themeColor
-                                                            } else {
-                                                                Color(0xFFC62828)
-                                                            }
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Bottom Action Button
-                            Button(
-                                onClick = { showSyncDialog = false },
-                                modifier = Modifier.fillMaxWidth().height(44.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = themeColor,
-                                    contentColor = Color.White
-                                )
-                            ) {
-                                Text(
-                                    text = when (activeLang) {
-                                        "mg" -> "Hanidy"
-                                        "fr" -> "Fermer"
-                                        else -> "Close"
-                                    },
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
-                            }
-                        }
-                    }
                 }
             }
         }

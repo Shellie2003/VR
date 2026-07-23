@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.animation.animateContentSize
@@ -114,7 +116,9 @@ fun BarcodeScannerView(
     val hasCameraPermission = cameraPermissionState.status.isGranted
 
     var cameraControl by remember { mutableStateOf<androidx.camera.core.CameraControl?>(null) }
+    var cameraInfo by remember { mutableStateOf<androidx.camera.core.CameraInfo?>(null) }
     var currentZoom by remember { mutableStateOf(1.0f) }
+    var flashOn by remember { mutableStateOf(false) }
 
     val options = remember(barcodeFormats) {
         val builder = BarcodeScannerOptions.Builder()
@@ -264,17 +268,53 @@ fun BarcodeScannerView(
                         fontWeight = FontWeight.Bold
                     )
 
-                    IconButton(
-                        onClick = onClose,
-                        modifier = Modifier
-                            .background(Color.White.copy(alpha = 0.15f), RoundedCornerShape(50))
-                            .size(40.dp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close",
-                            tint = Color.White
-                        )
+                        if (hasCameraPermission && cameraInfo?.hasFlashUnit() == true) {
+                            IconButton(
+                                onClick = {
+                                    val newState = !flashOn
+                                    try {
+                                        cameraControl?.enableTorch(newState)
+                                        flashOn = newState
+                                    } catch (e: Exception) {
+                                        Log.e("BarcodeScanner", "Failed to toggle torch", e)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .background(
+                                        if (flashOn) themeColor else Color.White.copy(alpha = 0.15f),
+                                        RoundedCornerShape(50)
+                                    )
+                                    .size(40.dp)
+                                    .testTag("barcode_scanner_flash_toggle")
+                            ) {
+                                Icon(
+                                    imageVector = if (flashOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
+                                    contentDescription = when (language) {
+                                        "mg" -> "Jiro"
+                                        "fr" -> "Torche"
+                                        else -> "Flash"
+                                    },
+                                    tint = Color.White
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = onClose,
+                            modifier = Modifier
+                                .background(Color.White.copy(alpha = 0.15f), RoundedCornerShape(50))
+                                .size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = Color.White
+                            )
+                        }
                     }
                 }
 
@@ -321,10 +361,19 @@ fun BarcodeScannerView(
                                         previewView = previewView,
                                         onCameraConfigured = { camera ->
                                              cameraControl = camera.cameraControl
+                                             cameraInfo = camera.cameraInfo
                                              try {
                                                  camera.cameraControl.setZoomRatio(currentZoom)
                                              } catch (e: Exception) {
                                                  Log.e("BarcodeScanner", "Failed to set initial zoom", e)
+                                             }
+                                             // Re-apply the torch state across rebinds (e.g. after a config change).
+                                             if (flashOn) {
+                                                 try {
+                                                     camera.cameraControl.enableTorch(true)
+                                                 } catch (e: Exception) {
+                                                     Log.e("BarcodeScanner", "Failed to restore torch state", e)
+                                                 }
                                              }
                                              // Focus on the center once configured
                                             try {

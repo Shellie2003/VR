@@ -1371,6 +1371,19 @@ fun SettingsScreen(
                         }
                     }
 
+                    if (firebaseDatabaseUrlVal.isNotBlank()) {
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "✓ Mandeha ho azy ny fanaovana backup rehefa misy internet."
+                                "fr" -> "✓ La sauvegarde se fait automatiquement dès que le téléphone a internet."
+                                else -> "✓ Backup happens automatically whenever the phone has internet."
+                            },
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF2E7D32)
+                        )
+                    }
+
                     HorizontalDivider(color = cardBorderColor.copy(alpha = 0.5f))
 
                     OutlinedTextField(
