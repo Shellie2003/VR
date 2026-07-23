@@ -373,4 +373,25 @@ object ExportUtil {
             headers, rows, listOf(1.4f, 1f, 1.6f, 1.2f, 2f)
         )
     }
+
+    fun exportRestocks(context: Context, restocks: List<com.example.data.model.Restock>, format: ExportFormat) {
+        val dateFmt = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.FRANCE)
+        val headers = listOf("Date", "Produit", "Cartons", "Unités/carton", "Total unités", "Coût total (Ar)", "Prix vente unité (Ar)", "Fournisseur")
+        val rows = restocks.sortedByDescending { it.timestamp }.map { r ->
+            listOf(
+                dateFmt.format(Date(r.timestamp)),
+                r.productName,
+                FormatUtil.formatQty(r.cartonsQuantity, "").trim(),
+                FormatUtil.formatQty(r.itemsPerCarton, "").trim(),
+                FormatUtil.formatQty(r.totalUnits, "").trim(),
+                FormatUtil.formatPrice(r.totalCostPrice),
+                FormatUtil.formatPrice(r.unitSellingPrice),
+                r.supplierName ?: ""
+            )
+        }
+        generateAndShare(
+            context, format, "reappro_${System.currentTimeMillis()}", "Historique des réapprovisionnements",
+            headers, rows, listOf(1.3f, 1.8f, 1f, 1.2f, 1.1f, 1.3f, 1.3f, 1.4f)
+        )
+    }
 }

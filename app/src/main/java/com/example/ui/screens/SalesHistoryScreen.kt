@@ -62,8 +62,6 @@ fun SalesHistoryScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
     var showStatsDialog by remember { mutableStateOf(false) }
-    var filterType by remember { mutableStateOf("all") } // "all", "paid", "unpaid"
-    var filterMenuExpanded by remember { mutableStateOf(false) }
 
     // Dialog Confirmation States
     var saleToDelete by remember { mutableStateOf<Sale?>(null) }
@@ -138,21 +136,12 @@ fun SalesHistoryScreen(
         sales.filter { it.timestamp in dayStart..dayEnd }
     }
 
-    // 2. FILTER SALES BY PAYMENT STATE
-    val salesFilteredByPayment = remember(salesFilteredByDate, filterType) {
-        when (filterType) {
-            "paid" -> salesFilteredByDate.filter { (it.id % 5 != 0) } // simulated paid sales
-            "unpaid" -> salesFilteredByDate.filter { (it.id % 5 == 0) } // simulated unpaid sales
-            else -> salesFilteredByDate
-        }
-    }
-
-    // 3. FILTER SALES BY SEARCH QUERY
-    val displayedSales = remember(salesFilteredByPayment, searchQuery) {
+    // 2. FILTER SALES BY SEARCH QUERY
+    val displayedSales = remember(salesFilteredByDate, searchQuery) {
         if (searchQuery.isBlank()) {
-            salesFilteredByPayment
+            salesFilteredByDate
         } else {
-            salesFilteredByPayment.filter { sale ->
+            salesFilteredByDate.filter { sale ->
                 sale.items.any { item -> item.name.contains(searchQuery, ignoreCase = true) }
             }
         }
@@ -615,63 +604,6 @@ fun SalesHistoryScreen(
                     fontSize = 16.sp
                 )
             )
-
-            if (activeTab == "sales") {
-                Box {
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { filterMenuExpanded = true }
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = when (filterType) {
-                                "paid" -> "Voaloa ihany"
-                                "unpaid" -> "Tsy voaloa ihany"
-                                else -> "Sivanina"
-                            },
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E293B)
-                        )
-                        Icon(
-                            imageVector = Icons.Default.FilterList,
-                            contentDescription = null,
-                            tint = Color(0xFF1E293B),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-
-                    DropdownMenu(
-                        expanded = filterMenuExpanded,
-                        onDismissRequest = { filterMenuExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Izy rehetra (Tout)") },
-                            onClick = {
-                                filterType = "all"
-                                filterMenuExpanded = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Voaloa ihany (Payés)") },
-                            onClick = {
-                                filterType = "paid"
-                                filterMenuExpanded = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Tsy voaloa ihany (Non payés)") },
-                            onClick = {
-                                filterType = "unpaid"
-                                filterMenuExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
         }
 
         // Selection / Export toolbar (scoped to the active tab)
@@ -694,9 +626,20 @@ fun SalesHistoryScreen(
                 }
             },
             onDeleteSelected = { showMultiDeleteConfirm = true },
-            onExportPdf = { com.example.util.ExportUtil.exportSales(context, displayedSales, com.example.util.ExportFormat.PDF) },
-            onExportCsv = { com.example.util.ExportUtil.exportSales(context, displayedSales, com.example.util.ExportFormat.CSV) },
-            showExportButtons = activeTab == "sales"
+            onExportPdf = {
+                if (activeTab == "sales") {
+                    com.example.util.ExportUtil.exportSales(context, displayedSales, com.example.util.ExportFormat.PDF)
+                } else {
+                    com.example.util.ExportUtil.exportRestocks(context, displayedRestocks, com.example.util.ExportFormat.PDF)
+                }
+            },
+            onExportCsv = {
+                if (activeTab == "sales") {
+                    com.example.util.ExportUtil.exportSales(context, displayedSales, com.example.util.ExportFormat.CSV)
+                } else {
+                    com.example.util.ExportUtil.exportRestocks(context, displayedRestocks, com.example.util.ExportFormat.CSV)
+                }
+            }
         )
 
         // 5. Main Content: Sales List vs Restocks List
@@ -993,10 +936,6 @@ fun SaleListItem(
 
     val subText = "$qtyFormatted $productUnit • $timeFormatted"
 
-    val isPaid = remember(sale.id) {
-        sale.id % 5 != 0
-    }
-
     val (iconBoxBg, iconTint, itemIcon) = remember(titleText, themeColor) {
         val textLower = titleText.lowercase()
         when {
@@ -1092,14 +1031,14 @@ fun SaleListItem(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (isPaid) themeColor.copy(alpha = 0.12f) else Color(0xFFFEE2E2))
+                            .background(themeColor.copy(alpha = 0.12f))
                             .padding(horizontal = 8.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = if (isPaid) "VOALOA" else "TSY VOALOA",
+                            text = "${sale.items.size} ×",
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Black,
-                            color = if (isPaid) themeColor else Color(0xFFEF4444)
+                            color = themeColor
                         )
                     }
                 }
