@@ -48,7 +48,8 @@ class ExampleRobolectricTest {
         lignesVenteDao = db.lignesVenteDao(),
         restockDao = db.restockDao(),
         mouvementCaisseDao = db.mouvementCaisseDao(),
-        caisseSessionDao = db.caisseSessionDao()
+        caisseSessionDao = db.caisseSessionDao(),
+        vendeurDao = db.vendeurDao()
     )
 
     // 1. Insert product
@@ -118,7 +119,8 @@ class ExampleRobolectricTest {
         lignesVenteDao = db.lignesVenteDao(),
         restockDao = db.restockDao(),
         mouvementCaisseDao = db.mouvementCaisseDao(),
-        caisseSessionDao = db.caisseSessionDao()
+        caisseSessionDao = db.caisseSessionDao(),
+        vendeurDao = db.vendeurDao()
     )
 
     // Insert using suspend function

@@ -21,7 +21,8 @@ class InventoryRepository(
     val lignesVenteDao: LigneVenteDao,
     val restockDao: RestockDao,
     val mouvementCaisseDao: MouvementCaisseDao,
-    val caisseSessionDao: CaisseSessionDao
+    val caisseSessionDao: CaisseSessionDao,
+    val vendeurDao: VendeurDao
 ) {
     val allProducts: Flow<List<Product>> = productDao.getAllProducts().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allSales: Flow<List<Sale>> = saleDao.getAllSales().flowOn(kotlinx.coroutines.Dispatchers.IO)
@@ -32,6 +33,7 @@ class InventoryRepository(
     val allVentes: Flow<List<Vente>> = venteDao.getAllVentes().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allCaisseSessions: Flow<List<CaisseSession>> = caisseSessionDao.getAllSessions().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val openCaisseSession: Flow<CaisseSession?> = caisseSessionDao.getOpenSession().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    val allVendeurs: Flow<List<Vendeur>> = vendeurDao.getAllVendeurs().flowOn(kotlinx.coroutines.Dispatchers.IO)
 
     suspend fun insertRestock(restock: Restock) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         restockDao.insertRestock(restock)
@@ -59,6 +61,22 @@ class InventoryRepository(
 
     suspend fun getCashSalesTotal(start: Long, end: Long): Double = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         venteDao.getCashSalesTotal(start, end)
+    }
+
+    suspend fun getVendeurById(id: Long): Vendeur? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        vendeurDao.getVendeurById(id)
+    }
+
+    suspend fun insertVendeur(vendeur: Vendeur): Long = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        vendeurDao.insertVendeur(vendeur)
+    }
+
+    suspend fun updateVendeur(vendeur: Vendeur) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        vendeurDao.updateVendeur(vendeur)
+    }
+
+    suspend fun deleteVendeur(vendeur: Vendeur) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        vendeurDao.deleteVendeur(vendeur)
     }
 
     fun getLimitedProducts(limit: Int): Flow<List<Product>> = productDao.getLimitedProducts(limit).flowOn(kotlinx.coroutines.Dispatchers.IO)
@@ -245,14 +263,15 @@ class InventoryRepository(
         productDao.getProductById(id)
     }
 
-    suspend fun checkoutSale(sale: Sale, decrementStock: Boolean = true, modePaiement: String = "ESPECES") = database.withTransaction {
+    suspend fun checkoutSale(sale: Sale, decrementStock: Boolean = true, modePaiement: String = "ESPECES", vendeurId: Long? = null) = database.withTransaction {
         saleDao.insertSale(sale)
 
         // Convert to Vente (relational table)
         val newVente = Vente(
             dateVente = sale.timestamp,
             montantTotal = sale.totalAmount,
-            modePaiement = modePaiement
+            modePaiement = modePaiement,
+            vendeurId = vendeurId
         )
         val venteId = venteDao.insertVente(newVente)
 

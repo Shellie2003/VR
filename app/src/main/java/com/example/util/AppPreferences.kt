@@ -18,7 +18,15 @@ class AppPreferences(context: Context) {
         private const val KEY_FIREBASE_DATABASE_URL = "key_firebase_database_url"
         private const val KEY_FIREBASE_BACKUP_TOKEN = "key_firebase_backup_token"
         private const val KEY_LAST_OVERDUE_DEBT_CHECK = "key_last_overdue_debt_check"
+        private const val KEY_ACTIVE_VENDEUR_ID = "key_active_vendeur_id"
     }
+
+    // B.3/E.2: id of the currently "logged in" Vendeur/Gérant, remembered across app restarts so
+    // the cashier doesn't have to re-enter their PIN every launch. -1 means "none active" (either
+    // no accounts have been created yet, or nobody has logged in on this device).
+    var activeVendeurId: Long
+        get() = prefs.getLong(KEY_ACTIVE_VENDEUR_ID, -1L)
+        set(value) = prefs.edit().putLong(KEY_ACTIVE_VENDEUR_ID, value).apply()
 
     // C.3: yyyy-MM-dd of the last time an overdue-debts notification was shown, so we notify at
     // most once per day instead of on every app launch.

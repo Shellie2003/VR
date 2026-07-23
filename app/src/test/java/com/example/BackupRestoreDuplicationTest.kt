@@ -53,7 +53,8 @@ class BackupRestoreDuplicationTest {
             lignesVenteDao = db.lignesVenteDao(),
             restockDao = db.restockDao(),
             mouvementCaisseDao = db.mouvementCaisseDao(),
-            caisseSessionDao = db.caisseSessionDao()
+            caisseSessionDao = db.caisseSessionDao(),
+            vendeurDao = db.vendeurDao()
         )
 
         val viewModel = InventoryViewModel(repository, context)

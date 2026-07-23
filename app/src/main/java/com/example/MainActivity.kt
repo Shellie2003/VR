@@ -97,7 +97,8 @@ fun MainLifecycleContainer() {
             database.lignesVenteDao(),
             database.restockDao(),
             database.mouvementCaisseDao(),
-            database.caisseSessionDao()
+            database.caisseSessionDao(),
+            database.vendeurDao()
         )
     }
     
@@ -409,6 +410,17 @@ fun MainAppLayout(
         calculatorInitialSubTab = "checkout"
     }
 
+    // B.3/E.2: Paramètres is gated behind the gérant PIN only once at least one employee account
+    // exists and no gérant is currently active on this device — see requiresGerantPinForSettings().
+    var showGerantPinDialog by remember { mutableStateOf(false) }
+    val navigateToSettings = {
+        if (viewModel.requiresGerantPinForSettings()) {
+            showGerantPinDialog = true
+        } else {
+            currentTab = ScreenTab.Parametres
+        }
+    }
+
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
 
@@ -436,7 +448,7 @@ fun MainAppLayout(
                 if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements && currentTab != ScreenTab.Dashboard) {
                     TopAppBarSection(
                         viewModel = viewModel,
-                        onNavigateToSettings = { currentTab = ScreenTab.Parametres },
+                        onNavigateToSettings = navigateToSettings,
                         onNavigateToSync = { currentTab = ScreenTab.Synchronisation },
                         isTablet = true
                     )
@@ -448,7 +460,7 @@ fun MainAppLayout(
                             viewModel = viewModel,
                             onNavigateToAddProduct = { currentTab = ScreenTab.Manampy },
                             onNavigateToList = navigateToList,
-                            onNavigateToSettings = { currentTab = ScreenTab.Parametres }
+                            onNavigateToSettings = navigateToSettings
                         )
                         ScreenTab.Caisse -> CalculatorScreen(
                             viewModel = viewModel,
@@ -524,7 +536,7 @@ fun MainAppLayout(
                 if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements && currentTab != ScreenTab.Dashboard) {
                     TopAppBarSection(
                         viewModel = viewModel,
-                        onNavigateToSettings = { currentTab = ScreenTab.Parametres },
+                        onNavigateToSettings = navigateToSettings,
                         onNavigateToSync = { currentTab = ScreenTab.Synchronisation },
                         isTablet = false
                     )
@@ -560,7 +572,7 @@ fun MainAppLayout(
                         viewModel = viewModel,
                         onNavigateToAddProduct = { currentTab = ScreenTab.Manampy },
                         onNavigateToList = navigateToList,
-                        onNavigateToSettings = { currentTab = ScreenTab.Parametres }
+                        onNavigateToSettings = navigateToSettings
                     )
                     ScreenTab.Caisse -> CalculatorScreen(
                         viewModel = viewModel,
@@ -629,6 +641,85 @@ fun MainAppLayout(
             }
         }
     }
+
+    // B.3/E.2: gérant PIN prompt gating access to Paramètres when employee accounts exist.
+    if (showGerantPinDialog) {
+        val activeLang by viewModel.language.collectAsState()
+        var pin by remember { mutableStateOf("") }
+        var pinError by remember { mutableStateOf(false) }
+        AlertDialog(
+            onDismissRequest = { showGerantPinDialog = false },
+            title = {
+                Text(
+                    text = when (activeLang) {
+                        "mg" -> "PIN Gerànta"
+                        "fr" -> "PIN Gérant"
+                        else -> "Manager PIN"
+                    },
+                    fontWeight = FontWeight.Black
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Ilaina ny PIN gerànta hidirana ao amin'ny Paramètres."
+                            "fr" -> "Le PIN du gérant est requis pour accéder aux Paramètres."
+                            else -> "The manager PIN is required to access Settings."
+                        },
+                        fontSize = 12.sp
+                    )
+                    OutlinedTextField(
+                        value = pin,
+                        onValueChange = { if (it.length <= 6) { pin = it.filter { c -> c.isDigit() }; pinError = false } },
+                        label = { Text("PIN") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
+                        ),
+                        isError = pinError,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("gerant_pin_input")
+                    )
+                    if (pinError) {
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "PIN diso"
+                                "fr" -> "PIN incorrect"
+                                else -> "Incorrect PIN"
+                            },
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (viewModel.verifyGerantPin(pin) != null) {
+                            pin = ""
+                            pinError = false
+                            showGerantPinDialog = false
+                            currentTab = ScreenTab.Parametres
+                        } else {
+                            pinError = true
+                        }
+                    },
+                    modifier = Modifier.testTag("gerant_pin_confirm_button")
+                ) {
+                    Text(
+                        text = when (activeLang) { "mg" -> "Hiditra"; "fr" -> "Valider"; else -> "Confirm" },
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pin = ""; pinError = false; showGerantPinDialog = false }) {
+                    Text(when (activeLang) { "mg" -> "Hanafoana"; "fr" -> "Annuler"; else -> "Cancel" })
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -643,6 +734,9 @@ fun TopAppBarSection(
     val activeLang by viewModel.language.collectAsState()
     val isSyncConnected by com.example.sync.SyncManager.isConnected.collectAsState()
     val context = LocalContext.current
+    val allVendeurs by viewModel.allVendeurs.collectAsState()
+    val activeVendeur by viewModel.activeVendeur.collectAsState()
+    var showVendeurSwitcher by remember { mutableStateOf(false) }
 
     Surface(
         modifier = Modifier
@@ -697,6 +791,38 @@ fun TopAppBarSection(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // B.3/E.2: active vendeur indicator/switcher — only shown once at least one
+                // employee account has been created in Paramètres (opt-in, zero footprint otherwise).
+                if (allVendeurs.isNotEmpty()) {
+                    IconButton(
+                        onClick = { showVendeurSwitcher = true },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(themeColor.copy(alpha = 0.12f))
+                            .testTag("app_bar_vendeur_button")
+                    ) {
+                        if (activeVendeur != null) {
+                            Text(
+                                text = activeVendeur!!.nom.take(1).uppercase(),
+                                color = themeColor,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 16.sp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = when (activeLang) {
+                                    "mg" -> "Safidio ny mpivarotra"
+                                    "fr" -> "Choisir un vendeur"
+                                    else -> "Choose a vendeur"
+                                },
+                                tint = themeColor
+                            )
+                        }
+                    }
+                }
+
                 // Sync button: force an immediate P2P data sync with connected devices when a
                 // connection is already active, otherwise open the Sync screen to set one up.
                 Box {
@@ -758,6 +884,128 @@ fun TopAppBarSection(
                 }
             }
         }
+    }
+
+    // B.3/E.2: pick which employee is using the till right now, or log out.
+    if (showVendeurSwitcher) {
+        var pendingVendeur by remember { mutableStateOf<com.example.data.model.Vendeur?>(null) }
+        var pin by remember { mutableStateOf("") }
+        var pinError by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { showVendeurSwitcher = false },
+            title = {
+                Text(
+                    text = when (activeLang) {
+                        "mg" -> "Mpivarotra"
+                        "fr" -> "Vendeur actif"
+                        else -> "Active vendeur"
+                    },
+                    fontWeight = FontWeight.Black
+                )
+            },
+            text = {
+                val chosen = pendingVendeur
+                if (chosen == null) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        allVendeurs.filter { it.actif }.forEach { v ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { pendingVendeur = v }
+                                    .padding(vertical = 10.dp, horizontal = 8.dp)
+                                    .testTag("vendeur_switch_option_${v.id}"),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = v.nom + if (activeVendeur?.id == v.id) " ✓" else "",
+                                    fontWeight = if (activeVendeur?.id == v.id) FontWeight.Black else FontWeight.Medium
+                                )
+                                Text(
+                                    text = if (v.role == com.example.data.model.Vendeur.ROLE_GERANT) {
+                                        when (activeLang) { "mg" -> "Gerànta"; "fr" -> "Gérant"; else -> "Manager" }
+                                    } else {
+                                        when (activeLang) { "mg" -> "Mpivarotra"; "fr" -> "Vendeur"; else -> "Cashier" }
+                                    },
+                                    fontSize = 11.sp,
+                                    color = themeColor
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(text = chosen.nom, fontWeight = FontWeight.Bold)
+                        OutlinedTextField(
+                            value = pin,
+                            onValueChange = { if (it.length <= 6) { pin = it.filter { c -> c.isDigit() }; pinError = false } },
+                            label = { Text("PIN") },
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
+                            ),
+                            isError = pinError,
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().testTag("vendeur_switch_pin_input")
+                        )
+                        if (pinError) {
+                            Text(
+                                text = when (activeLang) { "mg" -> "PIN diso"; "fr" -> "PIN incorrect"; else -> "Incorrect PIN" },
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                val chosen = pendingVendeur
+                if (chosen != null) {
+                    Button(
+                        onClick = {
+                            if (viewModel.loginVendeur(chosen.id, pin)) {
+                                showVendeurSwitcher = false
+                            } else {
+                                pinError = true
+                            }
+                        },
+                        modifier = Modifier.testTag("vendeur_switch_confirm_button")
+                    ) {
+                        Text(when (activeLang) { "mg" -> "Hiditra"; "fr" -> "Valider"; else -> "Confirm" }, fontWeight = FontWeight.Bold)
+                    }
+                } else if (activeVendeur != null) {
+                    TextButton(onClick = {
+                        viewModel.logoutVendeur()
+                        showVendeurSwitcher = false
+                    }) {
+                        Text(
+                            text = when (activeLang) { "mg" -> "Hivoaka"; "fr" -> "Se déconnecter"; else -> "Log out" },
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    if (pendingVendeur != null) {
+                        pendingVendeur = null
+                        pin = ""
+                        pinError = false
+                    } else {
+                        showVendeurSwitcher = false
+                    }
+                }) {
+                    Text(
+                        text = if (pendingVendeur != null) {
+                            when (activeLang) { "mg" -> "Hiverina"; "fr" -> "Retour"; else -> "Back" }
+                        } else {
+                            when (activeLang) { "mg" -> "Hanafoana"; "fr" -> "Fermer"; else -> "Close" }
+                        }
+                    )
+                }
+            }
+        )
     }
 }
 

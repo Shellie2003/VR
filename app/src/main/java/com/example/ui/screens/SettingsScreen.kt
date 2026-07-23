@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
@@ -25,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.model.Vendeur
 import com.example.ui.viewmodel.InventoryViewModel
 import com.example.util.BackupHelper
 import com.example.util.ExportUtil
@@ -57,6 +61,7 @@ fun SettingsScreen(
     val themeModeVal by viewModel.themeMode.collectAsState()
     val firebaseDatabaseUrlVal by viewModel.firebaseDatabaseUrl.collectAsState()
     val firebaseBackupToken = viewModel.firebaseBackupToken
+    val allVendeursVal by viewModel.allVendeurs.collectAsState()
 
     // Local state for grocery name editing
     var nameInput by remember(groceryNameVal) { mutableStateOf(groceryNameVal) }
@@ -1539,6 +1544,20 @@ fun SettingsScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // B.3/E.2: opt-in employee accounts (PIN vendeur/gérant)
+            VendeurRolesCard(
+                viewModel = viewModel,
+                vendeurs = allVendeursVal,
+                activeLang = activeLang,
+                mainTextColor = mainTextColor,
+                secondaryTextColor = secondaryTextColor,
+                cardBg = cardBg,
+                cardBorderColor = cardBorderColor,
+                themeColor = themeColor
+            )
+
             Spacer(modifier = Modifier.height(32.dp))
         }
 
@@ -1577,4 +1596,321 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+// B.3/E.2: opt-in employee accounts (PIN vendeur/gérant). An empty list means the feature is
+// inactive — no login prompt or restriction appears anywhere else in the app.
+@Composable
+private fun VendeurRolesCard(
+    viewModel: InventoryViewModel,
+    vendeurs: List<Vendeur>,
+    activeLang: String,
+    mainTextColor: Color,
+    secondaryTextColor: Color,
+    cardBg: Color,
+    cardBorderColor: Color,
+    themeColor: Color
+) {
+    var editingVendeur by remember { mutableStateOf<Vendeur?>(null) }
+    var showAddDialog by remember { mutableStateOf(false) }
+    var vendeurToDelete by remember { mutableStateOf<Vendeur?>(null) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().testTag("vendeur_roles_card"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = androidx.compose.foundation.BorderStroke(1.dp, cardBorderColor)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(themeColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(imageVector = Icons.Default.Groups, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Kaonty & Andraikitra"
+                            "fr" -> "Comptes & Rôles"
+                            else -> "Accounts & Roles"
+                        },
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = mainTextColor
+                    )
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Safidy: ampiasao raha misy mpiasa maromaro mampiasa ity finday ity"
+                            "fr" -> "Optionnel : utile si plusieurs employés utilisent cet appareil"
+                            else -> "Optional: useful if several employees share this device"
+                        },
+                        fontSize = 11.sp,
+                        color = secondaryTextColor
+                    )
+                }
+                IconButton(
+                    onClick = { showAddDialog = true },
+                    modifier = Modifier.testTag("add_vendeur_button")
+                ) {
+                    Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = themeColor)
+                }
+            }
+
+            if (vendeurs.isNotEmpty()) {
+                HorizontalDivider(color = cardBorderColor.copy(alpha = 0.5f))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    vendeurs.forEach { vendeur ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().testTag("vendeur_row_${vendeur.id}"),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        text = vendeur.nom,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = mainTextColor,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (vendeur.role == Vendeur.ROLE_GERANT) themeColor.copy(alpha = 0.15f) else secondaryTextColor.copy(alpha = 0.12f))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = if (vendeur.role == Vendeur.ROLE_GERANT) {
+                                                when (activeLang) { "mg" -> "Gerànta"; "fr" -> "Gérant"; else -> "Manager" }
+                                            } else {
+                                                when (activeLang) { "mg" -> "Mpivarotra"; "fr" -> "Vendeur"; else -> "Cashier" }
+                                            },
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (vendeur.role == Vendeur.ROLE_GERANT) themeColor else secondaryTextColor
+                                        )
+                                    }
+                                    if (!vendeur.actif) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(Color(0xFFC62828).copy(alpha = 0.12f))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = when (activeLang) { "mg" -> "Tsy mavitrika"; "fr" -> "Inactif"; else -> "Inactive" },
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFC62828)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Row {
+                                IconButton(onClick = { editingVendeur = vendeur }, modifier = Modifier.size(32.dp)) {
+                                    Icon(imageVector = Icons.Default.Edit, contentDescription = null, tint = secondaryTextColor, modifier = Modifier.size(16.dp))
+                                }
+                                IconButton(onClick = { vendeurToDelete = vendeur }, modifier = Modifier.size(32.dp)) {
+                                    Icon(imageVector = Icons.Default.DeleteOutline, contentDescription = null, tint = Color(0xFFC62828), modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAddDialog) {
+        VendeurEditDialog(
+            viewModel = viewModel,
+            vendeur = null,
+            activeLang = activeLang,
+            themeColor = themeColor,
+            onDismiss = { showAddDialog = false }
+        )
+    }
+    editingVendeur?.let { v ->
+        VendeurEditDialog(
+            viewModel = viewModel,
+            vendeur = v,
+            activeLang = activeLang,
+            themeColor = themeColor,
+            onDismiss = { editingVendeur = null }
+        )
+    }
+    vendeurToDelete?.let { v ->
+        AlertDialog(
+            onDismissRequest = { vendeurToDelete = null },
+            title = {
+                Text(
+                    text = when (activeLang) { "mg" -> "Hamafa"; "fr" -> "Supprimer"; else -> "Delete" },
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = { Text("${v.nom} ?") },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.deleteVendeur(v); vendeurToDelete = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
+                ) {
+                    Text(when (activeLang) { "mg" -> "Hamafa"; "fr" -> "Supprimer"; else -> "Delete" }, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { vendeurToDelete = null }) {
+                    Text(when (activeLang) { "mg" -> "Hanafoana"; "fr" -> "Annuler"; else -> "Cancel" })
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun VendeurEditDialog(
+    viewModel: InventoryViewModel,
+    vendeur: Vendeur?,
+    activeLang: String,
+    themeColor: Color,
+    onDismiss: () -> Unit
+) {
+    var nom by remember { mutableStateOf(vendeur?.nom ?: "") }
+    var role by remember { mutableStateOf(vendeur?.role ?: Vendeur.ROLE_VENDEUR) }
+    var actif by remember { mutableStateOf(vendeur?.actif ?: true) }
+    var pin by remember { mutableStateOf("") }
+    var pinConfirm by remember { mutableStateOf("") }
+    var nameError by remember { mutableStateOf(false) }
+    var pinError by remember { mutableStateOf(false) }
+
+    val isEditing = vendeur != null
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = if (isEditing) {
+                    when (activeLang) { "mg" -> "Hanova kaonty"; "fr" -> "Modifier le compte"; else -> "Edit account" }
+                } else {
+                    when (activeLang) { "mg" -> "Kaonty vaovao"; "fr" -> "Nouveau compte"; else -> "New account" }
+                },
+                fontWeight = FontWeight.Black
+            )
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = nom,
+                    onValueChange = { nom = it; nameError = it.isBlank() },
+                    label = { Text(when (activeLang) { "mg" -> "Anarana"; "fr" -> "Nom"; else -> "Name" }) },
+                    isError = nameError,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("vendeur_name_input")
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    FilterChip(
+                        selected = role == Vendeur.ROLE_VENDEUR,
+                        onClick = { role = Vendeur.ROLE_VENDEUR },
+                        label = { Text(when (activeLang) { "mg" -> "Mpivarotra"; "fr" -> "Vendeur"; else -> "Cashier" }) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        selected = role == Vendeur.ROLE_GERANT,
+                        onClick = { role = Vendeur.ROLE_GERANT },
+                        label = { Text(when (activeLang) { "mg" -> "Gerànta"; "fr" -> "Gérant"; else -> "Manager" }) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = { if (it.length <= 6) { pin = it.filter { c -> c.isDigit() }; pinError = false } },
+                    label = {
+                        Text(
+                            if (isEditing) {
+                                when (activeLang) { "mg" -> "PIN vaovao (safidy)"; "fr" -> "Nouveau PIN (optionnel)"; else -> "New PIN (optional)" }
+                            } else {
+                                when (activeLang) { "mg" -> "PIN (isa 4-6)"; "fr" -> "PIN (4 à 6 chiffres)"; else -> "PIN (4-6 digits)" }
+                            }
+                        )
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    isError = pinError,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("vendeur_pin_input")
+                )
+
+                OutlinedTextField(
+                    value = pinConfirm,
+                    onValueChange = { if (it.length <= 6) pinConfirm = it.filter { c -> c.isDigit() } },
+                    label = { Text(when (activeLang) { "mg" -> "Hamarino ny PIN"; "fr" -> "Confirmer le PIN"; else -> "Confirm PIN" }) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    isError = pinError,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("vendeur_pin_confirm_input")
+                )
+
+                if (isEditing) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Switch(checked = actif, onCheckedChange = { actif = it })
+                        Text(
+                            text = when (activeLang) { "mg" -> "Mavitrika"; "fr" -> "Compte actif"; else -> "Active account" },
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+
+                if (pinError) {
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Tsy mitovy ny PIN na tsy ampy 4 isa"
+                            "fr" -> "Les PIN ne correspondent pas ou sont trop courts (4 min.)"
+                            else -> "PINs don't match or are too short (min. 4)"
+                        },
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val nameClean = nom.trim()
+                    nameError = nameClean.isEmpty()
+
+                    val pinProvided = pin.isNotEmpty() || pinConfirm.isNotEmpty()
+                    val needsPin = !isEditing || pinProvided
+                    pinError = needsPin && (pin.length < 4 || pin != pinConfirm)
+
+                    if (!nameError && !pinError) {
+                        val pinHash = if (pinProvided) Vendeur.hashPin(pin) else (vendeur?.pinHash ?: "")
+                        val base = vendeur ?: Vendeur(nom = nameClean, pinHash = pinHash, role = role)
+                        val toSave = base.copy(
+                            nom = nameClean,
+                            pinHash = pinHash,
+                            role = role,
+                            actif = actif
+                        )
+                        viewModel.saveVendeur(toSave)
+                        onDismiss()
+                    }
+                },
+                modifier = Modifier.testTag("vendeur_save_button")
+            ) {
+                Text(when (activeLang) { "mg" -> "Hitahiry"; "fr" -> "Enregistrer"; else -> "Save" }, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(when (activeLang) { "mg" -> "Hanafoana"; "fr" -> "Annuler"; else -> "Cancel" })
+            }
+        }
+    )
 }

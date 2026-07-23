@@ -12,6 +12,7 @@ import com.example.data.model.Fournisseur
 import com.example.data.model.MouvementCaisse
 import com.example.data.model.Vente
 import com.example.data.model.CaisseSession
+import com.example.data.model.Vendeur
 import com.example.data.repository.InventoryRepository
 import com.example.util.AppPreferences
 import com.example.util.NotificationHelper
@@ -164,6 +165,75 @@ class InventoryViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val openCaisseSession: StateFlow<CaisseSession?> = repository.openCaisseSession
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    // B.3/E.2: opt-in employee accounts (PIN vendeur/gérant). Empty list = feature inactive, the
+    // app behaves exactly as before with no login and no restriction anywhere.
+    val allVendeurs: StateFlow<List<Vendeur>> = repository.allVendeurs
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _activeVendeurId = MutableStateFlow<Long?>(
+        appPreferences.activeVendeurId.takeIf { it > 0L }
+    )
+    val activeVendeur: StateFlow<Vendeur?> = combine(allVendeurs, _activeVendeurId) { vendeurs, activeId ->
+        vendeurs.find { it.id == activeId && it.actif }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    fun saveVendeur(vendeur: Vendeur) {
+        viewModelScope.launch(coroutineExceptionHandler) {
+            if (vendeur.id == 0L) {
+                repository.insertVendeur(vendeur)
+            } else {
+                repository.updateVendeur(vendeur)
+            }
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    fun deleteVendeur(vendeur: Vendeur) {
+        viewModelScope.launch(coroutineExceptionHandler) {
+            repository.deleteVendeur(vendeur)
+            if (_activeVendeurId.value == vendeur.id) {
+                logoutVendeur()
+            }
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    // Attempts to log in as the given vendeur with the given PIN. Returns true on success.
+    fun loginVendeur(vendeurId: Long, pin: String): Boolean {
+        val vendeur = allVendeurs.value.find { it.id == vendeurId && it.actif } ?: return false
+        if (vendeur.pinHash != Vendeur.hashPin(pin)) return false
+        _activeVendeurId.value = vendeur.id
+        appPreferences.activeVendeurId = vendeur.id
+        return true
+    }
+
+    // Verifies a PIN against every active GERANT account (used to unlock Paramètres without
+    // requiring the cashier to know which name owns the manager PIN). Logs that account in on
+    // success and returns it.
+    fun verifyGerantPin(pin: String): Vendeur? {
+        val hash = Vendeur.hashPin(pin)
+        val gerant = allVendeurs.value.find { it.actif && it.role == Vendeur.ROLE_GERANT && it.pinHash == hash }
+        if (gerant != null) {
+            _activeVendeurId.value = gerant.id
+            appPreferences.activeVendeurId = gerant.id
+        }
+        return gerant
+    }
+
+    fun logoutVendeur() {
+        _activeVendeurId.value = null
+        appPreferences.activeVendeurId = -1L
+    }
+
+    // Paramètres is gated behind the gérant PIN only once at least one account exists AND no
+    // gérant is currently active on this device — a solo shop owner who never opens "Comptes &
+    // Rôles" never sees a PIN prompt anywhere.
+    fun requiresGerantPinForSettings(): Boolean {
+        val vendeurs = allVendeurs.value
+        if (vendeurs.isEmpty()) return false
+        return activeVendeur.value?.role != Vendeur.ROLE_GERANT
+    }
 
     // Theoretical cash balance: ESPECES sales only (Mvola/Orange Money/Crédit never put physical
     // cash in the drawer) + manual cash-ins - manual cash-outs.
@@ -907,7 +977,7 @@ class InventoryViewModel(
                 )
 
                 // 1. Perform atomic transaction
-                repository.checkoutSale(newSale, modePaiement = modePaiement)
+                repository.checkoutSale(newSale, modePaiement = modePaiement, vendeurId = activeVendeur.value?.id)
 
                 // 2. Alert if any product fell into low-stock state
                 for (cartItem in cartSnapshot) {
@@ -1267,6 +1337,7 @@ class InventoryViewModel(
                 val restocks = repository.allRestocks.first()
                 val mouvementsCaisse = repository.allMouvementsCaisse.first()
                 val caisseSessions = repository.allCaisseSessions.first()
+                val vendeurs = repository.allVendeurs.first()
                 val excluded = excludedProductIds.value
 
                 val productsArr = org.json.JSONArray()
@@ -1375,13 +1446,25 @@ class InventoryViewModel(
                     caisseSessionsArr.put(sessObj)
                 }
 
+                val vendeursArr = org.json.JSONArray()
+                vendeurs.forEach { vendeur ->
+                    val vObj = org.json.JSONObject()
+                    vObj.put("nom", vendeur.nom)
+                    vObj.put("pinHash", vendeur.pinHash)
+                    vObj.put("role", vendeur.role)
+                    vObj.put("actif", vendeur.actif)
+                    vObj.put("dateCreation", vendeur.dateCreation)
+                    vendeursArr.put(vObj)
+                }
+
                 com.example.sync.SyncSerializer.serializeFullSync(
                     productsArr.toString(),
                     salesArr.toString(),
                     debtsArr.toString(),
                     restocksArr.toString(),
                     mouvementsCaisseArr.toString(),
-                    caisseSessionsArr.toString()
+                    caisseSessionsArr.toString(),
+                    vendeursArr.toString()
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -1400,6 +1483,7 @@ class InventoryViewModel(
                 val restocksStr = resultsMap["restocks"] ?: "[]"
                 val mouvementsCaisseStr = resultsMap["mouvementsCaisse"] ?: "[]"
                 val caisseSessionsStr = resultsMap["caisseSessions"] ?: "[]"
+                val vendeursStr = resultsMap["vendeurs"] ?: "[]"
 
                 // Read the CURRENT database state directly from the repository rather than the
                 // allX StateFlows: those use SharingStarted.WhileSubscribed(5000) and only start
@@ -1415,6 +1499,7 @@ class InventoryViewModel(
                 val currentRestocks = repository.allRestocks.first()
                 val currentMouvementsCaisse = repository.allMouvementsCaisse.first()
                 val currentCaisseSessions = repository.allCaisseSessions.first()
+                val currentVendeurs = repository.allVendeurs.first()
 
                 // 1. Parse & Merge Products
                 val productsList = mutableListOf<Product>()
@@ -1700,6 +1785,44 @@ class InventoryViewModel(
                 }
                 if (newCaisseSessionsCount > 0 || updatedCaisseSessionsCount > 0) {
                     addSyncLog("Mise à jour sessions de caisse: $newCaisseSessionsCount nouvelles, $updatedCaisseSessionsCount modifiées")
+                }
+
+                // 7. Parse & Merge Vendeurs (B.3/E.2)
+                val vendeursList = mutableListOf<Vendeur>()
+                val vendeursArr = org.json.JSONArray(vendeursStr)
+                for (i in 0 until vendeursArr.length()) {
+                    val obj = vendeursArr.getJSONObject(i)
+                    vendeursList.add(
+                        Vendeur(
+                            nom = obj.getString("nom"),
+                            pinHash = obj.getString("pinHash"),
+                            role = obj.optString("role", Vendeur.ROLE_VENDEUR),
+                            actif = obj.optBoolean("actif", true),
+                            dateCreation = obj.optLong("dateCreation", System.currentTimeMillis())
+                        )
+                    )
+                }
+
+                var newVendeursCount = 0
+                var updatedVendeursCount = 0
+                vendeursList.forEach { incomingVendeur ->
+                    val existingVendeur = currentVendeurs.find { it.nom.equals(incomingVendeur.nom, ignoreCase = true) }
+                    if (existingVendeur == null) {
+                        repository.insertVendeur(incomingVendeur.copy(id = 0))
+                        newVendeursCount++
+                    } else if (existingVendeur.pinHash != incomingVendeur.pinHash ||
+                        existingVendeur.role != incomingVendeur.role ||
+                        existingVendeur.actif != incomingVendeur.actif) {
+                        repository.updateVendeur(existingVendeur.copy(
+                            pinHash = incomingVendeur.pinHash,
+                            role = incomingVendeur.role,
+                            actif = incomingVendeur.actif
+                        ))
+                        updatedVendeursCount++
+                    }
+                }
+                if (newVendeursCount > 0 || updatedVendeursCount > 0) {
+                    addSyncLog("Mise à jour comptes vendeurs: $newVendeursCount nouveaux, $updatedVendeursCount modifiés")
                 }
 
                 addSyncLog("Nahomby ny fampitoviana ny tahiry rehetra!")
