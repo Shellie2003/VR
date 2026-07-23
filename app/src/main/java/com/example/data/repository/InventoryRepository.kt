@@ -19,13 +19,15 @@ class InventoryRepository(
     val lotProduitDao: LotProduitDao,
     val venteDao: VenteDao,
     val lignesVenteDao: LigneVenteDao,
-    val restockDao: RestockDao
+    val restockDao: RestockDao,
+    val mouvementCaisseDao: MouvementCaisseDao
 ) {
     val allProducts: Flow<List<Product>> = productDao.getAllProducts().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allSales: Flow<List<Sale>> = saleDao.getAllSales().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allDebts: Flow<List<Debt>> = debtDao.getAllDebts().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allRestocks: Flow<List<Restock>> = restockDao.getAllRestocks().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allCategories: Flow<List<String>> = productDao.getAllCategories().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    val allMouvementsCaisse: Flow<List<MouvementCaisse>> = mouvementCaisseDao.getAllMouvements().flowOn(kotlinx.coroutines.Dispatchers.IO)
 
     suspend fun insertRestock(restock: Restock) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         restockDao.insertRestock(restock)
@@ -33,6 +35,14 @@ class InventoryRepository(
 
     suspend fun deleteRestock(restock: Restock) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         restockDao.deleteRestock(restock)
+    }
+
+    suspend fun insertMouvementCaisse(mouvement: MouvementCaisse) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        mouvementCaisseDao.insertMouvement(mouvement)
+    }
+
+    suspend fun deleteMouvementCaisse(mouvement: MouvementCaisse) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        mouvementCaisseDao.deleteMouvement(mouvement)
     }
 
     fun getLimitedProducts(limit: Int): Flow<List<Product>> = productDao.getLimitedProducts(limit).flowOn(kotlinx.coroutines.Dispatchers.IO)
@@ -217,95 +227,6 @@ class InventoryRepository(
 
     suspend fun getProductById(id: Int): Product? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         productDao.getProductById(id)
-    }
-
-    suspend fun insertSale(sale: Sale) {
-        saleDao.insertSale(sale)
-
-        // Convert to Vente (relational table)
-        val newVente = Vente(
-            dateVente = sale.timestamp,
-            montantTotal = sale.totalAmount,
-            modePaiement = "ESPECES"
-        )
-        val venteId = venteDao.insertVente(newVente)
-
-        for (item in sale.items) {
-            val originalId = item.productId.toLong()
-            var existingProduit = produitDao.getProduitById(originalId)
-
-            if (existingProduit == null) {
-                // Fallback to barcode
-                val matchingLegacyProduct = productDao.getProductById(item.productId)
-                if (matchingLegacyProduct != null && matchingLegacyProduct.barcode.isNotEmpty()) {
-                    existingProduit = produitDao.getProduitByBarcode(matchingLegacyProduct.barcode)
-                }
-            }
-
-            if (existingProduit == null) {
-                // Fallback to name
-                existingProduit = produitDao.getProduitByName(item.name)
-            }
-
-            if (existingProduit != null) {
-                val targetId = existingProduit.id
-                // Get or create base UniteProduit
-                var uniteId = 0L
-                val units = if (existingProduit.codeBarrePrincipal?.isNotEmpty() == true) {
-                    uniteProduitDao.getUniteByBarcode(existingProduit.codeBarrePrincipal)
-                } else null
-
-                val baseUnit = if (units != null) units else uniteProduitDao.getBaseUniteForProduit(targetId)
-
-                if (baseUnit != null) {
-                    uniteId = baseUnit.id
-                } else {
-                    val baseUnite = UniteProduit(
-                        produitId = targetId,
-                        nomUnite = existingProduit.uniteBase,
-                        facteurVersBase = 1.0,
-                        prixVente = item.price,
-                        prixAchat = existingProduit.prixAchatUniteBase,
-                        codeBarre = existingProduit.codeBarrePrincipal?.ifEmpty { null },
-                        estUniteBase = true,
-                        estUniteVenteDefaut = true,
-                        ordre = 0,
-                        actif = true
-                    )
-                    uniteId = uniteProduitDao.insertUnite(baseUnite)
-                }
-
-                // Save LigneVente
-                val ligne = LigneVente(
-                    venteId = venteId,
-                    produitId = targetId,
-                    uniteId = uniteId,
-                    quantite = item.quantity,
-                    prixUnitaireApplique = item.price,
-                    montantLigne = item.quantity * item.price
-                )
-                lignesVenteDao.insertLigneVente(ligne)
-
-                // Record MouvementStock
-                val mvt = MouvementStock(
-                    produitId = targetId,
-                    type = "SORTIE_VENTE",
-                    quantite = item.quantity,
-                    quantiteAvant = existingProduit.quantiteStock,
-                    quantiteApres = (existingProduit.quantiteStock - item.quantity).coerceAtLeast(0.0),
-                    referenceId = venteId,
-                    note = "Vente #${venteId}"
-                )
-                mouvementStockDao.insertMouvement(mvt)
-
-                // Update quantity stock of Produit
-                val updatedProduit = existingProduit.copy(
-                    quantiteStock = (existingProduit.quantiteStock - item.quantity).coerceAtLeast(0.0),
-                    dateDerniereMaj = System.currentTimeMillis()
-                )
-                produitDao.updateProduit(updatedProduit)
-            }
-        }
     }
 
     suspend fun checkoutSale(sale: Sale, decrementStock: Boolean = true) = database.withTransaction {

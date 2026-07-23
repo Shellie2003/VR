@@ -337,7 +337,7 @@ fun ProductInventoryCard(
                                 )
                             }
                         }
-                        if (product.stock_quantity < 5) {
+                        if (product.stock < 5) {
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
@@ -428,10 +428,11 @@ fun ProductInventoryCard(
                             fontWeight = FontWeight.Bold,
                             color = if (!isAvailable) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                         )
-                        if (product.stock_quantity >= 0) {
-                            val isLowQty = product.stock_quantity < 5
+                        run {
+                            val liveQty = product.stock.toInt()
+                            val isLowQty = product.stock < 5
                             Text(
-                                text = "Qty: ${product.stock_quantity}",
+                                text = "Qty: $liveQty",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = if (isLowQty) FontWeight.Bold else FontWeight.Normal,
                                 color = if (isLowQty) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
