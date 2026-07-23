@@ -1023,7 +1023,11 @@ class InventoryViewModel(
     }
 
     fun getAllProductsJsonSync(): String {
-        val products = allProducts.value
+        // Read straight from the repository rather than allProducts.value: that StateFlow uses
+        // WhileSubscribed(5000) and may still hold its initial empty list if no screen has
+        // subscribed yet (e.g. a sync connection made right after launch), which would otherwise
+        // serialize an empty product list to the connecting peer.
+        val products = kotlinx.coroutines.runBlocking { repository.allProducts.first() }
         val arr = org.json.JSONArray()
         val excluded = excludedProductIds.value
         products.forEach {
@@ -1061,6 +1065,10 @@ class InventoryViewModel(
         viewModelScope.launch {
             try {
                 val arr = org.json.JSONArray(stockJson)
+                // Fetched once from the repository (not allProducts.value, see syncFullDatabaseSync
+                // for why) so SKU matching sees the real current catalog even if no screen has
+                // subscribed to allProducts yet.
+                val currentProducts = repository.allProducts.first()
                 for (i in 0 until arr.length()) {
                     val obj = arr.getJSONObject(i)
                     val id = obj.optInt("id", 0)
@@ -1089,7 +1097,7 @@ class InventoryViewModel(
                     val existing = if (barcode.isNotEmpty()) {
                         repository.getProductByBarcode(barcode)
                     } else if (sku.isNotEmpty()) {
-                        allProducts.value.find { it.sku.equals(sku, ignoreCase = true) }
+                        currentProducts.find { it.sku.equals(sku, ignoreCase = true) }
                     } else {
                         null
                     } ?: repository.getProductByName(name)
@@ -1280,6 +1288,20 @@ class InventoryViewModel(
                 val restocksStr = resultsMap["restocks"] ?: "[]"
                 val mouvementsCaisseStr = resultsMap["mouvementsCaisse"] ?: "[]"
 
+                // Read the CURRENT database state directly from the repository rather than the
+                // allX StateFlows: those use SharingStarted.WhileSubscribed(5000) and only start
+                // collecting once a UI subscriber appears. This function runs unconditionally on
+                // every app startup (as long as a local safety backup file exists), often before
+                // any screen has subscribed — reading allSales.value etc. at that point silently
+                // returns the initial empty list, so every existing record looks "new" and gets
+                // re-inserted. Repeated on every launch, this duplicates the whole history
+                // (sales, debts, restocks, cash movements) exponentially and inflates every total.
+                val currentProducts = repository.allProducts.first()
+                val currentSales = repository.allSales.first()
+                val currentDebts = repository.allDebts.first()
+                val currentRestocks = repository.allRestocks.first()
+                val currentMouvementsCaisse = repository.allMouvementsCaisse.first()
+
                 // 1. Parse & Merge Products
                 val productsList = mutableListOf<Product>()
                 val prodArr = org.json.JSONArray(productsStr)
@@ -1319,7 +1341,7 @@ class InventoryViewModel(
                     val existing = if (prod.barcode.isNotEmpty()) {
                         repository.getProductByBarcode(prod.barcode)
                     } else if (prod.sku.isNotEmpty()) {
-                        allProducts.value.find { it.sku.equals(prod.sku, ignoreCase = true) }
+                        currentProducts.find { it.sku.equals(prod.sku, ignoreCase = true) }
                     } else {
                         null
                     } ?: repository.getProductByName(prod.name)
@@ -1384,8 +1406,8 @@ class InventoryViewModel(
 
                 var newSalesCount = 0
                 for (incomingSale in salesList) {
-                    val saleExists = allSales.value.any { 
-                        it.timestamp == incomingSale.timestamp && Math.abs(it.totalAmount - incomingSale.totalAmount) < 0.01 
+                    val saleExists = currentSales.any {
+                        it.timestamp == incomingSale.timestamp && Math.abs(it.totalAmount - incomingSale.totalAmount) < 0.01
                     }
                     if (!saleExists) {
                         val mappedItems = mutableListOf<SoldItem>()
@@ -1425,8 +1447,8 @@ class InventoryViewModel(
                 var newDebtsCount = 0
                 var updatedDebtsCount = 0
                 debtsList.forEach { incomingDebt ->
-                    val existingDebt = allDebts.value.find {
-                        it.debtorName.equals(incomingDebt.debtorName, ignoreCase = true) && 
+                    val existingDebt = currentDebts.find {
+                        it.debtorName.equals(incomingDebt.debtorName, ignoreCase = true) &&
                         Math.abs(it.date - incomingDebt.date) < 60000
                     }
                     if (existingDebt == null) {
@@ -1471,8 +1493,8 @@ class InventoryViewModel(
 
                 var newRestocksCount = 0
                 restocksList.forEach { incomingRestock ->
-                    val restockExists = allRestocks.value.any {
-                        it.productId == incomingRestock.productId && 
+                    val restockExists = currentRestocks.any {
+                        it.productId == incomingRestock.productId &&
                         Math.abs(it.timestamp - incomingRestock.timestamp) < 60000 && 
                         Math.abs(it.totalUnits - incomingRestock.totalUnits) < 0.01
                     }
@@ -1503,7 +1525,7 @@ class InventoryViewModel(
 
                 var newMouvementsCaisseCount = 0
                 mouvementsCaisseList.forEach { incomingMouvement ->
-                    val mouvementExists = allMouvementsCaisse.value.any {
+                    val mouvementExists = currentMouvementsCaisse.any {
                         it.type == incomingMouvement.type &&
                         Math.abs(it.date - incomingMouvement.date) < 60000 &&
                         Math.abs(it.montant - incomingMouvement.montant) < 0.01
