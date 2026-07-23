@@ -1260,8 +1260,15 @@ fun CalculatorScreen(
                                     }
                                     Toast.makeText(context, errStr, Toast.LENGTH_LONG).show()
                                 } else {
+                                    val cartSnapshot = cart
+                                    val totalSnapshot = totalAmount
+                                    val receivedSnapshot = amountReceived
+                                    val changeSnapshot = (receivedSnapshot - totalSnapshot).coerceAtLeast(0.0)
                                     val success = viewModel.checkoutCart()
                                     if (success) {
+                                        receiptToOffer = com.example.util.ReceiptUtil.generateReceiptPdf(
+                                            context, groceryNameVal, cartSnapshot, totalSnapshot, receivedSnapshot, changeSnapshot
+                                        )
                                         resetAllFields()
                                         Toast.makeText(context, t("checkout_success"), Toast.LENGTH_SHORT).show()
                                     } else {
@@ -2106,8 +2113,15 @@ fun CalculatorScreen(
                                 }
                                 Toast.makeText(context, errStr, Toast.LENGTH_LONG).show()
                             } else {
+                                val cartSnapshot = cart
+                                val totalSnapshot = totalAmount
+                                val receivedSnapshot = amountReceived
+                                val changeSnapshot = (receivedSnapshot - totalSnapshot).coerceAtLeast(0.0)
                                 val success = viewModel.checkoutCart()
                                 if (success) {
+                                    receiptToOffer = com.example.util.ReceiptUtil.generateReceiptPdf(
+                                        context, groceryNameVal, cartSnapshot, totalSnapshot, receivedSnapshot, changeSnapshot
+                                    )
                                     resetAllFields()
                                     subTab = "checkout"
                                     Toast.makeText(context, t("checkout_success"), Toast.LENGTH_SHORT).show()
@@ -2766,8 +2780,13 @@ fun CalculatorScreen(
                                 isPaid = false
                             )
                             viewModel.saveDebt(newDebt)
+                            val cartSnapshot = cart
+                            val totalSnapshot = totalAmount
                             val success = viewModel.checkoutCart()
                             if (success) {
+                                receiptToOffer = com.example.util.ReceiptUtil.generateReceiptPdf(
+                                    context, groceryNameVal, cartSnapshot, totalSnapshot, 0.0, 0.0
+                                )
                                 resetAllFields()
                                 showTrosaDialog = false
                                 Toast.makeText(context, t("checkout_success"), Toast.LENGTH_SHORT).show()
