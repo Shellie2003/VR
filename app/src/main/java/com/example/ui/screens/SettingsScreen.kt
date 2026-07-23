@@ -24,7 +24,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.viewmodel.InventoryViewModel
+import com.example.util.FirebaseBackupManager
 import com.example.util.LanguageManager
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,6 +45,8 @@ fun SettingsScreen(
     val themeColor by viewModel.themeColor.collectAsState()
     val shopModeVal by viewModel.shopMode.collectAsState()
     val themeModeVal by viewModel.themeMode.collectAsState()
+    val firebaseBucketVal by viewModel.firebaseStorageBucket.collectAsState()
+    val installationId = viewModel.installationId
 
     // Local state for grocery name editing
     var nameInput by remember(groceryNameVal) { mutableStateOf(groceryNameVal) }
@@ -136,8 +140,14 @@ fun SettingsScreen(
     }
 
     val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
     var showSnackbar by remember { mutableStateOf(false) }
     var snackbarMessage by remember { mutableStateOf("") }
+
+    // Firebase cloud backup local UI state
+    var firebaseBucketInput by remember(firebaseBucketVal) { mutableStateOf(firebaseBucketVal) }
+    var isCloudBackupLoading by remember { mutableStateOf(false) }
+    var isCloudRestoreLoading by remember { mutableStateOf(false) }
 
     val isDark = MaterialTheme.colorScheme.background == Color(0xFF002114)
     val cardBg = if (isDark) Color(0xFF1B4332) else Color(0xFFF8FAFC)
@@ -1114,6 +1124,219 @@ fun SettingsScreen(
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
                             )
+                        }
+                    }
+                }
+            }
+
+            // SECTION FIREBASE CLOUD BACKUP
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .testTag("settings_firebase_backup_card"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                border = androidx.compose.foundation.BorderStroke(1.dp, cardBorderColor)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(themeColor),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CloudSync,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Sauvegarde Cloud (Firebase)"
+                                    "fr" -> "Sauvegarde Cloud (Firebase)"
+                                    else -> "Cloud Backup (Firebase)"
+                                },
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = mainTextColor
+                            )
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Tehirizo any amin'ny rahona (internet) ny tahiry"
+                                    "fr" -> "Sauvegardez vos données à distance, même en cas de perte du téléphone"
+                                    else -> "Back up your data remotely, even if the phone is lost"
+                                },
+                                fontSize = 11.sp,
+                                color = secondaryTextColor
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(color = cardBorderColor.copy(alpha = 0.5f))
+
+                    OutlinedTextField(
+                        value = firebaseBucketInput,
+                        onValueChange = { firebaseBucketInput = it },
+                        label = {
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Firebase Storage Bucket"
+                                    "fr" -> "Bucket Firebase Storage"
+                                    else -> "Firebase Storage Bucket"
+                                }
+                            )
+                        },
+                        placeholder = { Text("mon-projet.appspot.com") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("firebase_bucket_input"),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Alaivo tao amin'ny Firebase Console > Storage ny anaran'ny bucket, ary avereno ho \"allow read, write: if true\" ny rules ao amin'ny lalana backups/. Raha tsy misy bucket voatondro dia tsy afaka mampiasa ity fikirakirana ity."
+                            "fr" -> "Créez un projet Firebase (gratuit), activez Storage, copiez le nom du bucket ici et autorisez la lecture/écriture sur le chemin backups/ dans les règles de sécurité. Sans bucket configuré, ces boutons resteront inactifs."
+                            else -> "Create a free Firebase project, enable Storage, paste the bucket name here and allow read/write on the backups/ path in the security rules. Without a configured bucket, these buttons will show a clear error."
+                        },
+                        fontSize = 11.sp,
+                        color = secondaryTextColor
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Cloud Backup Button
+                        Button(
+                            onClick = {
+                                if (firebaseBucketInput.isBlank()) {
+                                    snackbarMessage = when (activeLang) {
+                                        "mg" -> "Ampidiro aloha ny anaran'ny bucket Firebase."
+                                        "fr" -> "Veuillez d'abord renseigner le bucket Firebase."
+                                        else -> "Please enter the Firebase bucket first."
+                                    }
+                                    showSnackbar = true
+                                } else {
+                                    viewModel.updateFirebaseStorageBucket(firebaseBucketInput.trim())
+                                    isCloudBackupLoading = true
+                                    coroutineScope.launch {
+                                        val json = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                            viewModel.getFullDatabaseJsonSync()
+                                        }
+                                        val result = FirebaseBackupManager.uploadBackup(firebaseBucketInput.trim(), installationId, json)
+                                        isCloudBackupLoading = false
+                                        snackbarMessage = if (result.isSuccess) {
+                                            when (activeLang) {
+                                                "mg" -> "Tafita! Voatahiry any amin'ny rahona ny tahiry-nao."
+                                                "fr" -> "Sauvegarde Cloud réussie ! Vos données sont en ligne."
+                                                else -> "Cloud backup successful! Your data is now online."
+                                            }
+                                        } else {
+                                            when (activeLang) {
+                                                "mg" -> "Hadisoana: tsy voatahiry any amin'ny rahona (jereo ny bucket sy ny internet)."
+                                                "fr" -> "Échec de la sauvegarde Cloud (vérifiez le bucket et la connexion internet)."
+                                                else -> "Cloud backup failed (check the bucket name and internet connection)."
+                                            }
+                                        }
+                                        showSnackbar = true
+                                    }
+                                }
+                            },
+                            enabled = !isCloudBackupLoading && !isCloudRestoreLoading,
+                            modifier = Modifier.weight(1f).height(40.dp).testTag("firebase_backup_button"),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = themeColor,
+                                contentColor = Color.White
+                            )
+                        ) {
+                            if (isCloudBackupLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                            } else {
+                                Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = when (activeLang) {
+                                        "mg" -> "Cloud"
+                                        "fr" -> "Sauvegarder"
+                                        else -> "Backup"
+                                    },
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        // Cloud Restore Button
+                        OutlinedButton(
+                            onClick = {
+                                if (firebaseBucketInput.isBlank()) {
+                                    snackbarMessage = when (activeLang) {
+                                        "mg" -> "Ampidiro aloha ny anaran'ny bucket Firebase."
+                                        "fr" -> "Veuillez d'abord renseigner le bucket Firebase."
+                                        else -> "Please enter the Firebase bucket first."
+                                    }
+                                    showSnackbar = true
+                                } else {
+                                    viewModel.updateFirebaseStorageBucket(firebaseBucketInput.trim())
+                                    isCloudRestoreLoading = true
+                                    coroutineScope.launch {
+                                        val result = FirebaseBackupManager.downloadBackup(firebaseBucketInput.trim(), installationId)
+                                        isCloudRestoreLoading = false
+                                        result.onSuccess { json -> viewModel.syncFullDatabaseSync(json) }
+                                        snackbarMessage = if (result.isSuccess) {
+                                            when (activeLang) {
+                                                "mg" -> "Tafita! Tafaverina ny tahiry avy any amin'ny rahona."
+                                                "fr" -> "Restauration Cloud réussie ! Données récupérées."
+                                                else -> "Cloud restore successful! Data recovered."
+                                            }
+                                        } else {
+                                            when (activeLang) {
+                                                "mg" -> "Hadisoana: tsy misy backup hita any amin'ny rahona."
+                                                "fr" -> "Échec : aucune sauvegarde trouvée sur le Cloud."
+                                                else -> "Failed: no backup found on the Cloud."
+                                            }
+                                        }
+                                        showSnackbar = true
+                                    }
+                                }
+                            },
+                            enabled = !isCloudBackupLoading && !isCloudRestoreLoading,
+                            modifier = Modifier.weight(1f).height(40.dp).testTag("firebase_restore_button"),
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, themeColor),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = themeColor)
+                        ) {
+                            if (isCloudRestoreLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = themeColor, strokeWidth = 2.dp)
+                            } else {
+                                Icon(imageVector = Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = when (activeLang) {
+                                        "mg" -> "Haverina"
+                                        "fr" -> "Restaurer"
+                                        else -> "Restore"
+                                    },
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }

@@ -15,7 +15,12 @@ class AppPreferences(context: Context) {
         private const val KEY_COLOR_THEME = "key_color_theme"
         private const val KEY_SHOP_MODE = "key_shop_mode"
         private const val KEY_THEME_MODE = "key_theme_mode"
+        private const val KEY_FIREBASE_STORAGE_BUCKET = "key_firebase_storage_bucket"
     }
+
+    var firebaseStorageBucket: String
+        get() = prefs.getString(KEY_FIREBASE_STORAGE_BUCKET, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_FIREBASE_STORAGE_BUCKET, value).apply()
 
     var language: String
         get() = prefs.getString(KEY_LANG, "mg") ?: "mg"

@@ -52,6 +52,12 @@ class InventoryViewModel(
     val themeMode = MutableStateFlow(appPreferences.themeMode)
     val shopMode = MutableStateFlow(appPreferences.shopMode)
     val excludedProductIds = MutableStateFlow(appPreferences.excludedProductIds)
+    val firebaseStorageBucket = MutableStateFlow(appPreferences.firebaseStorageBucket)
+
+    fun updateFirebaseStorageBucket(bucket: String) {
+        appPreferences.firebaseStorageBucket = bucket
+        firebaseStorageBucket.value = bucket
+    }
 
     fun toggleProductSyncExclusion(productId: Int) {
         val currentSet = appPreferences.excludedProductIds.toMutableSet()
