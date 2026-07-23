@@ -23,7 +23,8 @@ class InventoryRepository(
     val mouvementCaisseDao: MouvementCaisseDao,
     val caisseSessionDao: CaisseSessionDao,
     val vendeurDao: VendeurDao,
-    val retourDao: RetourDao
+    val retourDao: RetourDao,
+    val deletedRecordDao: DeletedRecordDao
 ) {
     val allProducts: Flow<List<Product>> = productDao.getAllProducts().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allSales: Flow<List<Sale>> = saleDao.getAllSales().flowOn(kotlinx.coroutines.Dispatchers.IO)
@@ -38,6 +39,11 @@ class InventoryRepository(
     val allRetours: Flow<List<Retour>> = retourDao.getAllRetours().flowOn(kotlinx.coroutines.Dispatchers.IO)
     // C.4: every expiry lot across every produit (for the alerts screen and notifications)
     val allLots: Flow<List<LotProduit>> = lotProduitDao.getAllLots().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    val allTombstones: Flow<List<DeletedRecord>> = deletedRecordDao.getAllTombstones().flowOn(kotlinx.coroutines.Dispatchers.IO)
+
+    suspend fun recordDeletion(entityType: String, naturalKey: String) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        deletedRecordDao.insertTombstone(DeletedRecord(entityType = entityType, naturalKey = naturalKey))
+    }
 
     suspend fun insertLot(lot: LotProduit): Long = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         lotProduitDao.insertLot(lot)

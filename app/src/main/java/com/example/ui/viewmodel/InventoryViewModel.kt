@@ -15,6 +15,7 @@ import com.example.data.model.CaisseSession
 import com.example.data.model.Vendeur
 import com.example.data.model.Retour
 import com.example.data.model.LotProduit
+import com.example.data.model.DeletedRecord
 import com.example.data.repository.InventoryRepository
 import com.example.util.AppPreferences
 import com.example.util.NotificationHelper
@@ -24,6 +25,27 @@ import java.util.UUID
 
 // C.4: a lot within this many days of its expiry date counts as "expiring soon".
 private const val EXPIRY_WARNING_WINDOW_MS = 7L * 24 * 60 * 60 * 1000
+
+// Deletion tombstones: stable, cross-device identifiers for each entity type, used both when
+// recording a deletion and when checking incoming sync/backup payloads so a deleted record can
+// never be silently resurrected. Must stay consistent with the natural-key matching already used
+// by syncFullDatabaseSync's own dedup checks for each entity.
+private object TombstoneKeys {
+    fun product(barcode: String, sku: String, name: String): String = when {
+        barcode.isNotEmpty() -> "barcode:$barcode"
+        sku.isNotEmpty() -> "sku:${sku.lowercase()}"
+        else -> "name:${name.lowercase().trim()}"
+    }
+    fun sale(timestamp: Long): String = "ts:$timestamp"
+    fun debt(debtorName: String, date: Long): String = "${debtorName.lowercase().trim()}_$date"
+    fun restock(productId: Int, timestamp: Long): String = "${productId}_$timestamp"
+    fun mouvementCaisse(type: String, date: Long): String = "${type}_$date"
+    fun caisseSession(dateOuverture: Long): String = "$dateOuverture"
+    fun vendeur(nom: String): String = nom.lowercase().trim()
+    fun retour(saleId: Int, timestamp: Long): String = "${saleId}_$timestamp"
+    fun lot(productKey: String, datePeremption: Long, numeroLot: String?): String =
+        "${productKey}_${datePeremption}_${numeroLot ?: ""}"
+}
 
 data class CartItem(
     val id: String, // "product_<id>" or "misc_<uuid>"
@@ -191,6 +213,7 @@ class InventoryViewModel(
     fun deleteRetour(retour: Retour) {
         viewModelScope.launch(coroutineExceptionHandler) {
             repository.deleteRetour(retour)
+            repository.recordDeletion("retour", TombstoneKeys.retour(retour.saleId, retour.timestamp))
             triggerLocalSafetyBackup()
         }
     }
@@ -209,7 +232,12 @@ class InventoryViewModel(
 
     fun deleteLot(lot: LotProduit) {
         viewModelScope.launch(coroutineExceptionHandler) {
+            val product = repository.getProductById(lot.produitId.toInt())
             repository.deleteLot(lot)
+            if (product != null) {
+                val productKey = TombstoneKeys.product(product.barcode, product.sku, product.name)
+                repository.recordDeletion("lot", TombstoneKeys.lot(productKey, lot.datePeremption, lot.numeroLot))
+            }
             com.example.sync.SyncManager.triggerDatabaseSync()
             triggerLocalSafetyBackup()
         }
@@ -236,6 +264,7 @@ class InventoryViewModel(
     fun deleteVendeur(vendeur: Vendeur) {
         viewModelScope.launch(coroutineExceptionHandler) {
             repository.deleteVendeur(vendeur)
+            repository.recordDeletion("vendeur", TombstoneKeys.vendeur(vendeur.nom))
             if (_activeVendeurId.value == vendeur.id) {
                 logoutVendeur()
             }
@@ -332,6 +361,7 @@ class InventoryViewModel(
     fun deleteMouvementCaisse(mouvement: MouvementCaisse) {
         viewModelScope.launch(coroutineExceptionHandler) {
             repository.deleteMouvementCaisse(mouvement)
+            repository.recordDeletion("mouvementCaisse", TombstoneKeys.mouvementCaisse(mouvement.type, mouvement.date))
             com.example.sync.SyncManager.triggerDatabaseSync()
             triggerLocalSafetyBackup()
         }
@@ -347,6 +377,7 @@ class InventoryViewModel(
     fun deleteRestock(restock: com.example.data.model.Restock) {
         viewModelScope.launch(coroutineExceptionHandler) {
             repository.deleteRestock(restock)
+            repository.recordDeletion("restock", TombstoneKeys.restock(restock.productId, restock.timestamp))
             triggerLocalSafetyBackup()
         }
     }
@@ -1120,6 +1151,7 @@ class InventoryViewModel(
         }
         viewModelScope.launch {
             repository.deleteProduct(product)
+            repository.recordDeletion("product", TombstoneKeys.product(product.barcode, product.sku, product.name))
             removeFromCart("product_${product.id}")
             com.example.sync.SyncManager.triggerDatabaseSync()
             triggerLocalSafetyBackup()
@@ -1141,6 +1173,7 @@ class InventoryViewModel(
     fun deleteSale(sale: Sale) {
         viewModelScope.launch {
             repository.deleteSale(sale)
+            repository.recordDeletion("sale", TombstoneKeys.sale(sale.timestamp))
             com.example.sync.SyncManager.triggerDatabaseSync()
             triggerLocalSafetyBackup()
         }
@@ -1176,6 +1209,7 @@ class InventoryViewModel(
     fun deleteDebt(debt: Debt) {
         viewModelScope.launch {
             repository.deleteDebt(debt)
+            repository.recordDeletion("debt", TombstoneKeys.debt(debt.debtorName, debt.date))
             com.example.sync.SyncManager.triggerDatabaseSync()
             triggerLocalSafetyBackup()
         }
@@ -1407,6 +1441,7 @@ class InventoryViewModel(
                 val vendeurs = repository.allVendeurs.first()
                 val retours = repository.allRetours.first()
                 val lots = repository.allLots.first()
+                val tombstones = repository.allTombstones.first()
                 val excluded = excludedProductIds.value
 
                 val productsArr = org.json.JSONArray()
@@ -1570,6 +1605,15 @@ class InventoryViewModel(
                     }
                 }
 
+                val deletedRecordsArr = org.json.JSONArray()
+                tombstones.forEach { tombstone ->
+                    val dObj = org.json.JSONObject()
+                    dObj.put("entityType", tombstone.entityType)
+                    dObj.put("naturalKey", tombstone.naturalKey)
+                    dObj.put("deletedAt", tombstone.deletedAt)
+                    deletedRecordsArr.put(dObj)
+                }
+
                 com.example.sync.SyncSerializer.serializeFullSync(
                     productsArr.toString(),
                     salesArr.toString(),
@@ -1579,7 +1623,8 @@ class InventoryViewModel(
                     caisseSessionsArr.toString(),
                     vendeursArr.toString(),
                     retoursArr.toString(),
-                    lotsArr.toString()
+                    lotsArr.toString(),
+                    deletedRecordsArr.toString()
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -1601,6 +1646,7 @@ class InventoryViewModel(
                 val vendeursStr = resultsMap["vendeurs"] ?: "[]"
                 val retoursStr = resultsMap["retours"] ?: "[]"
                 val lotsStr = resultsMap["lots"] ?: "[]"
+                val deletedRecordsStr = resultsMap["deletedRecords"] ?: "[]"
 
                 // Read the CURRENT database state directly from the repository rather than the
                 // allX StateFlows: those use SharingStarted.WhileSubscribed(5000) and only start
@@ -1619,6 +1665,74 @@ class InventoryViewModel(
                 val currentVendeurs = repository.allVendeurs.first()
                 val currentRetours = repository.allRetours.first()
                 val currentLots = repository.allLots.first()
+                val currentTombstones = repository.allTombstones.first()
+
+                // 0. Parse & Merge Deletion Tombstones — must run before every other entity merge
+                // below, so a record deleted on another device (or in an older backup we're now
+                // catching up on) can never be re-inserted as "new" by this same sync pass, and so
+                // matching local records get deleted too, propagating the deletion to this device.
+                val incomingTombstones = mutableListOf<DeletedRecord>()
+                val delArr = org.json.JSONArray(deletedRecordsStr)
+                for (i in 0 until delArr.length()) {
+                    val obj = delArr.getJSONObject(i)
+                    incomingTombstones.add(
+                        DeletedRecord(
+                            entityType = obj.getString("entityType"),
+                            naturalKey = obj.getString("naturalKey"),
+                            deletedAt = obj.optLong("deletedAt", System.currentTimeMillis())
+                        )
+                    )
+                }
+                val newlyLearnedTombstones = incomingTombstones.filter { incoming ->
+                    currentTombstones.none { it.entityType == incoming.entityType && it.naturalKey == incoming.naturalKey }
+                }
+                newlyLearnedTombstones.forEach { repository.recordDeletion(it.entityType, it.naturalKey) }
+
+                // Apply deletions that happened on another device (or in a backup we're catching
+                // up on) to this device's own still-present records, so the deletion truly
+                // propagates instead of only blocking future re-insertion.
+                var propagatedDeletionsCount = 0
+                newlyLearnedTombstones.forEach { tombstone ->
+                    when (tombstone.entityType) {
+                        "product" -> currentProducts.find {
+                            TombstoneKeys.product(it.barcode, it.sku, it.name) == tombstone.naturalKey
+                        }?.let { repository.deleteProduct(it); propagatedDeletionsCount++ }
+                        "sale" -> currentSales.find {
+                            TombstoneKeys.sale(it.timestamp) == tombstone.naturalKey
+                        }?.let { repository.deleteSale(it); propagatedDeletionsCount++ }
+                        "debt" -> currentDebts.find {
+                            TombstoneKeys.debt(it.debtorName, it.date) == tombstone.naturalKey
+                        }?.let { repository.deleteDebt(it); propagatedDeletionsCount++ }
+                        "restock" -> currentRestocks.find {
+                            TombstoneKeys.restock(it.productId, it.timestamp) == tombstone.naturalKey
+                        }?.let { repository.deleteRestock(it); propagatedDeletionsCount++ }
+                        "mouvementCaisse" -> currentMouvementsCaisse.find {
+                            TombstoneKeys.mouvementCaisse(it.type, it.date) == tombstone.naturalKey
+                        }?.let { repository.deleteMouvementCaisse(it); propagatedDeletionsCount++ }
+                        "vendeur" -> currentVendeurs.find {
+                            TombstoneKeys.vendeur(it.nom) == tombstone.naturalKey
+                        }?.let { repository.deleteVendeur(it); propagatedDeletionsCount++ }
+                        "retour" -> currentRetours.find {
+                            TombstoneKeys.retour(it.saleId, it.timestamp) == tombstone.naturalKey
+                        }?.let { repository.deleteRetour(it); propagatedDeletionsCount++ }
+                        "lot" -> currentLots.find { lot ->
+                            val lotProduct = currentProducts.find { it.id.toLong() == lot.produitId }
+                            val lotKey = lotProduct?.let { TombstoneKeys.product(it.barcode, it.sku, it.name) }
+                            lotKey != null && TombstoneKeys.lot(lotKey, lot.datePeremption, lot.numeroLot) == tombstone.naturalKey
+                        }?.let { repository.deleteLot(it); propagatedDeletionsCount++ }
+                    }
+                }
+                if (propagatedDeletionsCount > 0) {
+                    addSyncLog("Suppressions propagées depuis un autre appareil: $propagatedDeletionsCount")
+                }
+
+                // Combined view (local + incoming) used below to decide whether an incoming record
+                // should be skipped instead of resurrected.
+                val tombstoneKeysByType: Map<String, Set<String>> =
+                    (currentTombstones + incomingTombstones).groupBy({ it.entityType }, { it.naturalKey })
+                        .mapValues { it.value.toSet() }
+                fun isTombstoned(entityType: String, naturalKey: String): Boolean =
+                    tombstoneKeysByType[entityType]?.contains(naturalKey) == true
 
                 // 1. Parse & Merge Products
                 val productsList = mutableListOf<Product>()
@@ -1668,8 +1782,11 @@ class InventoryViewModel(
                         null
                     } ?: repository.getProductByName(prod.name)
 
+                    val prodKey = TombstoneKeys.product(prod.barcode, prod.sku, prod.name)
                     if (existing == null) {
-                        repository.insertProduct(prod.copy(id = 0))
+                        if (!isTombstoned("product", prodKey)) {
+                            repository.insertProduct(prod.copy(id = 0))
+                        }
                     } else {
                         val updated = existing.copy(
                             name = prod.name,
@@ -1733,7 +1850,7 @@ class InventoryViewModel(
                     val saleExists = currentSales.any {
                         it.timestamp == incomingSale.timestamp && Math.abs(it.totalAmount - incomingSale.totalAmount) < 0.01
                     }
-                    if (!saleExists) {
+                    if (!saleExists && !isTombstoned("sale", TombstoneKeys.sale(incomingSale.timestamp))) {
                         val mappedItems = mutableListOf<SoldItem>()
                         for (item in incomingSale.items) {
                             val localProd = repository.getProductByName(item.name)
@@ -1777,8 +1894,10 @@ class InventoryViewModel(
                         Math.abs(it.date - incomingDebt.date) < 60000
                     }
                     if (existingDebt == null) {
-                        repository.insertDebt(incomingDebt.copy(id = 0))
-                        newDebtsCount++
+                        if (!isTombstoned("debt", TombstoneKeys.debt(incomingDebt.debtorName, incomingDebt.date))) {
+                            repository.insertDebt(incomingDebt.copy(id = 0))
+                            newDebtsCount++
+                        }
                     } else {
                         if (incomingDebt.balance < existingDebt.balance || incomingDebt.isPaid != existingDebt.isPaid || incomingDebt.dueDate != existingDebt.dueDate) {
                             val updatedDebt = existingDebt.copy(
@@ -1824,7 +1943,7 @@ class InventoryViewModel(
                         Math.abs(it.timestamp - incomingRestock.timestamp) < 60000 && 
                         Math.abs(it.totalUnits - incomingRestock.totalUnits) < 0.01
                     }
-                    if (!restockExists) {
+                    if (!restockExists && !isTombstoned("restock", TombstoneKeys.restock(incomingRestock.productId, incomingRestock.timestamp))) {
                         repository.insertRestock(incomingRestock.copy(id = 0))
                         newRestocksCount++
                     }
@@ -1856,7 +1975,7 @@ class InventoryViewModel(
                         Math.abs(it.date - incomingMouvement.date) < 60000 &&
                         Math.abs(it.montant - incomingMouvement.montant) < 0.01
                     }
-                    if (!mouvementExists) {
+                    if (!mouvementExists && !isTombstoned("mouvementCaisse", TombstoneKeys.mouvementCaisse(incomingMouvement.type, incomingMouvement.date))) {
                         repository.insertMouvementCaisse(incomingMouvement.copy(id = 0))
                         newMouvementsCaisseCount++
                     }
@@ -1929,8 +2048,10 @@ class InventoryViewModel(
                 vendeursList.forEach { incomingVendeur ->
                     val existingVendeur = currentVendeurs.find { it.nom.equals(incomingVendeur.nom, ignoreCase = true) }
                     if (existingVendeur == null) {
-                        repository.insertVendeur(incomingVendeur.copy(id = 0))
-                        newVendeursCount++
+                        if (!isTombstoned("vendeur", TombstoneKeys.vendeur(incomingVendeur.nom))) {
+                            repository.insertVendeur(incomingVendeur.copy(id = 0))
+                            newVendeursCount++
+                        }
                     } else if (existingVendeur.pinHash != incomingVendeur.pinHash ||
                         existingVendeur.role != incomingVendeur.role ||
                         existingVendeur.actif != incomingVendeur.actif) {
@@ -1986,7 +2107,7 @@ class InventoryViewModel(
                     val exists = currentRetours.any {
                         it.saleId == incomingRetour.saleId && Math.abs(it.timestamp - incomingRetour.timestamp) < 2000
                     }
-                    if (!exists) {
+                    if (!exists && !isTombstoned("retour", TombstoneKeys.retour(incomingRetour.saleId, incomingRetour.timestamp))) {
                         repository.insertRetour(incomingRetour.copy(id = 0))
                         newRetoursCount++
                     }
@@ -2016,7 +2137,9 @@ class InventoryViewModel(
                             it.datePeremption == incomingDatePeremption &&
                             it.numeroLot == incomingNumeroLot
                         }
-                        if (!exists) {
+                        val lotProductKey = TombstoneKeys.product(matchedProduct.barcode, matchedProduct.sku, matchedProduct.name)
+                        val lotTombstoned = isTombstoned("lot", TombstoneKeys.lot(lotProductKey, incomingDatePeremption, incomingNumeroLot))
+                        if (!exists && !lotTombstoned) {
                             repository.insertLot(
                                 LotProduit(
                                     produitId = incomingProduitId,
