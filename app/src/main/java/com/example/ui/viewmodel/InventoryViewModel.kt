@@ -9,6 +9,7 @@ import com.example.data.model.Sale
 import com.example.data.model.SoldItem
 import com.example.data.model.Debt
 import com.example.data.model.Fournisseur
+import com.example.data.model.MouvementCaisse
 import com.example.data.repository.InventoryRepository
 import com.example.util.AppPreferences
 import com.example.util.NotificationHelper
@@ -133,6 +134,34 @@ class InventoryViewModel(
 
     val allRestocks: StateFlow<List<com.example.data.model.Restock>> = repository.allRestocks
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Cash register (caisse) manual movements: entrées (cash in) et sorties (cash out)
+    val allMouvementsCaisse: StateFlow<List<MouvementCaisse>> = repository.allMouvementsCaisse
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Theoretical cash balance: total sales (always cash) + manual cash-ins - manual cash-outs
+    val soldeCaisse: StateFlow<Double> = combine(allSales, allMouvementsCaisse) { sales, mouvements ->
+        val totalVentes = sales.sumOf { it.totalAmount }
+        val totalEntrees = mouvements.filter { it.type == "ENTREE" }.sumOf { it.montant }
+        val totalSorties = mouvements.filter { it.type == "SORTIE" }.sumOf { it.montant }
+        totalVentes + totalEntrees - totalSorties
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    fun saveMouvementCaisse(mouvement: MouvementCaisse) {
+        viewModelScope.launch(coroutineExceptionHandler) {
+            repository.insertMouvementCaisse(mouvement)
+            com.example.sync.SyncManager.triggerDatabaseSync()
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    fun deleteMouvementCaisse(mouvement: MouvementCaisse) {
+        viewModelScope.launch(coroutineExceptionHandler) {
+            repository.deleteMouvementCaisse(mouvement)
+            com.example.sync.SyncManager.triggerDatabaseSync()
+            triggerLocalSafetyBackup()
+        }
+    }
 
     fun saveRestock(restock: com.example.data.model.Restock) {
         viewModelScope.launch(coroutineExceptionHandler) {
@@ -1126,6 +1155,7 @@ class InventoryViewModel(
                 val sales = repository.allSales.first()
                 val debts = repository.allDebts.first()
                 val restocks = repository.allRestocks.first()
+                val mouvementsCaisse = repository.allMouvementsCaisse.first()
                 val excluded = excludedProductIds.value
 
                 val productsArr = org.json.JSONArray()
@@ -1208,11 +1238,23 @@ class InventoryViewModel(
                     restocksArr.put(restockObj)
                 }
 
+                val mouvementsCaisseArr = org.json.JSONArray()
+                mouvementsCaisse.forEach { mouvement ->
+                    val mvtObj = org.json.JSONObject()
+                    mvtObj.put("type", mouvement.type)
+                    mvtObj.put("montant", mouvement.montant)
+                    mvtObj.put("motif", mouvement.motif)
+                    mvtObj.put("note", mouvement.note)
+                    mvtObj.put("date", mouvement.date)
+                    mouvementsCaisseArr.put(mvtObj)
+                }
+
                 com.example.sync.SyncSerializer.serializeFullSync(
                     productsArr.toString(),
                     salesArr.toString(),
                     debtsArr.toString(),
-                    restocksArr.toString()
+                    restocksArr.toString(),
+                    mouvementsCaisseArr.toString()
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -1229,7 +1271,8 @@ class InventoryViewModel(
                 val salesStr = resultsMap["sales"] ?: "[]"
                 val debtsStr = resultsMap["debts"] ?: "[]"
                 val restocksStr = resultsMap["restocks"] ?: "[]"
- 
+                val mouvementsCaisseStr = resultsMap["mouvementsCaisse"] ?: "[]"
+
                 // 1. Parse & Merge Products
                 val productsList = mutableListOf<Product>()
                 val prodArr = org.json.JSONArray(productsStr)
@@ -1433,6 +1476,38 @@ class InventoryViewModel(
                 }
                 if (newRestocksCount > 0) {
                     addSyncLog("Mise à jour approvisionnements: $newRestocksCount enregistrés")
+                }
+
+                // 5. Parse & Merge Mouvements de caisse
+                val mouvementsCaisseList = mutableListOf<MouvementCaisse>()
+                val mvtCaisseArr = org.json.JSONArray(mouvementsCaisseStr)
+                for (i in 0 until mvtCaisseArr.length()) {
+                    val obj = mvtCaisseArr.getJSONObject(i)
+                    mouvementsCaisseList.add(
+                        MouvementCaisse(
+                            type = obj.getString("type"),
+                            montant = obj.getDouble("montant"),
+                            motif = obj.getString("motif"),
+                            note = obj.optString("note", ""),
+                            date = obj.getLong("date")
+                        )
+                    )
+                }
+
+                var newMouvementsCaisseCount = 0
+                mouvementsCaisseList.forEach { incomingMouvement ->
+                    val mouvementExists = allMouvementsCaisse.value.any {
+                        it.type == incomingMouvement.type &&
+                        Math.abs(it.date - incomingMouvement.date) < 60000 &&
+                        Math.abs(it.montant - incomingMouvement.montant) < 0.01
+                    }
+                    if (!mouvementExists) {
+                        repository.insertMouvementCaisse(incomingMouvement.copy(id = 0))
+                        newMouvementsCaisseCount++
+                    }
+                }
+                if (newMouvementsCaisseCount > 0) {
+                    addSyncLog("Mise à jour mouvements de caisse: $newMouvementsCaisseCount enregistrés")
                 }
 
                 addSyncLog("Nahomby ny fampitoviana ny tahiry rehetra!")

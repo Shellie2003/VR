@@ -34,7 +34,8 @@ fun SettingsScreen(
     onNavigateToCommission: () -> Unit,
     onNavigateToBarcodes: () -> Unit,
     onNavigateToHome: () -> Unit,
-    onNavigateToSync: () -> Unit
+    onNavigateToSync: () -> Unit,
+    onNavigateToCaisseMouvements: () -> Unit
 ) {
     val activeLang by viewModel.language.collectAsState()
     val groceryNameVal by viewModel.groceryName.collectAsState()
@@ -877,6 +878,76 @@ fun SettingsScreen(
                                     "mg" -> "Hampitahana ny tahiry sy ny varotra amin'ny finday haha amin'ny alalan'ny Wi-Fi"
                                     "fr" -> "Partager le stock et les ventes en temps réel via le réseau local Wi-Fi"
                                     else -> "Share stock and sales in real-time over local Wi-Fi"
+                                },
+                                fontSize = 11.sp,
+                                color = secondaryTextColor
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = themeColor,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            // CARD REDIRECT TO CASH REGISTER MOVEMENTS (Entrée/Sortie de caisse)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .clickable { onNavigateToCaisseMouvements() }
+                    .testTag("settings_caisse_mouvements_button"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = themeColor.copy(alpha = 0.08f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, themeColor.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(themeColor),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountBalanceWallet,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Vola an-Kesty (Miditra/Mivoaka)"
+                                    "fr" -> "Mouvements de caisse"
+                                    else -> "Cash Movements"
+                                },
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Hisoratra ny fidiran-bola sy ny fivoahan-bola an-kesty"
+                                    "fr" -> "Enregistrer les entrées et sorties d'espèces de la caisse"
+                                    else -> "Record manual cash-in and cash-out movements"
                                 },
                                 fontSize = 11.sp,
                                 color = secondaryTextColor

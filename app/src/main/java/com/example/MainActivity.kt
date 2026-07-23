@@ -61,7 +61,8 @@ enum class ScreenTab {
     Parametres,  // Settings
     Commission,  // Restocking & supply commission calculator
     BarcodeList, // Barcode management and sheet printing
-    Synchronisation // Multi-terminal synchronization screen
+    Synchronisation, // Multi-terminal synchronization screen
+    CaisseMouvements // Cash drawer manual in/out movements journal
 }
 
 class MainActivity : ComponentActivity() {
@@ -93,8 +94,9 @@ fun MainLifecycleContainer() {
             database.lotProduitDao(),
             database.venteDao(),
             database.lignesVenteDao(),
-            database.restockDao()
-        ) 
+            database.restockDao(),
+            database.mouvementCaisseDao()
+        )
     }
     
     val viewModel: InventoryViewModel = viewModel(
@@ -429,7 +431,7 @@ fun MainAppLayout(
             )
 
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation) {
+                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements) {
                     TopAppBarSection(
                         viewModel = viewModel,
                         onNavigateToSettings = { currentTab = ScreenTab.Parametres },
@@ -484,7 +486,8 @@ fun MainAppLayout(
                             onNavigateToCommission = { currentTab = ScreenTab.Commission },
                             onNavigateToBarcodes = { currentTab = ScreenTab.BarcodeList },
                             onNavigateToHome = navigateToHome,
-                            onNavigateToSync = { currentTab = ScreenTab.Synchronisation }
+                            onNavigateToSync = { currentTab = ScreenTab.Synchronisation },
+                            onNavigateToCaisseMouvements = { currentTab = ScreenTab.CaisseMouvements }
                         )
                         ScreenTab.Commission -> CommissionScreen(
                             viewModel = viewModel,
@@ -498,6 +501,10 @@ fun MainAppLayout(
                             viewModel = viewModel,
                             onNavigateBack = { currentTab = ScreenTab.Parametres }
                         )
+                        ScreenTab.CaisseMouvements -> CaisseMouvementsScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = { currentTab = ScreenTab.Parametres }
+                        )
                     }
                 }
             }
@@ -506,7 +513,7 @@ fun MainAppLayout(
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {
-                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation) {
+                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements) {
                     TopAppBarSection(
                         viewModel = viewModel,
                         onNavigateToSettings = { currentTab = ScreenTab.Parametres },
@@ -585,7 +592,8 @@ fun MainAppLayout(
                         onNavigateToCommission = { currentTab = ScreenTab.Commission },
                         onNavigateToBarcodes = { currentTab = ScreenTab.BarcodeList },
                         onNavigateToHome = navigateToHome,
-                        onNavigateToSync = { currentTab = ScreenTab.Synchronisation }
+                        onNavigateToSync = { currentTab = ScreenTab.Synchronisation },
+                        onNavigateToCaisseMouvements = { currentTab = ScreenTab.CaisseMouvements }
                     )
                     ScreenTab.Commission -> CommissionScreen(
                         viewModel = viewModel,
@@ -596,6 +604,10 @@ fun MainAppLayout(
                         onNavigateBack = { currentTab = ScreenTab.Parametres }
                     )
                     ScreenTab.Synchronisation -> SyncScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { currentTab = ScreenTab.Parametres }
+                    )
+                    ScreenTab.CaisseMouvements -> CaisseMouvementsScreen(
                         viewModel = viewModel,
                         onNavigateBack = { currentTab = ScreenTab.Parametres }
                     )

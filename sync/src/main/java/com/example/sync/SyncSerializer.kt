@@ -71,12 +71,19 @@ object SyncSerializer {
     }
 
     // Bidirectional Full Database Sync Serialization (Decoupled from App Models)
-    fun serializeFullSync(productsJson: String, salesJson: String, debtsJson: String, restocksJson: String = "[]"): String {
+    fun serializeFullSync(
+        productsJson: String,
+        salesJson: String,
+        debtsJson: String,
+        restocksJson: String = "[]",
+        mouvementsCaisseJson: String = "[]"
+    ): String {
         val root = JSONObject()
         root.put("products", JSONArray(productsJson))
         root.put("sales", JSONArray(salesJson))
         root.put("debts", JSONArray(debtsJson))
         root.put("restocks", JSONArray(restocksJson))
+        root.put("mouvementsCaisse", JSONArray(mouvementsCaisseJson))
         return root.toString()
     }
 
@@ -87,6 +94,7 @@ object SyncSerializer {
         result["sales"] = root.optJSONArray("sales")?.toString() ?: "[]"
         result["debts"] = root.optJSONArray("debts")?.toString() ?: "[]"
         result["restocks"] = root.optJSONArray("restocks")?.toString() ?: "[]"
+        result["mouvementsCaisse"] = root.optJSONArray("mouvementsCaisse")?.toString() ?: "[]"
         return result
     }
 }
