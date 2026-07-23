@@ -210,27 +210,58 @@ fun DebtsScreen(
                 }
             }
         } else {
+            // Group debts by debtor name (trimmed, case-insensitive) so several Trosa entries for
+            // the same person show as one consolidated card with the total owed, while still
+            // keeping every individual transaction (its own date/amount/note) visible when expanded.
+            val debtorGroups = remember(debts) {
+                debts.groupBy { it.debtorName.trim().lowercase() }
+                    .map { (_, group) ->
+                        val sorted = group.sortedByDescending { it.date }
+                        DebtorGroup(displayName = sorted.first().debtorName, debts = sorted)
+                    }
+                    .sortedByDescending { g -> g.debts.maxOf { it.date } }
+            }
+
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(debts, key = { it.id }) { debt ->
-                    DebtCard(
-                        debt = debt,
-                        activeLang = activeLang,
-                        isSelectionMode = isSelectionMode,
-                        isSelected = selectedDebtIds.contains(debt.id),
-                        onToggleSelect = {
-                            selectedDebtIds = if (selectedDebtIds.contains(debt.id)) {
-                                selectedDebtIds - debt.id
-                            } else {
-                                selectedDebtIds + debt.id
-                            }
-                        },
-                        onRepay = { selectedDebtForRepay = debt },
-                        onDelete = { debtToDelete = debt }
-                    )
+                items(debtorGroups, key = { it.displayName.trim().lowercase() }) { group ->
+                    if (group.debts.size == 1) {
+                        val debt = group.debts[0]
+                        DebtCard(
+                            debt = debt,
+                            activeLang = activeLang,
+                            isSelectionMode = isSelectionMode,
+                            isSelected = selectedDebtIds.contains(debt.id),
+                            onToggleSelect = {
+                                selectedDebtIds = if (selectedDebtIds.contains(debt.id)) {
+                                    selectedDebtIds - debt.id
+                                } else {
+                                    selectedDebtIds + debt.id
+                                }
+                            },
+                            onRepay = { selectedDebtForRepay = debt },
+                            onDelete = { debtToDelete = debt }
+                        )
+                    } else {
+                        DebtorGroupCard(
+                            group = group,
+                            activeLang = activeLang,
+                            isSelectionMode = isSelectionMode,
+                            selectedDebtIds = selectedDebtIds,
+                            onToggleSelect = { id ->
+                                selectedDebtIds = if (selectedDebtIds.contains(id)) {
+                                    selectedDebtIds - id
+                                } else {
+                                    selectedDebtIds + id
+                                }
+                            },
+                            onRepay = { selectedDebtForRepay = it },
+                            onDelete = { debtToDelete = it }
+                        )
+                    }
                 }
             }
         }
@@ -698,6 +729,160 @@ fun DebtCard(
                     Icon(Icons.Default.Payment, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(t("repay_btn"), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Several Trosa entries can belong to the same debtor (case-insensitive, trimmed full-name
+ * match). Grouping them here is purely a UI concern — each underlying Debt row (its own date,
+ * amount and note) stays untouched in the database, so nothing is lost when a name is merged.
+ */
+data class DebtorGroup(
+    val displayName: String,
+    val debts: List<Debt>
+) {
+    val totalBalance: Double get() = debts.sumOf { it.balance }
+    val totalAmount: Double get() = debts.sumOf { it.amount }
+    val isFullyPaid: Boolean get() = debts.all { it.isPaid }
+    val hasOverdue: Boolean get() = debts.any { it.isOverdue() }
+}
+
+@Composable
+fun DebtorGroupCard(
+    group: DebtorGroup,
+    activeLang: String,
+    isSelectionMode: Boolean = false,
+    selectedDebtIds: Set<Int>,
+    onToggleSelect: (Int) -> Unit,
+    onRepay: (Debt) -> Unit,
+    onDelete: (Debt) -> Unit
+) {
+    val t = { key: String -> LanguageManager.translate(key, activeLang) }
+    var expanded by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("debtor_group_${group.displayName.trim().lowercase()}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = when {
+                group.isFullyPaid -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                else -> MaterialTheme.colorScheme.surface
+            }
+        )
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = group.displayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(
+                                    if (group.isFullyPaid) Color(0xFF2E7D32).copy(alpha = 0.12f)
+                                    else MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+                                )
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = if (group.isFullyPaid) t("repaid_badge") else t("unpaid_badge"),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                color = if (group.isFullyPaid) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
+                            )
+                        }
+                        if (group.hasOverdue) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFFD32F2F).copy(alpha = 0.15f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = when (activeLang) {
+                                        "mg" -> "TARA"
+                                        "fr" -> "EN RETARD"
+                                        else -> "OVERDUE"
+                                    },
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color(0xFFD32F2F)
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "${group.debts.size} trosa nakambana"
+                            "fr" -> "${group.debts.size} dettes cumulées"
+                            else -> "${group.debts.size} combined debts"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "${FormatUtil.formatPrice(group.totalBalance)} Ar",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black,
+                            color = if (group.isFullyPaid) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
+                        )
+                        if (group.totalBalance < group.totalAmount) {
+                            Text(
+                                text = "Initiale: ${FormatUtil.formatPrice(group.totalAmount)} Ar",
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+
+            if (expanded) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    group.debts.forEach { debt ->
+                        DebtCard(
+                            debt = debt,
+                            activeLang = activeLang,
+                            isSelectionMode = isSelectionMode,
+                            isSelected = selectedDebtIds.contains(debt.id),
+                            onToggleSelect = { onToggleSelect(debt.id) },
+                            onRepay = { onRepay(debt) },
+                            onDelete = { onDelete(debt) }
+                        )
+                    }
                 }
             }
         }

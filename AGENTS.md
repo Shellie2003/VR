@@ -76,6 +76,7 @@ Voici l'inventaire officiel des fonctionnalités implémentées dans l'applicati
    - Enregistrement et suivi des clients ayant des arriérés de paiement.
    - Remboursement partiel ou total des dettes avec mise à jour du solde dû.
    - Suppression ou extinction de dettes.
+   - Fusion visuelle automatique des dettes d'un même débiteur (nom identique, insensible à la casse/aux espaces) en une seule carte affichant le total dû — voir section 31.
 
 5. **Écran de Paramètres & Options (`SettingsScreen`)**
    - Changement instantané de la langue de l'interface (Français `fr` ou Malgache `mg`).
@@ -237,4 +238,11 @@ Voici l'inventaire officiel des fonctionnalités implémentées dans l'applicati
     - Chacune des 8 fonctions de suppression enregistre désormais un tombstone en plus de la suppression elle-même.
     - `getFullDatabaseJsonSync()`/`syncFullDatabaseSync()`/`SyncSerializer` propagent la liste des tombstones au même titre que les autres données. À la fusion, **avant** de traiter chaque type d'entité : (1) les nouveaux tombstones reçus sont enregistrés localement, (2) tout enregistrement local correspondant à un tombstone nouvellement appris est supprimé (propage réellement la suppression faite sur un autre appareil), (3) chaque insertion "nouvel enregistrement" est bloquée si sa clé naturelle est tombstonée (empêche la résurrection lors d'une restauration ou d'une synchronisation avec un pair qui ne connaît pas encore la suppression).
     - Une suppression volontaire (via l'écran) reste distincte d'une re-création manuelle ultérieure du même produit/code-barres : le tombstone ne bloque que la résurrection automatique via fusion de synchronisation, jamais un ajout normal depuis l'interface.
+
+31. **Fusion des Dettes par Débiteur (`DebtorGroup`, `DebtorGroupCard`) (Nouveau)**
+    - **Demande utilisateur :** quand un même client (nom identique, majuscule/minuscule confondues) a plusieurs dettes distinctes (ex. plusieurs achats à crédit "Trosa" à des dates différentes), l'écran Dettes doit les fusionner visuellement et afficher le total dû, tout en gardant le détail de chaque date/montant consultable.
+    - `DebtsScreen` regroupe désormais la liste `debts` par `debtorName.trim().lowercase()` (correspondance exacte du nom complet normalisé, volontairement **pas** un préfixe, pour ne jamais fusionner deux personnes différentes par erreur) via une nouvelle `data class DebtorGroup(displayName, debts)` avec les propriétés calculées `totalBalance`, `totalAmount`, `isFullyPaid`, `hasOverdue`.
+    - Important : **aucune donnée n'est fusionnée en base** — chaque ligne `Debt` (sa propre date, son propre montant, sa propre note) reste un enregistrement Room séparé et indépendant. Le regroupement n'existe qu'au niveau de l'affichage (`LazyColumn` de `DebtsScreen`).
+    - Un débiteur avec une seule dette continue d'afficher l'unique `DebtCard` existante, strictement inchangée (aucun changement visuel pour le cas courant). Un débiteur avec plusieurs dettes affiche la nouvelle `DebtorGroupCard` : un en-tête consolidé (nom, solde total, badge payé/non-payé, badge retard si au moins une dette est en retard) que l'on peut déplier pour révéler chaque `DebtCard` individuelle du groupe (avec sa propre date, son propre solde, ses propres actions rembourser/supprimer).
+    - L'export (`ExportUtil.exportDebts`) et la recherche/filtrage (`viewModel.filteredDebts`, `viewModel.debtFilter`) continuent d'opérer sur la liste `debts` à plat, transaction par transaction — non affectés par ce regroupement purement visuel.
 
