@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -24,7 +25,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Debt
+import com.example.ui.components.SelectionExportToolbar
 import com.example.ui.viewmodel.InventoryViewModel
+import com.example.util.ExportFormat
+import com.example.util.ExportUtil
 import com.example.util.FormatUtil
 import com.example.util.LanguageManager
 import java.text.SimpleDateFormat
@@ -36,6 +40,7 @@ import java.util.Locale
 fun DebtsScreen(
     viewModel: InventoryViewModel
 ) {
+    val context = LocalContext.current
     val debts by viewModel.filteredDebts.collectAsState()
     val totalOutstanding by viewModel.totalOutstandingDebts.collectAsState(0.0)
     val searchQuery by viewModel.debtSearchQuery.collectAsState()
@@ -49,6 +54,11 @@ fun DebtsScreen(
     var showAddDebtDialog by remember { mutableStateOf(false) }
     var selectedDebtForRepay by remember { mutableStateOf<Debt?>(null) }
     var debtToDelete by remember { mutableStateOf<Debt?>(null) }
+
+    // Multi-selection state (checkbox mode for bulk delete)
+    var isSelectionMode by remember { mutableStateOf(false) }
+    var selectedDebtIds by remember { mutableStateOf(setOf<Int>()) }
+    var showMultiDeleteConfirm by remember { mutableStateOf(false) }
 
     // New Debt Form states
     var debtorName by remember { mutableStateOf("") }
@@ -110,6 +120,21 @@ fun DebtsScreen(
                 }
             }
         }
+
+        // Selection / Export toolbar
+        SelectionExportToolbar(
+            activeLang = activeLang,
+            isSelectionMode = isSelectionMode,
+            selectedCount = selectedDebtIds.size,
+            onToggleSelectionMode = {
+                isSelectionMode = !isSelectionMode
+                if (!isSelectionMode) selectedDebtIds = emptySet()
+            },
+            onSelectAll = { selectedDebtIds = debts.map { it.id }.toSet() },
+            onDeleteSelected = { showMultiDeleteConfirm = true },
+            onExportPdf = { ExportUtil.exportDebts(context, debts, ExportFormat.PDF) },
+            onExportCsv = { ExportUtil.exportDebts(context, debts, ExportFormat.CSV) }
+        )
 
         // Search text field
         OutlinedTextField(
@@ -191,6 +216,15 @@ fun DebtsScreen(
                     DebtCard(
                         debt = debt,
                         activeLang = activeLang,
+                        isSelectionMode = isSelectionMode,
+                        isSelected = selectedDebtIds.contains(debt.id),
+                        onToggleSelect = {
+                            selectedDebtIds = if (selectedDebtIds.contains(debt.id)) {
+                                selectedDebtIds - debt.id
+                            } else {
+                                selectedDebtIds + debt.id
+                            }
+                        },
                         onRepay = { selectedDebtForRepay = debt },
                         onDelete = { debtToDelete = debt }
                     )
@@ -394,12 +428,50 @@ fun DebtsScreen(
             }
         )
     }
+
+    // Multi-selection bulk delete confirmation
+    if (showMultiDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showMultiDeleteConfirm = false },
+            title = { Text(t("delete_action"), fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    when (activeLang) {
+                        "mg" -> "Hofafana ny trosa ${selectedDebtIds.size} voafidy?"
+                        "fr" -> "Supprimer les ${selectedDebtIds.size} dettes sélectionnées ?"
+                        else -> "Delete the ${selectedDebtIds.size} selected debts?"
+                    }
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        debts.filter { selectedDebtIds.contains(it.id) }.forEach { viewModel.deleteDebt(it) }
+                        selectedDebtIds = emptySet()
+                        isSelectionMode = false
+                        showMultiDeleteConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(t("delete_btn"), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMultiDeleteConfirm = false }) {
+                    Text(t("cancel_btn"))
+                }
+            }
+        )
+    }
 }
 
 @Composable
 fun DebtCard(
     debt: Debt,
     activeLang: String,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
     onRepay: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -410,11 +482,15 @@ fun DebtCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .let { if (isSelectionMode) it.clickable { onToggleSelect() } else it }
             .testTag("debt_card_${debt.id}"),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (debt.isPaid) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-            else MaterialTheme.colorScheme.surface
+            containerColor = when {
+                isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                debt.isPaid -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                else -> MaterialTheme.colorScheme.surface
+            }
         )
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -423,6 +499,13 @@ fun DebtCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
+                if (isSelectionMode) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = { onToggleSelect() },
+                        modifier = Modifier.testTag("debt_checkbox_${debt.id}")
+                    )
+                }
                 Column(modifier = Modifier.weight(1f)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -481,16 +564,18 @@ fun DebtCard(
 
                     Spacer(modifier = Modifier.width(6.dp))
 
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteOutline,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(16.dp)
-                        )
+                    if (!isSelectionMode) {
+                        IconButton(
+                            onClick = onDelete,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteOutline,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -507,7 +592,7 @@ fun DebtCard(
                 )
             }
 
-            if (!debt.isPaid) {
+            if (!debt.isPaid && !isSelectionMode) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Button(
                     onClick = onRepay,

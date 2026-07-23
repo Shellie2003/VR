@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -23,7 +24,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Product
+import com.example.ui.components.SelectionExportToolbar
 import com.example.ui.viewmodel.InventoryViewModel
+import com.example.util.ExportFormat
+import com.example.util.ExportUtil
 import com.example.util.FormatUtil
 import com.example.util.LanguageManager
 
@@ -34,6 +38,7 @@ fun InventoryListScreen(
     onEditProduct: (Product) -> Unit,
     onNavigateToAddProduct: () -> Unit
 ) {
+    val context = LocalContext.current
     val filteredProducts by viewModel.filteredProducts.collectAsState()
     val allProducts by viewModel.allProducts.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
@@ -49,6 +54,11 @@ fun InventoryListScreen(
 
     // Confirmation delete state
     var productToDelete by remember { mutableStateOf<Product?>(null) }
+
+    // Multi-selection state (checkbox mode for bulk delete)
+    var isSelectionMode by remember { mutableStateOf(false) }
+    var selectedProductIds by remember { mutableStateOf(setOf<Int>()) }
+    var showMultiDeleteConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -169,6 +179,20 @@ fun InventoryListScreen(
                 )
             }
 
+            SelectionExportToolbar(
+                activeLang = activeLang,
+                isSelectionMode = isSelectionMode,
+                selectedCount = selectedProductIds.size,
+                onToggleSelectionMode = {
+                    isSelectionMode = !isSelectionMode
+                    if (!isSelectionMode) selectedProductIds = emptySet()
+                },
+                onSelectAll = { selectedProductIds = filteredProducts.map { it.id }.toSet() },
+                onDeleteSelected = { showMultiDeleteConfirm = true },
+                onExportPdf = { ExportUtil.exportStock(context, filteredProducts, ExportFormat.PDF) },
+                onExportCsv = { ExportUtil.exportStock(context, filteredProducts, ExportFormat.CSV) }
+            )
+
             if (filteredProducts.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -211,6 +235,15 @@ fun InventoryListScreen(
                                 product = product,
                                 viewModel = viewModel,
                                 t = t,
+                                isSelectionMode = isSelectionMode,
+                                isSelected = selectedProductIds.contains(product.id),
+                                onToggleSelect = {
+                                    selectedProductIds = if (selectedProductIds.contains(product.id)) {
+                                        selectedProductIds - product.id
+                                    } else {
+                                        selectedProductIds + product.id
+                                    }
+                                },
                                 onEditProduct = onEditProduct,
                                 onDeleteProduct = { productToDelete = it }
                             )
@@ -229,6 +262,15 @@ fun InventoryListScreen(
                                 product = product,
                                 viewModel = viewModel,
                                 t = t,
+                                isSelectionMode = isSelectionMode,
+                                isSelected = selectedProductIds.contains(product.id),
+                                onToggleSelect = {
+                                    selectedProductIds = if (selectedProductIds.contains(product.id)) {
+                                        selectedProductIds - product.id
+                                    } else {
+                                        selectedProductIds + product.id
+                                    }
+                                },
                                 onEditProduct = onEditProduct,
                                 onDeleteProduct = { productToDelete = it }
                             )
@@ -263,6 +305,41 @@ fun InventoryListScreen(
             }
         )
     }
+
+    // Multi-selection bulk delete confirmation
+    if (showMultiDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showMultiDeleteConfirm = false },
+            title = { Text(t("delete_action"), fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    when (activeLang) {
+                        "mg" -> "Hofafana ny entana ${selectedProductIds.size} voafidy?"
+                        "fr" -> "Supprimer les ${selectedProductIds.size} produits sélectionnés ?"
+                        else -> "Delete the ${selectedProductIds.size} selected products?"
+                    }
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        filteredProducts.filter { selectedProductIds.contains(it.id) }.forEach { viewModel.deleteProduct(it) }
+                        selectedProductIds = emptySet()
+                        isSelectionMode = false
+                        showMultiDeleteConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(t("delete_btn"), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMultiDeleteConfirm = false }) {
+                    Text(t("cancel_btn"))
+                }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -271,17 +348,24 @@ fun ProductInventoryCard(
     product: Product,
     viewModel: InventoryViewModel,
     t: (String) -> String,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
     onEditProduct: (Product) -> Unit,
     onDeleteProduct: (Product) -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .let { if (isSelectionMode) it.clickable { onToggleSelect() } else it }
             .testTag("inventory_row_${product.id}"),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (product.isLowStock) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.12f)
-            else MaterialTheme.colorScheme.surface
+            containerColor = when {
+                isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                product.isLowStock -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.12f)
+                else -> MaterialTheme.colorScheme.surface
+            }
         ),
         border = androidx.compose.foundation.BorderStroke(
             width = if (product.isLowStock) 2.dp else 1.dp,
@@ -296,6 +380,13 @@ fun ProductInventoryCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
+                if (isSelectionMode) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = { onToggleSelect() },
+                        modifier = Modifier.testTag("product_checkbox_${product.id}")
+                    )
+                }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = product.name,
@@ -365,27 +456,29 @@ fun ProductInventoryCard(
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.secondary
                     )
-                    IconButton(
-                        onClick = { onEditProduct(product) },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = t("edit_action"),
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    IconButton(
-                        onClick = { onDeleteProduct(product) },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteOutline,
-                            contentDescription = t("delete_action"),
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(18.dp)
-                        )
+                    if (!isSelectionMode) {
+                        IconButton(
+                            onClick = { onEditProduct(product) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = t("edit_action"),
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = { onDeleteProduct(product) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteOutline,
+                                contentDescription = t("delete_action"),
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }
