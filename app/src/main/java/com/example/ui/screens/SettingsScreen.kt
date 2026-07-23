@@ -47,7 +47,7 @@ fun SettingsScreen(
     val shopModeVal by viewModel.shopMode.collectAsState()
     val themeModeVal by viewModel.themeMode.collectAsState()
     val firebaseDatabaseUrlVal by viewModel.firebaseDatabaseUrl.collectAsState()
-    val installationId = viewModel.installationId
+    val firebaseBackupToken = viewModel.firebaseBackupToken
 
     // Local state for grocery name editing
     var nameInput by remember(groceryNameVal) { mutableStateOf(groceryNameVal) }
@@ -1280,9 +1280,9 @@ fun SettingsScreen(
 
                     Text(
                         text = when (activeLang) {
-                            "mg" -> "Alaivo tao amin'ny Firebase Console > Realtime Database ilay adiresy URL, ary avereno ho \"true\" ny .read sy .write ao amin'ny rules ao amin'ny lalana backups. Tsindraika mikarakara Storage satria mila fandoavam-bola izy izao (Blaze), fa maimaimpoana ny Realtime Database."
-                            "fr" -> "Créez un projet Firebase (gratuit), activez Realtime Database, copiez son URL ici et autorisez la lecture/écriture sur le chemin backups dans les règles de sécurité. Contrairement à Cloud Storage (payant depuis 2024), Realtime Database reste gratuit sans compte de facturation."
-                            else -> "Create a free Firebase project, enable Realtime Database, paste its URL here and allow read/write on the backups path in the security rules. Unlike Cloud Storage (now paid), Realtime Database stays free with no billing account required."
+                            "mg" -> "Alaivo tao amin'ny Firebase Console > Realtime Database ilay adiresy URL, ary avereno ho \"true\" ny .read sy .write ao amin'ny rules ao amin'ny lalana backups. Tsindraika mikarakara Storage satria mila fandoavam-bola izy izao (Blaze), fa maimaimpoana ny Realtime Database. Tokony ho ianao irery no mahafantatra ity adiresy URL ity, fa tsy alefa amin'olon-kafa, satria misy tondro tsy fantatr'olona miaro ny tahirinao."
+                            "fr" -> "Créez un projet Firebase (gratuit), activez Realtime Database, copiez son URL ici et autorisez la lecture/écriture sur le chemin backups dans les règles de sécurité. Contrairement à Cloud Storage (payant depuis 2024), Realtime Database reste gratuit sans compte de facturation. Ne partage cette URL avec personne : c'est elle, combinée à un identifiant privé jamais affiché à l'écran, qui protège l'accès à tes données."
+                            else -> "Create a free Firebase project, enable Realtime Database, paste its URL here and allow read/write on the backups path in the security rules. Unlike Cloud Storage (now paid), Realtime Database stays free with no billing account required. Don't share this URL with anyone: combined with a private identifier that is never shown on screen, it's what protects access to your data."
                         },
                         fontSize = 11.sp,
                         color = secondaryTextColor
@@ -1309,7 +1309,7 @@ fun SettingsScreen(
                                         val json = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                                             viewModel.getFullDatabaseJsonSync()
                                         }
-                                        val result = FirebaseBackupManager.uploadBackup(firebaseDatabaseUrlInput.trim(), installationId, json)
+                                        val result = FirebaseBackupManager.uploadBackup(firebaseDatabaseUrlInput.trim(), firebaseBackupToken, json)
                                         isCloudBackupLoading = false
                                         snackbarMessage = if (result.isSuccess) {
                                             when (activeLang) {
@@ -1367,7 +1367,7 @@ fun SettingsScreen(
                                     viewModel.updateFirebaseDatabaseUrl(firebaseDatabaseUrlInput.trim())
                                     isCloudRestoreLoading = true
                                     coroutineScope.launch {
-                                        val result = FirebaseBackupManager.downloadBackup(firebaseDatabaseUrlInput.trim(), installationId)
+                                        val result = FirebaseBackupManager.downloadBackup(firebaseDatabaseUrlInput.trim(), firebaseBackupToken)
                                         isCloudRestoreLoading = false
                                         result.onSuccess { json -> viewModel.syncFullDatabaseSync(json) }
                                         snackbarMessage = if (result.isSuccess) {

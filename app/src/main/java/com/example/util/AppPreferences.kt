@@ -16,6 +16,7 @@ class AppPreferences(context: Context) {
         private const val KEY_SHOP_MODE = "key_shop_mode"
         private const val KEY_THEME_MODE = "key_theme_mode"
         private const val KEY_FIREBASE_DATABASE_URL = "key_firebase_database_url"
+        private const val KEY_FIREBASE_BACKUP_TOKEN = "key_firebase_backup_token"
     }
 
     var firebaseDatabaseUrl: String
@@ -75,6 +76,24 @@ class AppPreferences(context: Context) {
                 prefs.edit().putString(KEY_INSTALLATION_ID, instId).apply()
             }
             return instId
+        }
+
+    /**
+     * High-entropy, never-displayed token used only as the Firebase Realtime Database backup
+     * path. Deliberately NOT the same as [installationId], which is a 6-digit number shown (and
+     * copyable) on the activation screen and therefore guessable/brute-forceable in ~10^6 tries.
+     * With open ".read"/".write" rules (the simplest setup for a non-technical shop owner), the
+     * only thing standing between a random visitor and someone's backup data is this path being
+     * unguessable, so it needs real entropy (a UUID), not a small public-facing number.
+     */
+    val firebaseBackupToken: String
+        get() {
+            var token = prefs.getString(KEY_FIREBASE_BACKUP_TOKEN, "") ?: ""
+            if (token.isEmpty()) {
+                token = java.util.UUID.randomUUID().toString()
+                prefs.edit().putString(KEY_FIREBASE_BACKUP_TOKEN, token).apply()
+            }
+            return token
         }
 
     val isTrialExpired: Boolean

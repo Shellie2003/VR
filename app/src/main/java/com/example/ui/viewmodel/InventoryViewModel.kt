@@ -46,6 +46,7 @@ class InventoryViewModel(
     val language = MutableStateFlow(appPreferences.language)
     val isActivated = MutableStateFlow(appPreferences.isActivated)
     val installationId = appPreferences.installationId
+    val firebaseBackupToken = appPreferences.firebaseBackupToken
 
     val groceryName = MutableStateFlow(appPreferences.groceryName)
     val colorTheme = MutableStateFlow(appPreferences.colorTheme)
