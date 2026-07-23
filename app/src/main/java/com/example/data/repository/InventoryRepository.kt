@@ -22,7 +22,8 @@ class InventoryRepository(
     val restockDao: RestockDao,
     val mouvementCaisseDao: MouvementCaisseDao,
     val caisseSessionDao: CaisseSessionDao,
-    val vendeurDao: VendeurDao
+    val vendeurDao: VendeurDao,
+    val retourDao: RetourDao
 ) {
     val allProducts: Flow<List<Product>> = productDao.getAllProducts().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allSales: Flow<List<Sale>> = saleDao.getAllSales().flowOn(kotlinx.coroutines.Dispatchers.IO)
@@ -34,6 +35,15 @@ class InventoryRepository(
     val allCaisseSessions: Flow<List<CaisseSession>> = caisseSessionDao.getAllSessions().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val openCaisseSession: Flow<CaisseSession?> = caisseSessionDao.getOpenSession().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allVendeurs: Flow<List<Vendeur>> = vendeurDao.getAllVendeurs().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    val allRetours: Flow<List<Retour>> = retourDao.getAllRetours().flowOn(kotlinx.coroutines.Dispatchers.IO)
+
+    suspend fun insertRetour(retour: Retour): Long = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        retourDao.insertRetour(retour)
+    }
+
+    suspend fun deleteRetour(retour: Retour) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        retourDao.deleteRetour(retour)
+    }
 
     suspend fun insertRestock(restock: Restock) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         restockDao.insertRestock(restock)
@@ -368,6 +378,79 @@ class InventoryRepository(
 
     suspend fun deleteSale(sale: Sale) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         saleDao.deleteSale(sale)
+    }
+
+    // C.1: partial or full return of a past sale — restores stock for the returned items and, for
+    // cash sales, records an automatic cash-out (MouvementCaisse) since the refund leaves the till.
+    suspend fun processReturn(
+        sale: Sale,
+        returnedItems: List<SoldItem>,
+        motif: String,
+        modePaiementOrigine: String
+    ): Retour = database.withTransaction {
+        for (item in returnedItems) {
+            val originalId = item.productId.toLong()
+            var existingProduit = produitDao.getProduitById(originalId)
+
+            if (existingProduit == null) {
+                val matchingLegacyProduct = productDao.getProductById(item.productId)
+                if (matchingLegacyProduct != null && matchingLegacyProduct.barcode.isNotEmpty()) {
+                    existingProduit = produitDao.getProduitByBarcode(matchingLegacyProduct.barcode)
+                }
+            }
+            if (existingProduit == null) {
+                existingProduit = produitDao.getProduitByName(item.name)
+            }
+
+            if (existingProduit != null) {
+                val mvt = MouvementStock(
+                    produitId = existingProduit.id,
+                    type = "RETOUR",
+                    quantite = item.quantity,
+                    quantiteAvant = existingProduit.quantiteStock,
+                    quantiteApres = existingProduit.quantiteStock + item.quantity,
+                    referenceId = sale.id.toLong(),
+                    note = "Retour vente #${sale.id}"
+                )
+                mouvementStockDao.insertMouvement(mvt)
+
+                val updatedProduit = existingProduit.copy(
+                    quantiteStock = existingProduit.quantiteStock + item.quantity,
+                    dateDerniereMaj = System.currentTimeMillis()
+                )
+                produitDao.updateProduit(updatedProduit)
+            }
+
+            val matchingProduct = productDao.getProductById(item.productId)
+            if (matchingProduct != null) {
+                val updatedProduct = matchingProduct.copy(stock = matchingProduct.stock + item.quantity)
+                productDao.updateProduct(updatedProduct)
+            }
+        }
+
+        val totalReturned = returnedItems.sumOf { it.price * it.quantity }
+
+        val retour = Retour(
+            saleId = sale.id,
+            items = returnedItems,
+            totalAmount = totalReturned,
+            motif = motif,
+            modePaiementOrigine = modePaiementOrigine
+        )
+        val retourId = retourDao.insertRetour(retour)
+
+        if (modePaiementOrigine == "ESPECES" && totalReturned > 0.0) {
+            mouvementCaisseDao.insertMouvement(
+                MouvementCaisse(
+                    type = "SORTIE",
+                    montant = totalReturned,
+                    motif = "Remboursement vente #${sale.id}",
+                    note = motif
+                )
+            )
+        }
+
+        retour.copy(id = retourId.toInt())
     }
 
     suspend fun insertDebt(debt: Debt) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {

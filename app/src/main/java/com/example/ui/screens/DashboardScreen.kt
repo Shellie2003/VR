@@ -42,6 +42,7 @@ fun DashboardScreen(
     val themeColor by viewModel.themeColor.collectAsState()
     val allSales by viewModel.allSales.collectAsState()
     val allProducts by viewModel.allProducts.collectAsState()
+    val allRetours by viewModel.allRetours.collectAsState()
 
     // Tablet/large-screen layout: cap the report column's width and center it.
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
@@ -83,15 +84,31 @@ fun DashboardScreen(
         allSales.filter { it.timestamp >= rangeStart }
     }
 
-    val totalRevenue = remember(filteredSales) { filteredSales.sumOf { it.totalAmount } }
-    val totalCost = remember(filteredSales, allProducts) {
+    // C.1: net out returns/refunds from revenue and cost — a returned item never really generated
+    // revenue or consumed cost of goods sold, since the stock and the money both came back.
+    val filteredRetours = remember(allRetours, rangeStart) {
+        allRetours.filter { it.timestamp >= rangeStart }
+    }
+    val totalReturns = remember(filteredRetours) { filteredRetours.sumOf { it.totalAmount } }
+    val totalReturnsCost = remember(filteredRetours, allProducts) {
+        filteredRetours.sumOf { retour ->
+            retour.items.sumOf { item ->
+                val prod = allProducts.find { it.id == item.productId }
+                val unitCost = prod?.prixAchatUniteBase ?: prod?.wholesalePrice ?: 0.0
+                unitCost * item.quantity
+            }
+        }
+    }
+
+    val totalRevenue = remember(filteredSales, totalReturns) { filteredSales.sumOf { it.totalAmount } - totalReturns }
+    val totalCost = remember(filteredSales, allProducts, totalReturnsCost) {
         filteredSales.sumOf { sale ->
             sale.items.sumOf { item ->
                 val prod = allProducts.find { it.id == item.productId }
                 val unitCost = prod?.prixAchatUniteBase ?: prod?.wholesalePrice ?: 0.0
                 unitCost * item.quantity
             }
-        }
+        } - totalReturnsCost
     }
     val totalProfit = totalRevenue - totalCost
     val marginPct = if (totalCost > 0.0) (totalProfit / totalCost) * 100.0 else 0.0
@@ -268,6 +285,20 @@ fun DashboardScreen(
                     },
                     value = "${FormatUtil.formatPrice(totalTax)} Ar",
                     color = Color(0xFF6A1B9A)
+                )
+            }
+
+            if (totalReturns > 0.0) {
+                Spacer(modifier = Modifier.height(10.dp))
+                SummaryStatCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    label = when (activeLang) {
+                        "mg" -> "Vidin'ny fanavereana (${filteredRetours.size})"
+                        "fr" -> "Retours/remboursements (${filteredRetours.size})"
+                        else -> "Returns/refunds (${filteredRetours.size})"
+                    },
+                    value = "-${FormatUtil.formatPrice(totalReturns)} Ar",
+                    color = Color(0xFFC62828)
                 )
             }
 

@@ -11,8 +11,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
@@ -49,6 +53,8 @@ fun SalesHistoryScreen(
     val sales by viewModel.allSales.collectAsState()
     val restocks by viewModel.allRestocks.collectAsState()
     val allProducts by viewModel.allProducts.collectAsState()
+    val allRetours by viewModel.allRetours.collectAsState()
+    val allVentes by viewModel.allVentes.collectAsState()
     val activeLang by viewModel.language.collectAsState()
     val themeColor by viewModel.themeColor.collectAsState()
     val isDark = MaterialTheme.colorScheme.background == Color(0xFF002114)
@@ -66,6 +72,7 @@ fun SalesHistoryScreen(
     // Dialog Confirmation States
     var saleToDelete by remember { mutableStateOf<Sale?>(null) }
     var restockToDelete by remember { mutableStateOf<Restock?>(null) }
+    var saleToReturn by remember { mutableStateOf<Sale?>(null) }
 
     // Multi-selection state (checkbox mode for bulk delete), independent per tab
     var isSelectionMode by remember { mutableStateOf(false) }
@@ -688,12 +695,16 @@ fun SalesHistoryScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(displayedSales, key = { it.id }) { sale ->
+                        val returnedAmount = remember(allRetours, sale.id) {
+                            allRetours.filter { it.saleId == sale.id }.sumOf { it.totalAmount }
+                        }
                         SaleListItem(
                             sale = sale,
                             allProducts = allProducts,
                             themeColor = themeColor,
                             isSelectionMode = isSelectionMode,
                             isSelected = selectedSaleIds.contains(sale.id),
+                            returnedAmount = returnedAmount,
                             onToggleSelect = {
                                 selectedSaleIds = if (selectedSaleIds.contains(sale.id)) {
                                     selectedSaleIds - sale.id
@@ -701,7 +712,8 @@ fun SalesHistoryScreen(
                                     selectedSaleIds + sale.id
                                 }
                             },
-                            onDelete = { saleToDelete = sale }
+                            onDelete = { saleToDelete = sale },
+                            onReturn = { saleToReturn = sale }
                         )
                     }
                 }
@@ -783,6 +795,124 @@ fun SalesHistoryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { saleToDelete = null }) {
+                    Text(t("cancel_btn"))
+                }
+            }
+        )
+    }
+
+    // C.1: RETURN / REFUND DIALOG — lets the gérant pick which items (and quantities) of a past
+    // sale to return, restoring stock and (for cash sales) recording an automatic cash-out.
+    saleToReturn?.let { sale ->
+        val alreadyReturnedItems = remember(allRetours, sale.id) {
+            allRetours.filter { it.saleId == sale.id }.flatMap { it.items }
+        }
+        val originalMode = remember(sale, allVentes) {
+            allVentes.find {
+                it.dateVente == sale.timestamp && kotlin.math.abs(it.montantTotal - sale.totalAmount) < 0.01
+            }?.modePaiement ?: "ESPECES"
+        }
+        var motif by remember(sale.id) { mutableStateOf("") }
+        val returnQtyMap = remember(sale.id) {
+            val map = androidx.compose.runtime.mutableStateMapOf<Int, String>()
+            sale.items.forEachIndexed { idx, item ->
+                val alreadyReturned = alreadyReturnedItems.filter { it.productId == item.productId }.sumOf { it.quantity }
+                val remaining = (item.quantity - alreadyReturned).coerceAtLeast(0.0)
+                map[idx] = if (remaining % 1.0 == 0.0) remaining.toInt().toString() else remaining.toString()
+            }
+            map
+        }
+
+        AlertDialog(
+            onDismissRequest = { saleToReturn = null },
+            title = {
+                Text(
+                    text = when (activeLang) {
+                        "mg" -> "Fanavereana / Famerenam-bola"
+                        "fr" -> "Retour / Remboursement"
+                        else -> "Return / Refund"
+                    },
+                    fontWeight = FontWeight.Black
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    sale.items.forEachIndexed { idx, item ->
+                        val alreadyReturned = alreadyReturnedItems.filter { it.productId == item.productId }.sumOf { it.quantity }
+                        val maxReturnable = (item.quantity - alreadyReturned).coerceAtLeast(0.0)
+                        if (maxReturnable > 0.0) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(item.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        text = "${when (activeLang) { "mg" -> "Farany"; "fr" -> "Max"; else -> "Max" }}: ${FormatUtil.formatQty(maxReturnable, "")}",
+                                        fontSize = 10.sp,
+                                        color = Color(0xFF64748B)
+                                    )
+                                }
+                                OutlinedTextField(
+                                    value = returnQtyMap[idx] ?: "0",
+                                    onValueChange = { v ->
+                                        val d = v.toDoubleOrNull()
+                                        if (v.isEmpty() || (d != null && d >= 0.0)) {
+                                            returnQtyMap[idx] = v
+                                        }
+                                    },
+                                    modifier = Modifier.width(90.dp).testTag("return_qty_input_$idx"),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = motif,
+                        onValueChange = { motif = it },
+                        label = {
+                            Text(
+                                when (activeLang) {
+                                    "mg" -> "Antony (safidy)"
+                                    "fr" -> "Motif (optionnel)"
+                                    else -> "Reason (optional)"
+                                }
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth().testTag("return_motif_input")
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val returnedItems = sale.items.mapIndexedNotNull { idx, item ->
+                            val alreadyReturned = alreadyReturnedItems.filter { it.productId == item.productId }.sumOf { it.quantity }
+                            val maxReturnable = (item.quantity - alreadyReturned).coerceAtLeast(0.0)
+                            val requested = (returnQtyMap[idx]?.toDoubleOrNull() ?: 0.0).coerceIn(0.0, maxReturnable)
+                            if (requested > 0.0) item.copy(quantity = requested) else null
+                        }
+                        if (returnedItems.isNotEmpty()) {
+                            viewModel.processReturn(sale, returnedItems, motif.trim(), originalMode)
+                            saleToReturn = null
+                        }
+                    },
+                    modifier = Modifier.testTag("return_confirm_button")
+                ) {
+                    Text(
+                        text = when (activeLang) { "mg" -> "Hamarina"; "fr" -> "Confirmer"; else -> "Confirm" },
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { saleToReturn = null }) {
                     Text(t("cancel_btn"))
                 }
             }
@@ -893,8 +1023,10 @@ fun SaleListItem(
     themeColor: Color,
     isSelectionMode: Boolean = false,
     isSelected: Boolean = false,
+    returnedAmount: Double = 0.0,
     onToggleSelect: () -> Unit = {},
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onReturn: () -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
     val firstItem = sale.items.firstOrNull()
@@ -1041,6 +1173,22 @@ fun SaleListItem(
                             color = themeColor
                         )
                     }
+
+                    if (returnedAmount > 0.0) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFC62828).copy(alpha = 0.12f))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = if (returnedAmount >= sale.totalAmount) "Retourné" else "Retour partiel",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFFC62828)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -1069,16 +1217,31 @@ fun SaleListItem(
                             color = Color(0xFF64748B)
                         )
 
-                        IconButton(
-                            onClick = onDelete,
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.DeleteOutline,
-                                contentDescription = "Fafana",
-                                tint = Color(0xFFEF4444),
-                                modifier = Modifier.size(18.dp)
-                            )
+                        Row {
+                            if (returnedAmount < sale.totalAmount) {
+                                IconButton(
+                                    onClick = onReturn,
+                                    modifier = Modifier.size(24.dp).testTag("sale_return_button_${sale.id}")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Undo,
+                                        contentDescription = "Retour / Remboursement",
+                                        tint = themeColor,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            IconButton(
+                                onClick = onDelete,
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteOutline,
+                                    contentDescription = "Fafana",
+                                    tint = Color(0xFFEF4444),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
 

@@ -13,6 +13,7 @@ import com.example.data.model.MouvementCaisse
 import com.example.data.model.Vente
 import com.example.data.model.CaisseSession
 import com.example.data.model.Vendeur
+import com.example.data.model.Retour
 import com.example.data.repository.InventoryRepository
 import com.example.util.AppPreferences
 import com.example.util.NotificationHelper
@@ -170,6 +171,25 @@ class InventoryViewModel(
     // app behaves exactly as before with no login and no restriction anywhere.
     val allVendeurs: StateFlow<List<Vendeur>> = repository.allVendeurs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // C.1: partial/full returns of past sales
+    val allRetours: StateFlow<List<Retour>> = repository.allRetours
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun processReturn(sale: Sale, returnedItems: List<SoldItem>, motif: String, modePaiementOrigine: String = "ESPECES") {
+        viewModelScope.launch(coroutineExceptionHandler) {
+            repository.processReturn(sale, returnedItems, motif, modePaiementOrigine)
+            com.example.sync.SyncManager.triggerDatabaseSync()
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    fun deleteRetour(retour: Retour) {
+        viewModelScope.launch(coroutineExceptionHandler) {
+            repository.deleteRetour(retour)
+            triggerLocalSafetyBackup()
+        }
+    }
 
     private val _activeVendeurId = MutableStateFlow<Long?>(
         appPreferences.activeVendeurId.takeIf { it > 0L }
@@ -1338,6 +1358,7 @@ class InventoryViewModel(
                 val mouvementsCaisse = repository.allMouvementsCaisse.first()
                 val caisseSessions = repository.allCaisseSessions.first()
                 val vendeurs = repository.allVendeurs.first()
+                val retours = repository.allRetours.first()
                 val excluded = excludedProductIds.value
 
                 val productsArr = org.json.JSONArray()
@@ -1386,6 +1407,8 @@ class InventoryViewModel(
                         itemObj.put("name", item.name)
                         itemObj.put("quantity", item.quantity)
                         itemObj.put("price", item.price)
+                        itemObj.put("taxable", item.taxable)
+                        itemObj.put("tauxTaxe", item.tauxTaxe)
                         itemsArr.put(itemObj)
                     }
                     saleObj.put("items", itemsArr)
@@ -1457,6 +1480,29 @@ class InventoryViewModel(
                     vendeursArr.put(vObj)
                 }
 
+                val retoursArr = org.json.JSONArray()
+                retours.forEach { retour ->
+                    val rObj = org.json.JSONObject()
+                    rObj.put("saleId", retour.saleId)
+                    rObj.put("timestamp", retour.timestamp)
+                    rObj.put("totalAmount", retour.totalAmount)
+                    rObj.put("motif", retour.motif)
+                    rObj.put("modePaiementOrigine", retour.modePaiementOrigine)
+                    val rItemsArr = org.json.JSONArray()
+                    retour.items.forEach { item ->
+                        val itemObj = org.json.JSONObject()
+                        itemObj.put("productId", item.productId)
+                        itemObj.put("name", item.name)
+                        itemObj.put("quantity", item.quantity)
+                        itemObj.put("price", item.price)
+                        itemObj.put("taxable", item.taxable)
+                        itemObj.put("tauxTaxe", item.tauxTaxe)
+                        rItemsArr.put(itemObj)
+                    }
+                    rObj.put("items", rItemsArr)
+                    retoursArr.put(rObj)
+                }
+
                 com.example.sync.SyncSerializer.serializeFullSync(
                     productsArr.toString(),
                     salesArr.toString(),
@@ -1464,7 +1510,8 @@ class InventoryViewModel(
                     restocksArr.toString(),
                     mouvementsCaisseArr.toString(),
                     caisseSessionsArr.toString(),
-                    vendeursArr.toString()
+                    vendeursArr.toString(),
+                    retoursArr.toString()
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -1484,6 +1531,7 @@ class InventoryViewModel(
                 val mouvementsCaisseStr = resultsMap["mouvementsCaisse"] ?: "[]"
                 val caisseSessionsStr = resultsMap["caisseSessions"] ?: "[]"
                 val vendeursStr = resultsMap["vendeurs"] ?: "[]"
+                val retoursStr = resultsMap["retours"] ?: "[]"
 
                 // Read the CURRENT database state directly from the repository rather than the
                 // allX StateFlows: those use SharingStarted.WhileSubscribed(5000) and only start
@@ -1500,6 +1548,7 @@ class InventoryViewModel(
                 val currentMouvementsCaisse = repository.allMouvementsCaisse.first()
                 val currentCaisseSessions = repository.allCaisseSessions.first()
                 val currentVendeurs = repository.allVendeurs.first()
+                val currentRetours = repository.allRetours.first()
 
                 // 1. Parse & Merge Products
                 val productsList = mutableListOf<Product>()
@@ -1594,7 +1643,9 @@ class InventoryViewModel(
                                 productId = itemObj.getInt("productId"),
                                 name = itemObj.getString("name"),
                                 quantity = itemObj.getDouble("quantity"),
-                                price = itemObj.getDouble("price")
+                                price = itemObj.getDouble("price"),
+                                taxable = itemObj.optBoolean("taxable", false),
+                                tauxTaxe = itemObj.optDouble("tauxTaxe", 0.0)
                             )
                         )
                     }
@@ -1823,6 +1874,55 @@ class InventoryViewModel(
                 }
                 if (newVendeursCount > 0 || updatedVendeursCount > 0) {
                     addSyncLog("Mise à jour comptes vendeurs: $newVendeursCount nouveaux, $updatedVendeursCount modifiés")
+                }
+
+                // 8. Parse & Merge Retours (C.1) — insert-only history. The stock restoration and
+                // any cash-out MouvementCaisse a return caused are already covered by the products
+                // and mouvementsCaisse merges above (both run in every full sync), so replaying
+                // those side effects here would double-apply them.
+                val retoursList = mutableListOf<Retour>()
+                val retoursArr = org.json.JSONArray(retoursStr)
+                for (i in 0 until retoursArr.length()) {
+                    val obj = retoursArr.getJSONObject(i)
+                    val rItemsArr = obj.getJSONArray("items")
+                    val rItems = mutableListOf<SoldItem>()
+                    for (j in 0 until rItemsArr.length()) {
+                        val itemObj = rItemsArr.getJSONObject(j)
+                        rItems.add(
+                            SoldItem(
+                                productId = itemObj.getInt("productId"),
+                                name = itemObj.getString("name"),
+                                quantity = itemObj.getDouble("quantity"),
+                                price = itemObj.getDouble("price"),
+                                taxable = itemObj.optBoolean("taxable", false),
+                                tauxTaxe = itemObj.optDouble("tauxTaxe", 0.0)
+                            )
+                        )
+                    }
+                    retoursList.add(
+                        Retour(
+                            saleId = obj.getInt("saleId"),
+                            timestamp = obj.getLong("timestamp"),
+                            items = rItems,
+                            totalAmount = obj.getDouble("totalAmount"),
+                            motif = obj.optString("motif", ""),
+                            modePaiementOrigine = obj.optString("modePaiementOrigine", "ESPECES")
+                        )
+                    )
+                }
+
+                var newRetoursCount = 0
+                retoursList.forEach { incomingRetour ->
+                    val exists = currentRetours.any {
+                        it.saleId == incomingRetour.saleId && Math.abs(it.timestamp - incomingRetour.timestamp) < 2000
+                    }
+                    if (!exists) {
+                        repository.insertRetour(incomingRetour.copy(id = 0))
+                        newRetoursCount++
+                    }
+                }
+                if (newRetoursCount > 0) {
+                    addSyncLog("Mise à jour retours: $newRetoursCount enregistrés")
                 }
 
                 addSyncLog("Nahomby ny fampitoviana ny tahiry rehetra!")
