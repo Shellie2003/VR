@@ -63,7 +63,8 @@ enum class ScreenTab {
     BarcodeList, // Barcode management and sheet printing
     Synchronisation, // Multi-terminal synchronization screen
     CaisseMouvements, // Cash drawer manual in/out movements journal
-    Dashboard // Reports & dashboard: revenue chart, top products
+    Dashboard, // Reports & dashboard: revenue chart, top products
+    Peremption // C.4: expiry lots management and alerts
 }
 
 class MainActivity : ComponentActivity() {
@@ -446,7 +447,7 @@ fun MainAppLayout(
             )
 
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements && currentTab != ScreenTab.Dashboard) {
+                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements && currentTab != ScreenTab.Dashboard && currentTab != ScreenTab.Peremption) {
                     TopAppBarSection(
                         viewModel = viewModel,
                         onNavigateToSettings = navigateToSettings,
@@ -504,7 +505,8 @@ fun MainAppLayout(
                             onNavigateToHome = navigateToHome,
                             onNavigateToSync = { currentTab = ScreenTab.Synchronisation },
                             onNavigateToCaisseMouvements = { currentTab = ScreenTab.CaisseMouvements },
-                            onNavigateToDashboard = { currentTab = ScreenTab.Dashboard }
+                            onNavigateToDashboard = { currentTab = ScreenTab.Dashboard },
+                            onNavigateToPeremption = { currentTab = ScreenTab.Peremption }
                         )
                         ScreenTab.Commission -> CommissionScreen(
                             viewModel = viewModel,
@@ -526,6 +528,10 @@ fun MainAppLayout(
                             viewModel = viewModel,
                             onNavigateBack = { currentTab = ScreenTab.Parametres }
                         )
+                        ScreenTab.Peremption -> PeremptionScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = { currentTab = ScreenTab.Parametres }
+                        )
                     }
                 }
             }
@@ -534,7 +540,7 @@ fun MainAppLayout(
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {
-                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements && currentTab != ScreenTab.Dashboard) {
+                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements && currentTab != ScreenTab.Dashboard && currentTab != ScreenTab.Peremption) {
                     TopAppBarSection(
                         viewModel = viewModel,
                         onNavigateToSettings = navigateToSettings,
@@ -616,7 +622,8 @@ fun MainAppLayout(
                         onNavigateToHome = navigateToHome,
                         onNavigateToSync = { currentTab = ScreenTab.Synchronisation },
                         onNavigateToCaisseMouvements = { currentTab = ScreenTab.CaisseMouvements },
-                        onNavigateToDashboard = { currentTab = ScreenTab.Dashboard }
+                        onNavigateToDashboard = { currentTab = ScreenTab.Dashboard },
+                        onNavigateToPeremption = { currentTab = ScreenTab.Peremption }
                     )
                     ScreenTab.Commission -> CommissionScreen(
                         viewModel = viewModel,
@@ -635,6 +642,10 @@ fun MainAppLayout(
                         onNavigateBack = { currentTab = ScreenTab.Parametres }
                     )
                     ScreenTab.Dashboard -> DashboardScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { currentTab = ScreenTab.Parametres }
+                    )
+                    ScreenTab.Peremption -> PeremptionScreen(
                         viewModel = viewModel,
                         onNavigateBack = { currentTab = ScreenTab.Parametres }
                     )

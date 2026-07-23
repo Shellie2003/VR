@@ -93,6 +93,11 @@ interface LotProduitDao {
     @Query("SELECT * FROM lots_produit WHERE produitId = :produitId ORDER BY datePeremption ASC")
     fun getLotsForProduit(produitId: Long): Flow<List<LotProduit>>
 
+    // C.4: alerts screen needs every lot across every produit, sorted so the most urgent (closest
+    // expiry) shows first.
+    @Query("SELECT * FROM lots_produit ORDER BY datePeremption ASC")
+    fun getAllLots(): Flow<List<LotProduit>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertLot(lot: LotProduit): Long
 

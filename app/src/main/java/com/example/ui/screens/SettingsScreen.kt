@@ -46,7 +46,8 @@ fun SettingsScreen(
     onNavigateToHome: () -> Unit,
     onNavigateToSync: () -> Unit,
     onNavigateToCaisseMouvements: () -> Unit,
-    onNavigateToDashboard: () -> Unit
+    onNavigateToDashboard: () -> Unit,
+    onNavigateToPeremption: () -> Unit
 ) {
     val context = LocalContext.current
     // Tablet/large-screen layout: cap the settings column's width and center it instead of
@@ -1078,6 +1079,76 @@ fun SettingsScreen(
                                     "mg" -> "Vola miditra, tombom-barotra ary entana be mpividy"
                                     "fr" -> "Chiffre d'affaires, marges et produits les plus vendus"
                                     else -> "Revenue, margins and top selling products"
+                                },
+                                fontSize = 11.sp,
+                                color = secondaryTextColor
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = themeColor,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            // C.4: CARD REDIRECT TO EXPIRY ALERTS
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .clickable { onNavigateToPeremption() }
+                    .testTag("settings_peremption_button"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = themeColor.copy(alpha = 0.08f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, themeColor.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(themeColor),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CalendarToday,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Fetr'andro Peremptiona"
+                                    "fr" -> "Alertes de péremption"
+                                    else -> "Expiry alerts"
+                                },
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Fitantanana ny lots sy ny fetr'androny"
+                                    "fr" -> "Gérer les lots et leurs dates de péremption"
+                                    else -> "Manage batches and their expiry dates"
                                 },
                                 fontSize = 11.sp,
                                 color = secondaryTextColor

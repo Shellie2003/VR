@@ -19,7 +19,14 @@ class AppPreferences(context: Context) {
         private const val KEY_FIREBASE_BACKUP_TOKEN = "key_firebase_backup_token"
         private const val KEY_LAST_OVERDUE_DEBT_CHECK = "key_last_overdue_debt_check"
         private const val KEY_ACTIVE_VENDEUR_ID = "key_active_vendeur_id"
+        private const val KEY_LAST_EXPIRY_CHECK = "key_last_expiry_check"
     }
+
+    // C.4: yyyy-MM-dd of the last time an expiry-alert notification was shown, so we notify at
+    // most once per day instead of on every app launch.
+    var lastExpiryCheckDate: String
+        get() = prefs.getString(KEY_LAST_EXPIRY_CHECK, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_LAST_EXPIRY_CHECK, value).apply()
 
     // B.3/E.2: id of the currently "logged in" Vendeur/Gérant, remembered across app restarts so
     // the cashier doesn't have to re-enter their PIN every launch. -1 means "none active" (either

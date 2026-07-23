@@ -79,7 +79,8 @@ object SyncSerializer {
         mouvementsCaisseJson: String = "[]",
         caisseSessionsJson: String = "[]",
         vendeursJson: String = "[]",
-        retoursJson: String = "[]"
+        retoursJson: String = "[]",
+        lotsJson: String = "[]"
     ): String {
         val root = JSONObject()
         root.put("products", JSONArray(productsJson))
@@ -90,6 +91,7 @@ object SyncSerializer {
         root.put("caisseSessions", JSONArray(caisseSessionsJson))
         root.put("vendeurs", JSONArray(vendeursJson))
         root.put("retours", JSONArray(retoursJson))
+        root.put("lots", JSONArray(lotsJson))
         return root.toString()
     }
 
@@ -104,6 +106,7 @@ object SyncSerializer {
         result["caisseSessions"] = root.optJSONArray("caisseSessions")?.toString() ?: "[]"
         result["vendeurs"] = root.optJSONArray("vendeurs")?.toString() ?: "[]"
         result["retours"] = root.optJSONArray("retours")?.toString() ?: "[]"
+        result["lots"] = root.optJSONArray("lots")?.toString() ?: "[]"
         return result
     }
 }

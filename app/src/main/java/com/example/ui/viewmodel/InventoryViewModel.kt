@@ -14,12 +14,16 @@ import com.example.data.model.Vente
 import com.example.data.model.CaisseSession
 import com.example.data.model.Vendeur
 import com.example.data.model.Retour
+import com.example.data.model.LotProduit
 import com.example.data.repository.InventoryRepository
 import com.example.util.AppPreferences
 import com.example.util.NotificationHelper
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
+
+// C.4: a lot within this many days of its expiry date counts as "expiring soon".
+private const val EXPIRY_WARNING_WINDOW_MS = 7L * 24 * 60 * 60 * 1000
 
 data class CartItem(
     val id: String, // "product_<id>" or "misc_<uuid>"
@@ -187,6 +191,26 @@ class InventoryViewModel(
     fun deleteRetour(retour: Retour) {
         viewModelScope.launch(coroutineExceptionHandler) {
             repository.deleteRetour(retour)
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    // C.4: expiry lots (only meaningful for produits with gerePeremption = true)
+    val allLots: StateFlow<List<LotProduit>> = repository.allLots
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun saveLot(lot: LotProduit) {
+        viewModelScope.launch(coroutineExceptionHandler) {
+            if (lot.id == 0L) repository.insertLot(lot) else repository.updateLot(lot)
+            com.example.sync.SyncManager.triggerDatabaseSync()
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    fun deleteLot(lot: LotProduit) {
+        viewModelScope.launch(coroutineExceptionHandler) {
+            repository.deleteLot(lot)
+            com.example.sync.SyncManager.triggerDatabaseSync()
             triggerLocalSafetyBackup()
         }
     }
@@ -543,6 +567,9 @@ class InventoryViewModel(
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
             checkOverdueDebtsNotification()
         }
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
+            checkExpiryAlertsNotification()
+        }
         // Auto Firebase Cloud Backup: push immediately whenever the device regains internet
         // access, so data created while offline is not stuck waiting for the next mutation.
         networkCallback = com.example.util.NetworkMonitor.observeOnline(context) {
@@ -564,6 +591,26 @@ class InventoryViewModel(
             }
         }
         appPreferences.lastOverdueDebtCheckDate = todayStr
+    }
+
+    // C.4: notify about expired or soon-to-expire lots at most once per calendar day.
+    private suspend fun checkExpiryAlertsNotification() {
+        val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+        if (appPreferences.lastExpiryCheckDate == todayStr) return
+
+        val now = System.currentTimeMillis()
+        val warningThreshold = now + EXPIRY_WARNING_WINDOW_MS
+        val lots = repository.allLots.first()
+        val expiredCount = lots.count { it.datePeremption < now }
+        val expiringSoonCount = lots.count { it.datePeremption in now..warningThreshold }
+        if (expiredCount > 0 || expiringSoonCount > 0) {
+            try {
+                NotificationHelper.showExpiryAlertNotification(context, expiredCount, expiringSoonCount)
+            } catch (nt: Throwable) {
+                nt.printStackTrace()
+            }
+        }
+        appPreferences.lastExpiryCheckDate = todayStr
     }
 
     fun changeLanguage(lang: String) {
@@ -1359,6 +1406,7 @@ class InventoryViewModel(
                 val caisseSessions = repository.allCaisseSessions.first()
                 val vendeurs = repository.allVendeurs.first()
                 val retours = repository.allRetours.first()
+                val lots = repository.allLots.first()
                 val excluded = excludedProductIds.value
 
                 val productsArr = org.json.JSONArray()
@@ -1503,6 +1551,25 @@ class InventoryViewModel(
                     retoursArr.put(rObj)
                 }
 
+                // C.4: lots reference produitId (Long, relational table), which can be reassigned
+                // on the receiving device when a product is merged as "new" — so identify the
+                // product by barcode/name instead of the raw id, exactly like product matching
+                // itself does, and resolve it back to a local id on restore.
+                val lotsArr = org.json.JSONArray()
+                lots.forEach { lot ->
+                    val prod = products.find { it.id.toLong() == lot.produitId }
+                    if (prod != null) {
+                        val lObj = org.json.JSONObject()
+                        lObj.put("productBarcode", prod.barcode)
+                        lObj.put("productName", prod.name)
+                        lObj.put("numeroLot", lot.numeroLot ?: "")
+                        lObj.put("quantite", lot.quantite)
+                        lObj.put("datePeremption", lot.datePeremption)
+                        lObj.put("dateReception", lot.dateReception)
+                        lotsArr.put(lObj)
+                    }
+                }
+
                 com.example.sync.SyncSerializer.serializeFullSync(
                     productsArr.toString(),
                     salesArr.toString(),
@@ -1511,7 +1578,8 @@ class InventoryViewModel(
                     mouvementsCaisseArr.toString(),
                     caisseSessionsArr.toString(),
                     vendeursArr.toString(),
-                    retoursArr.toString()
+                    retoursArr.toString(),
+                    lotsArr.toString()
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -1532,6 +1600,7 @@ class InventoryViewModel(
                 val caisseSessionsStr = resultsMap["caisseSessions"] ?: "[]"
                 val vendeursStr = resultsMap["vendeurs"] ?: "[]"
                 val retoursStr = resultsMap["retours"] ?: "[]"
+                val lotsStr = resultsMap["lots"] ?: "[]"
 
                 // Read the CURRENT database state directly from the repository rather than the
                 // allX StateFlows: those use SharingStarted.WhileSubscribed(5000) and only start
@@ -1549,6 +1618,7 @@ class InventoryViewModel(
                 val currentCaisseSessions = repository.allCaisseSessions.first()
                 val currentVendeurs = repository.allVendeurs.first()
                 val currentRetours = repository.allRetours.first()
+                val currentLots = repository.allLots.first()
 
                 // 1. Parse & Merge Products
                 val productsList = mutableListOf<Product>()
@@ -1923,6 +1993,45 @@ class InventoryViewModel(
                 }
                 if (newRetoursCount > 0) {
                     addSyncLog("Mise à jour retours: $newRetoursCount enregistrés")
+                }
+
+                // 9. Parse & Merge Lots de péremption (C.4) — resolved by barcode/name since the
+                // produitId on the sending device may not match this device's local id for the
+                // same product (see comment in getFullDatabaseJsonSync).
+                val lotsJsonArr = org.json.JSONArray(lotsStr)
+                var newLotsCount = 0
+                for (i in 0 until lotsJsonArr.length()) {
+                    val obj = lotsJsonArr.getJSONObject(i)
+                    val barcode = obj.optString("productBarcode", "")
+                    val name = obj.optString("productName", "")
+                    val matchedProduct = (if (barcode.isNotEmpty()) repository.getProductByBarcode(barcode) else null)
+                        ?: (if (name.isNotEmpty()) repository.getProductByName(name) else null)
+
+                    if (matchedProduct != null) {
+                        val incomingProduitId = matchedProduct.id.toLong()
+                        val incomingDatePeremption = obj.getLong("datePeremption")
+                        val incomingNumeroLot = obj.optString("numeroLot", "").ifBlank { null }
+                        val exists = currentLots.any {
+                            it.produitId == incomingProduitId &&
+                            it.datePeremption == incomingDatePeremption &&
+                            it.numeroLot == incomingNumeroLot
+                        }
+                        if (!exists) {
+                            repository.insertLot(
+                                LotProduit(
+                                    produitId = incomingProduitId,
+                                    numeroLot = incomingNumeroLot,
+                                    quantite = obj.getDouble("quantite"),
+                                    datePeremption = incomingDatePeremption,
+                                    dateReception = obj.optLong("dateReception", System.currentTimeMillis())
+                                )
+                            )
+                            newLotsCount++
+                        }
+                    }
+                }
+                if (newLotsCount > 0) {
+                    addSyncLog("Mise à jour lots de péremption: $newLotsCount enregistrés")
                 }
 
                 addSyncLog("Nahomby ny fampitoviana ny tahiry rehetra!")

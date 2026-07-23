@@ -36,6 +36,20 @@ class InventoryRepository(
     val openCaisseSession: Flow<CaisseSession?> = caisseSessionDao.getOpenSession().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allVendeurs: Flow<List<Vendeur>> = vendeurDao.getAllVendeurs().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allRetours: Flow<List<Retour>> = retourDao.getAllRetours().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    // C.4: every expiry lot across every produit (for the alerts screen and notifications)
+    val allLots: Flow<List<LotProduit>> = lotProduitDao.getAllLots().flowOn(kotlinx.coroutines.Dispatchers.IO)
+
+    suspend fun insertLot(lot: LotProduit): Long = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        lotProduitDao.insertLot(lot)
+    }
+
+    suspend fun updateLot(lot: LotProduit) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        lotProduitDao.updateLot(lot)
+    }
+
+    suspend fun deleteLot(lot: LotProduit) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        lotProduitDao.deleteLot(lot)
+    }
 
     suspend fun insertRetour(retour: Retour): Long = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         retourDao.insertRetour(retour)
