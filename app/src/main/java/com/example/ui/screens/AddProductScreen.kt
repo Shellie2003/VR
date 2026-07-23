@@ -1834,7 +1834,7 @@ fun AddProductScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier.fillMaxSize()
                             ) {
-                                items(templatesList) { item ->
+                                items(templatesList, key = { it.id }) { item ->
                                     Card(
                                         onClick = {
                                             // Pre-fill the form with template details!

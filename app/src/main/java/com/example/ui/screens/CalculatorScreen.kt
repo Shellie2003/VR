@@ -2381,7 +2381,7 @@ fun CalculatorScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            items(productsWithBarcodes) { product ->
+                            items(productsWithBarcodes, key = { it.id }) { product ->
                                 Card(
                                     onClick = {
                                         viewModel.addToCart(product, 1.0)
@@ -2550,7 +2550,7 @@ fun CalculatorScreen(
                             .heightIn(max = 300.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(miscCartItems) { item ->
+                        items(miscCartItems, key = { it.id }) { item ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
