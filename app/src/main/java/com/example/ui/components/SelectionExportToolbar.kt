@@ -41,6 +41,7 @@ fun SelectionExportToolbar(
     onDeleteSelected: () -> Unit,
     onExportPdf: () -> Unit,
     onExportCsv: () -> Unit,
+    showExportButtons: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -99,15 +100,17 @@ fun SelectionExportToolbar(
                 )
             }
             Spacer(modifier = Modifier.weight(1f))
-            TextButton(onClick = onExportCsv, modifier = Modifier.testTag("export_csv_button")) {
-                Icon(imageVector = Icons.Default.TableChart, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = "Excel", fontSize = 12.sp, fontWeight = FontWeight.Medium)
-            }
-            TextButton(onClick = onExportPdf, modifier = Modifier.testTag("export_pdf_button")) {
-                Icon(imageVector = Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = "PDF", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            if (showExportButtons) {
+                TextButton(onClick = onExportCsv, modifier = Modifier.testTag("export_csv_button")) {
+                    Icon(imageVector = Icons.Default.TableChart, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(text = "Excel", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                }
+                TextButton(onClick = onExportPdf, modifier = Modifier.testTag("export_pdf_button")) {
+                    Icon(imageVector = Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(text = "PDF", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                }
             }
         }
     }

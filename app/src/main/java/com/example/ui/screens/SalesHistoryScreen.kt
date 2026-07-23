@@ -69,6 +69,12 @@ fun SalesHistoryScreen(
     var saleToDelete by remember { mutableStateOf<Sale?>(null) }
     var restockToDelete by remember { mutableStateOf<Restock?>(null) }
 
+    // Multi-selection state (checkbox mode for bulk delete), independent per tab
+    var isSelectionMode by remember { mutableStateOf(false) }
+    var selectedSaleIds by remember { mutableStateOf(setOf<Int>()) }
+    var selectedRestockIds by remember { mutableStateOf(setOf<Int>()) }
+    var showMultiDeleteConfirm by remember { mutableStateOf(false) }
+
     // Selected Date bounds
     val calendar = remember(selectedDateInMillis) {
         val cal = java.util.Calendar.getInstance()
@@ -367,7 +373,12 @@ fun SalesHistoryScreen(
                         .weight(1f)
                         .clip(RoundedCornerShape(8.dp))
                         .background(if (isSelected) themeColor else Color.Transparent)
-                        .clickable { activeTab = tabId }
+                        .clickable {
+                            activeTab = tabId
+                            isSelectionMode = false
+                            selectedSaleIds = emptySet()
+                            selectedRestockIds = emptySet()
+                        }
                         .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -663,6 +674,31 @@ fun SalesHistoryScreen(
             }
         }
 
+        // Selection / Export toolbar (scoped to the active tab)
+        com.example.ui.components.SelectionExportToolbar(
+            activeLang = activeLang,
+            isSelectionMode = isSelectionMode,
+            selectedCount = if (activeTab == "sales") selectedSaleIds.size else selectedRestockIds.size,
+            onToggleSelectionMode = {
+                isSelectionMode = !isSelectionMode
+                if (!isSelectionMode) {
+                    selectedSaleIds = emptySet()
+                    selectedRestockIds = emptySet()
+                }
+            },
+            onSelectAll = {
+                if (activeTab == "sales") {
+                    selectedSaleIds = displayedSales.map { it.id }.toSet()
+                } else {
+                    selectedRestockIds = displayedRestocks.map { it.id }.toSet()
+                }
+            },
+            onDeleteSelected = { showMultiDeleteConfirm = true },
+            onExportPdf = { com.example.util.ExportUtil.exportSales(context, displayedSales, com.example.util.ExportFormat.PDF) },
+            onExportCsv = { com.example.util.ExportUtil.exportSales(context, displayedSales, com.example.util.ExportFormat.CSV) },
+            showExportButtons = activeTab == "sales"
+        )
+
         // 5. Main Content: Sales List vs Restocks List
         if (activeTab == "sales") {
             if (displayedSales.isEmpty()) {
@@ -713,6 +749,15 @@ fun SalesHistoryScreen(
                             sale = sale,
                             allProducts = allProducts,
                             themeColor = themeColor,
+                            isSelectionMode = isSelectionMode,
+                            isSelected = selectedSaleIds.contains(sale.id),
+                            onToggleSelect = {
+                                selectedSaleIds = if (selectedSaleIds.contains(sale.id)) {
+                                    selectedSaleIds - sale.id
+                                } else {
+                                    selectedSaleIds + sale.id
+                                }
+                            },
                             onDelete = { saleToDelete = sale }
                         )
                     }
@@ -759,6 +804,15 @@ fun SalesHistoryScreen(
                         RestockListItem(
                             restock = restock,
                             themeColor = themeColor,
+                            isSelectionMode = isSelectionMode,
+                            isSelected = selectedRestockIds.contains(restock.id),
+                            onToggleSelect = {
+                                selectedRestockIds = if (selectedRestockIds.contains(restock.id)) {
+                                    selectedRestockIds - restock.id
+                                } else {
+                                    selectedRestockIds + restock.id
+                                }
+                            },
                             onDelete = { restockToDelete = restock }
                         )
                     }
@@ -833,6 +887,47 @@ fun SalesHistoryScreen(
         )
     }
 
+    // Multi-selection bulk delete confirmation (scoped to the active tab)
+    if (showMultiDeleteConfirm) {
+        val count = if (activeTab == "sales") selectedSaleIds.size else selectedRestockIds.size
+        AlertDialog(
+            onDismissRequest = { showMultiDeleteConfirm = false },
+            title = { Text(t("delete_action"), fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    when (activeLang) {
+                        "mg" -> "Hofafana ny $count voafidy?"
+                        "fr" -> "Supprimer les $count éléments sélectionnés ?"
+                        else -> "Delete the $count selected items?"
+                    }
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (activeTab == "sales") {
+                            displayedSales.filter { selectedSaleIds.contains(it.id) }.forEach { viewModel.deleteSale(it) }
+                            selectedSaleIds = emptySet()
+                        } else {
+                            displayedRestocks.filter { selectedRestockIds.contains(it.id) }.forEach { viewModel.deleteRestock(it) }
+                            selectedRestockIds = emptySet()
+                        }
+                        isSelectionMode = false
+                        showMultiDeleteConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(t("delete_btn"), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMultiDeleteConfirm = false }) {
+                    Text(t("cancel_btn"))
+                }
+            }
+        )
+    }
+
     // STATS CHART BOTTOM DIALOG (TRIGGERS ON THE BARCHART ICON)
     if (showStatsDialog) {
         StatsDialog(
@@ -853,6 +948,9 @@ fun SaleListItem(
     sale: Sale,
     allProducts: List<com.example.data.model.Product>,
     themeColor: Color,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
     onDelete: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -920,11 +1018,11 @@ fun SaleListItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { expanded = !expanded }
+            .clickable { if (isSelectionMode) onToggleSelect() else expanded = !expanded }
             .testTag("sale_card_${sale.id}"),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = if (isSelected) themeColor.copy(alpha = 0.10f) else Color.White
         ),
         border = borderStroke()
     ) {
@@ -939,6 +1037,13 @@ fun SaleListItem(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.weight(1f)
                 ) {
+                    if (isSelectionMode) {
+                        Checkbox(
+                            checked = isSelected,
+                            onCheckedChange = { onToggleSelect() },
+                            modifier = Modifier.testTag("sale_checkbox_${sale.id}")
+                        )
+                    }
                     Box(
                         modifier = Modifier
                             .size(48.dp)
@@ -1075,6 +1180,9 @@ fun SaleListItem(
 fun RestockListItem(
     restock: Restock,
     themeColor: Color,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
     onDelete: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -1086,11 +1194,11 @@ fun RestockListItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { expanded = !expanded }
+            .clickable { if (isSelectionMode) onToggleSelect() else expanded = !expanded }
             .testTag("restock_card_${restock.id}"),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = if (isSelected) themeColor.copy(alpha = 0.10f) else Color.White
         ),
         border = borderStroke()
     ) {
@@ -1105,6 +1213,13 @@ fun RestockListItem(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.weight(1f)
                 ) {
+                    if (isSelectionMode) {
+                        Checkbox(
+                            checked = isSelected,
+                            onCheckedChange = { onToggleSelect() },
+                            modifier = Modifier.testTag("restock_checkbox_${restock.id}")
+                        )
+                    }
                     Box(
                         modifier = Modifier
                             .size(48.dp)
