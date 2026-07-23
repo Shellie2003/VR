@@ -108,6 +108,11 @@ interface VenteDao {
     @Query("SELECT * FROM ventes ORDER BY dateVente DESC")
     fun getAllVentes(): Flow<List<Vente>>
 
+    // C.2: cash-drawer reconciliation must only count ESPECES sales — Mvola/Orange Money/Crédit
+    // never put physical cash in the drawer.
+    @Query("SELECT COALESCE(SUM(montantTotal), 0.0) FROM ventes WHERE modePaiement = 'ESPECES' AND dateVente BETWEEN :start AND :end")
+    suspend fun getCashSalesTotal(start: Long, end: Long): Double
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertVente(vente: Vente): Long
 

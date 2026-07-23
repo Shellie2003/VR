@@ -19,6 +19,7 @@ import com.example.data.model.Vente
 import com.example.data.model.LigneVente
 import com.example.data.model.Restock
 import com.example.data.model.MouvementCaisse
+import com.example.data.model.CaisseSession
 
 @Database(
     entities = [
@@ -34,9 +35,10 @@ import com.example.data.model.MouvementCaisse
         Vente::class,
         LigneVente::class,
         Restock::class,
-        MouvementCaisse::class
+        MouvementCaisse::class,
+        CaisseSession::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -46,6 +48,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun debtDao(): DebtDao
     abstract fun restockDao(): RestockDao
     abstract fun mouvementCaisseDao(): MouvementCaisseDao
+    abstract fun caisseSessionDao(): CaisseSessionDao
 
     abstract fun produitDao(): ProduitDao
     abstract fun uniteProduitDao(): UniteProduitDao

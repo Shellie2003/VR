@@ -10,6 +10,8 @@ import com.example.data.model.SoldItem
 import com.example.data.model.Debt
 import com.example.data.model.Fournisseur
 import com.example.data.model.MouvementCaisse
+import com.example.data.model.Vente
+import com.example.data.model.CaisseSession
 import com.example.data.repository.InventoryRepository
 import com.example.util.AppPreferences
 import com.example.util.NotificationHelper
@@ -153,13 +155,57 @@ class InventoryViewModel(
     val allMouvementsCaisse: StateFlow<List<MouvementCaisse>> = repository.allMouvementsCaisse
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Theoretical cash balance: total sales (always cash) + manual cash-ins - manual cash-outs
-    val soldeCaisse: StateFlow<Double> = combine(allSales, allMouvementsCaisse) { sales, mouvements ->
-        val totalVentes = sales.sumOf { it.totalAmount }
+    // Relational sales mirror (has modePaiement, unlike the legacy Sale/allSales table).
+    val allVentes: StateFlow<List<Vente>> = repository.allVentes
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // C.2: work sessions (ouverture/fermeture de caisse)
+    val allCaisseSessions: StateFlow<List<CaisseSession>> = repository.allCaisseSessions
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val openCaisseSession: StateFlow<CaisseSession?> = repository.openCaisseSession
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    // Theoretical cash balance: ESPECES sales only (Mvola/Orange Money/Crédit never put physical
+    // cash in the drawer) + manual cash-ins - manual cash-outs.
+    val soldeCaisse: StateFlow<Double> = combine(allVentes, allMouvementsCaisse) { ventes, mouvements ->
+        val totalVentesEspeces = ventes.filter { it.modePaiement == "ESPECES" }.sumOf { it.montantTotal }
         val totalEntrees = mouvements.filter { it.type == "ENTREE" }.sumOf { it.montant }
         val totalSorties = mouvements.filter { it.type == "SORTIE" }.sumOf { it.montant }
-        totalVentes + totalEntrees - totalSorties
+        totalVentesEspeces + totalEntrees - totalSorties
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    // C.2: open a new work session with a starting cash float (fond de caisse).
+    fun openCaisseSession(montantOuverture: Double) {
+        viewModelScope.launch(coroutineExceptionHandler) {
+            repository.insertCaisseSession(CaisseSession(montantOuverture = montantOuverture))
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    // C.2: close the currently open session, counting the physical cash and reconciling it
+    // against the theoretical amount (opening float + cash sales + manual in - manual out) over
+    // the session's own time window only.
+    fun closeCaisseSession(session: CaisseSession, montantCompte: Double, note: String) {
+        viewModelScope.launch(coroutineExceptionHandler) {
+            val now = System.currentTimeMillis()
+            val cashSales = repository.getCashSalesTotal(session.dateOuverture, now)
+            val mouvementsInWindow = repository.allMouvementsCaisse.first()
+                .filter { it.date in session.dateOuverture..now }
+            val entrees = mouvementsInWindow.filter { it.type == "ENTREE" }.sumOf { it.montant }
+            val sorties = mouvementsInWindow.filter { it.type == "SORTIE" }.sumOf { it.montant }
+            val theorique = session.montantOuverture + cashSales + entrees - sorties
+            repository.updateCaisseSession(
+                session.copy(
+                    dateFermeture = now,
+                    montantCompteFermeture = montantCompte,
+                    montantTheoriqueFermeture = theorique,
+                    ecart = montantCompte - theorique,
+                    note = note
+                )
+            )
+            triggerLocalSafetyBackup()
+        }
+    }
 
     fun saveMouvementCaisse(mouvement: MouvementCaisse) {
         viewModelScope.launch(coroutineExceptionHandler) {
@@ -1212,6 +1258,7 @@ class InventoryViewModel(
                 val debts = repository.allDebts.first()
                 val restocks = repository.allRestocks.first()
                 val mouvementsCaisse = repository.allMouvementsCaisse.first()
+                val caisseSessions = repository.allCaisseSessions.first()
                 val excluded = excludedProductIds.value
 
                 val productsArr = org.json.JSONArray()
@@ -1307,12 +1354,26 @@ class InventoryViewModel(
                     mouvementsCaisseArr.put(mvtObj)
                 }
 
+                val caisseSessionsArr = org.json.JSONArray()
+                caisseSessions.forEach { session ->
+                    val sessObj = org.json.JSONObject()
+                    sessObj.put("dateOuverture", session.dateOuverture)
+                    sessObj.put("montantOuverture", session.montantOuverture)
+                    sessObj.put("dateFermeture", session.dateFermeture ?: org.json.JSONObject.NULL)
+                    sessObj.put("montantCompteFermeture", session.montantCompteFermeture ?: org.json.JSONObject.NULL)
+                    sessObj.put("montantTheoriqueFermeture", session.montantTheoriqueFermeture ?: org.json.JSONObject.NULL)
+                    sessObj.put("ecart", session.ecart ?: org.json.JSONObject.NULL)
+                    sessObj.put("note", session.note)
+                    caisseSessionsArr.put(sessObj)
+                }
+
                 com.example.sync.SyncSerializer.serializeFullSync(
                     productsArr.toString(),
                     salesArr.toString(),
                     debtsArr.toString(),
                     restocksArr.toString(),
-                    mouvementsCaisseArr.toString()
+                    mouvementsCaisseArr.toString(),
+                    caisseSessionsArr.toString()
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -1330,6 +1391,7 @@ class InventoryViewModel(
                 val debtsStr = resultsMap["debts"] ?: "[]"
                 val restocksStr = resultsMap["restocks"] ?: "[]"
                 val mouvementsCaisseStr = resultsMap["mouvementsCaisse"] ?: "[]"
+                val caisseSessionsStr = resultsMap["caisseSessions"] ?: "[]"
 
                 // Read the CURRENT database state directly from the repository rather than the
                 // allX StateFlows: those use SharingStarted.WhileSubscribed(5000) and only start
@@ -1344,6 +1406,7 @@ class InventoryViewModel(
                 val currentDebts = repository.allDebts.first()
                 val currentRestocks = repository.allRestocks.first()
                 val currentMouvementsCaisse = repository.allMouvementsCaisse.first()
+                val currentCaisseSessions = repository.allCaisseSessions.first()
 
                 // 1. Parse & Merge Products
                 val productsList = mutableListOf<Product>()
@@ -1586,6 +1649,49 @@ class InventoryViewModel(
                 }
                 if (newMouvementsCaisseCount > 0) {
                     addSyncLog("Mise à jour mouvements de caisse: $newMouvementsCaisseCount enregistrés")
+                }
+
+                // 6. Parse & Merge Caisse Sessions (C.2)
+                val caisseSessionsList = mutableListOf<CaisseSession>()
+                val sessArr = org.json.JSONArray(caisseSessionsStr)
+                for (i in 0 until sessArr.length()) {
+                    val obj = sessArr.getJSONObject(i)
+                    caisseSessionsList.add(
+                        CaisseSession(
+                            dateOuverture = obj.getLong("dateOuverture"),
+                            montantOuverture = obj.getDouble("montantOuverture"),
+                            dateFermeture = if (obj.isNull("dateFermeture")) null else obj.optLong("dateFermeture"),
+                            montantCompteFermeture = if (obj.isNull("montantCompteFermeture")) null else obj.optDouble("montantCompteFermeture"),
+                            montantTheoriqueFermeture = if (obj.isNull("montantTheoriqueFermeture")) null else obj.optDouble("montantTheoriqueFermeture"),
+                            ecart = if (obj.isNull("ecart")) null else obj.optDouble("ecart"),
+                            note = obj.optString("note", "")
+                        )
+                    )
+                }
+
+                var newCaisseSessionsCount = 0
+                var updatedCaisseSessionsCount = 0
+                caisseSessionsList.forEach { incomingSession ->
+                    val existingSession = currentCaisseSessions.find {
+                        Math.abs(it.dateOuverture - incomingSession.dateOuverture) < 60000
+                    }
+                    if (existingSession == null) {
+                        repository.insertCaisseSession(incomingSession.copy(id = 0))
+                        newCaisseSessionsCount++
+                    } else if (existingSession.isOpen && !incomingSession.isOpen) {
+                        // Session was closed on another terminal: propagate the closure.
+                        repository.updateCaisseSession(existingSession.copy(
+                            dateFermeture = incomingSession.dateFermeture,
+                            montantCompteFermeture = incomingSession.montantCompteFermeture,
+                            montantTheoriqueFermeture = incomingSession.montantTheoriqueFermeture,
+                            ecart = incomingSession.ecart,
+                            note = incomingSession.note
+                        ))
+                        updatedCaisseSessionsCount++
+                    }
+                }
+                if (newCaisseSessionsCount > 0 || updatedCaisseSessionsCount > 0) {
+                    addSyncLog("Mise à jour sessions de caisse: $newCaisseSessionsCount nouvelles, $updatedCaisseSessionsCount modifiées")
                 }
 
                 addSyncLog("Nahomby ny fampitoviana ny tahiry rehetra!")

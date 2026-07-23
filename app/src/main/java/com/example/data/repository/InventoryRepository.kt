@@ -20,7 +20,8 @@ class InventoryRepository(
     val venteDao: VenteDao,
     val lignesVenteDao: LigneVenteDao,
     val restockDao: RestockDao,
-    val mouvementCaisseDao: MouvementCaisseDao
+    val mouvementCaisseDao: MouvementCaisseDao,
+    val caisseSessionDao: CaisseSessionDao
 ) {
     val allProducts: Flow<List<Product>> = productDao.getAllProducts().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allSales: Flow<List<Sale>> = saleDao.getAllSales().flowOn(kotlinx.coroutines.Dispatchers.IO)
@@ -28,6 +29,9 @@ class InventoryRepository(
     val allRestocks: Flow<List<Restock>> = restockDao.getAllRestocks().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allCategories: Flow<List<String>> = productDao.getAllCategories().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allMouvementsCaisse: Flow<List<MouvementCaisse>> = mouvementCaisseDao.getAllMouvements().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    val allVentes: Flow<List<Vente>> = venteDao.getAllVentes().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    val allCaisseSessions: Flow<List<CaisseSession>> = caisseSessionDao.getAllSessions().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    val openCaisseSession: Flow<CaisseSession?> = caisseSessionDao.getOpenSession().flowOn(kotlinx.coroutines.Dispatchers.IO)
 
     suspend fun insertRestock(restock: Restock) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         restockDao.insertRestock(restock)
@@ -43,6 +47,18 @@ class InventoryRepository(
 
     suspend fun deleteMouvementCaisse(mouvement: MouvementCaisse) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         mouvementCaisseDao.deleteMouvement(mouvement)
+    }
+
+    suspend fun insertCaisseSession(session: CaisseSession): Long = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        caisseSessionDao.insertSession(session)
+    }
+
+    suspend fun updateCaisseSession(session: CaisseSession) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        caisseSessionDao.updateSession(session)
+    }
+
+    suspend fun getCashSalesTotal(start: Long, end: Long): Double = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        venteDao.getCashSalesTotal(start, end)
     }
 
     fun getLimitedProducts(limit: Int): Flow<List<Product>> = productDao.getLimitedProducts(limit).flowOn(kotlinx.coroutines.Dispatchers.IO)

@@ -24,6 +24,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.model.CaisseSession
 import com.example.data.model.MouvementCaisse
 import com.example.ui.components.SelectionExportToolbar
 import com.example.ui.viewmodel.InventoryViewModel
@@ -44,10 +45,22 @@ fun CaisseMouvementsScreen(
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
+    // Tablet/large-screen layout: cap the column's width and center it.
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
     val activeLang by viewModel.language.collectAsState()
     val themeColor by viewModel.themeColor.collectAsState()
     val mouvements by viewModel.allMouvementsCaisse.collectAsState()
     val soldeCaisse by viewModel.soldeCaisse.collectAsState()
+    val openSession by viewModel.openCaisseSession.collectAsState()
+    val allSessions by viewModel.allCaisseSessions.collectAsState()
+
+    // C.2: session open/close dialog states
+    var showOpenSessionDialog by remember { mutableStateOf(false) }
+    var openAmountStr by remember { mutableStateOf("") }
+    var showCloseSessionDialog by remember { mutableStateOf(false) }
+    var closeAmountStr by remember { mutableStateOf("") }
+    var closeNote by remember { mutableStateOf("") }
 
     // Multi-selection state (checkbox mode for bulk delete)
     var isSelectionMode by remember { mutableStateOf(false) }
@@ -179,13 +192,30 @@ fun CaisseMouvementsScreen(
             }
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(MaterialTheme.colorScheme.background)
+                .background(MaterialTheme.colorScheme.background),
+            contentAlignment = if (isTablet) Alignment.TopCenter else Alignment.TopStart
+        ) {
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .then(if (isTablet) Modifier.widthIn(max = 720.dp) else Modifier.fillMaxWidth())
                 .padding(horizontal = 16.dp)
         ) {
+            // C.2: cash session (ouverture/fermeture de caisse) status card
+            CaisseSessionCard(
+                activeLang = activeLang,
+                mainTextColor = mainTextColor,
+                secondaryTextColor = secondaryTextColor,
+                openSession = openSession,
+                lastClosedSession = allSessions.firstOrNull { !it.isOpen },
+                onOpenClick = { openAmountStr = ""; showOpenSessionDialog = true },
+                onCloseClick = { closeAmountStr = ""; closeNote = ""; showCloseSessionDialog = true }
+            )
+
             // Balance card
             Card(
                 modifier = Modifier
@@ -303,6 +333,7 @@ fun CaisseMouvementsScreen(
                 }
             }
         }
+        }
     }
 
     // Add movement dialog (shared for Entrée / Sortie)
@@ -393,6 +424,112 @@ fun CaisseMouvementsScreen(
         )
     }
 
+    // C.2: open a new cash session (fond de caisse de départ)
+    if (showOpenSessionDialog) {
+        val openTitle = when (activeLang) {
+            "mg" -> "Sokafy ny kesty"
+            "fr" -> "Ouvrir la caisse"
+            else -> "Open cash session"
+        }
+        val openAmountLabel = when (activeLang) {
+            "mg" -> "Vola fanombohana (Ar)"
+            "fr" -> "Fond de caisse de départ (Ar)"
+            else -> "Starting cash float (Ar)"
+        }
+        val openAmountErr = openAmountStr.toDoubleOrNull() == null || (openAmountStr.toDoubleOrNull() ?: -1.0) < 0.0
+        AlertDialog(
+            onDismissRequest = { showOpenSessionDialog = false },
+            title = { Text(openTitle, fontWeight = FontWeight.Black) },
+            text = {
+                OutlinedTextField(
+                    value = openAmountStr,
+                    onValueChange = { openAmountStr = it },
+                    label = { Text(openAmountLabel) },
+                    prefix = { Text("Ar ") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = openAmountErr,
+                    modifier = Modifier.fillMaxWidth().testTag("caisse_open_amount_input")
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val amt = openAmountStr.toDoubleOrNull() ?: 0.0
+                        if (amt >= 0.0) {
+                            viewModel.openCaisseSession(amt)
+                            showOpenSessionDialog = false
+                        }
+                    },
+                    modifier = Modifier.testTag("caisse_open_confirm_button")
+                ) {
+                    Text(saveBtnText, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showOpenSessionDialog = false }) { Text(cancelBtnText) }
+            }
+        )
+    }
+
+    // C.2: close the currently open cash session (comptage & écart)
+    if (showCloseSessionDialog && openSession != null) {
+        val session = openSession!!
+        val closeTitle = when (activeLang) {
+            "mg" -> "Hidio ny kesty"
+            "fr" -> "Fermer la caisse"
+            else -> "Close cash session"
+        }
+        val closeAmountLabel = when (activeLang) {
+            "mg" -> "Vola voaisa (Ar)"
+            "fr" -> "Montant compté en caisse (Ar)"
+            else -> "Counted cash amount (Ar)"
+        }
+        val closeAmountErr = closeAmountStr.toDoubleOrNull() == null || (closeAmountStr.toDoubleOrNull() ?: -1.0) < 0.0
+        AlertDialog(
+            onDismissRequest = { showCloseSessionDialog = false },
+            title = { Text(closeTitle, fontWeight = FontWeight.Black) },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = closeAmountStr,
+                        onValueChange = { closeAmountStr = it },
+                        label = { Text(closeAmountLabel) },
+                        prefix = { Text("Ar ") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = closeAmountErr,
+                        modifier = Modifier.fillMaxWidth().testTag("caisse_close_amount_input")
+                    )
+                    OutlinedTextField(
+                        value = closeNote,
+                        onValueChange = { closeNote = it },
+                        label = { Text(noteLabel) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val amt = closeAmountStr.toDoubleOrNull() ?: 0.0
+                        if (amt >= 0.0) {
+                            viewModel.closeCaisseSession(session, amt, closeNote.trim())
+                            showCloseSessionDialog = false
+                        }
+                    },
+                    modifier = Modifier.testTag("caisse_close_confirm_button")
+                ) {
+                    Text(saveBtnText, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCloseSessionDialog = false }) { Text(cancelBtnText) }
+            }
+        )
+    }
+
     // Delete confirmation
     mouvementToDelete?.let { mouvement ->
         AlertDialog(
@@ -459,6 +596,109 @@ fun CaisseMouvementsScreen(
                 }
             }
         )
+    }
+}
+
+// C.2: shows whether a cash session is currently open, lets the user open/close one, and recaps
+// the écart (gap between counted and theoretical cash) of the last closed session.
+@Composable
+private fun CaisseSessionCard(
+    activeLang: String,
+    mainTextColor: Color,
+    secondaryTextColor: Color,
+    openSession: CaisseSession?,
+    lastClosedSession: CaisseSession?,
+    onOpenClick: () -> Unit,
+    onCloseClick: () -> Unit
+) {
+    val formatter = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.FRANCE) }
+    val sessionLabel = when (activeLang) {
+        "mg" -> "Fizarana asa (Kesty)"
+        "fr" -> "Session de caisse"
+        else -> "Cash session"
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp).testTag("caisse_session_card"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = sessionLabel.uppercase(),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = secondaryTextColor
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+
+            if (openSession == null) {
+                val closedMsg = when (activeLang) {
+                    "mg" -> "Mbola tsy voasokatra ny kesty."
+                    "fr" -> "Aucune session ouverte."
+                    else -> "No open session."
+                }
+                Text(closedMsg, style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = onOpenClick,
+                    modifier = Modifier.testTag("caisse_open_session_button")
+                ) {
+                    Icon(Icons.Default.LockOpen, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(when (activeLang) { "mg" -> "Sokafy ny kesty"; "fr" -> "Ouvrir la caisse"; else -> "Open cash session" }, fontWeight = FontWeight.Bold)
+                }
+            } else {
+                val openMsg = when (activeLang) {
+                    "mg" -> "Nosokafana tamin'ny ${formatter.format(Date(openSession.dateOuverture))}"
+                    "fr" -> "Ouverte depuis le ${formatter.format(Date(openSession.dateOuverture))}"
+                    else -> "Opened since ${formatter.format(Date(openSession.dateOuverture))}"
+                }
+                Text(openMsg, style = MaterialTheme.typography.bodySmall, color = mainTextColor, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "${when (activeLang) { "mg" -> "Vola fanombohana"; "fr" -> "Fond de départ"; else -> "Starting float" }}: ${FormatUtil.formatPrice(openSession.montantOuverture)} Ar",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = secondaryTextColor
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = onCloseClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
+                    modifier = Modifier.testTag("caisse_close_session_button")
+                ) {
+                    Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(when (activeLang) { "mg" -> "Hidio ny kesty"; "fr" -> "Fermer la caisse"; else -> "Close cash session" }, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            if (lastClosedSession != null) {
+                val ecart = lastClosedSession.ecart ?: 0.0
+                val ecartColor = when {
+                    kotlin.math.abs(ecart) < 1.0 -> Color(0xFF2E7D32)
+                    ecart > 0 -> Color(0xFFF57C00)
+                    else -> Color(0xFFC62828)
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = when (activeLang) {
+                        "mg" -> "Fizarana farany nohidiana (${formatter.format(Date(lastClosedSession.dateFermeture ?: 0L))})"
+                        "fr" -> "Dernière session fermée (${formatter.format(Date(lastClosedSession.dateFermeture ?: 0L))})"
+                        else -> "Last closed session (${formatter.format(Date(lastClosedSession.dateFermeture ?: 0L))})"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = secondaryTextColor
+                )
+                Text(
+                    text = "${when (activeLang) { "mg" -> "Fahasamihafana"; "fr" -> "Écart"; else -> "Gap" }}: ${if (ecart >= 0) "+" else ""}${FormatUtil.formatPrice(ecart)} Ar",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = ecartColor
+                )
+            }
+        }
     }
 }
 
