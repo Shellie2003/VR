@@ -46,7 +46,7 @@ fun SettingsScreen(
     val themeColor by viewModel.themeColor.collectAsState()
     val shopModeVal by viewModel.shopMode.collectAsState()
     val themeModeVal by viewModel.themeMode.collectAsState()
-    val firebaseBucketVal by viewModel.firebaseStorageBucket.collectAsState()
+    val firebaseDatabaseUrlVal by viewModel.firebaseDatabaseUrl.collectAsState()
     val installationId = viewModel.installationId
 
     // Local state for grocery name editing
@@ -146,7 +146,7 @@ fun SettingsScreen(
     var snackbarMessage by remember { mutableStateOf("") }
 
     // Firebase cloud backup local UI state
-    var firebaseBucketInput by remember(firebaseBucketVal) { mutableStateOf(firebaseBucketVal) }
+    var firebaseDatabaseUrlInput by remember(firebaseDatabaseUrlVal) { mutableStateOf(firebaseDatabaseUrlVal) }
     var isCloudBackupLoading by remember { mutableStateOf(false) }
     var isCloudRestoreLoading by remember { mutableStateOf(false) }
 
@@ -1261,28 +1261,28 @@ fun SettingsScreen(
                     HorizontalDivider(color = cardBorderColor.copy(alpha = 0.5f))
 
                     OutlinedTextField(
-                        value = firebaseBucketInput,
-                        onValueChange = { firebaseBucketInput = it },
+                        value = firebaseDatabaseUrlInput,
+                        onValueChange = { firebaseDatabaseUrlInput = it },
                         label = {
                             Text(
                                 text = when (activeLang) {
-                                    "mg" -> "Firebase Storage Bucket"
-                                    "fr" -> "Bucket Firebase Storage"
-                                    else -> "Firebase Storage Bucket"
+                                    "mg" -> "URL Firebase Realtime Database"
+                                    "fr" -> "URL Firebase Realtime Database"
+                                    else -> "Firebase Realtime Database URL"
                                 }
                             )
                         },
-                        placeholder = { Text("mon-projet.appspot.com") },
+                        placeholder = { Text("https://mon-projet-default-rtdb.firebaseio.com") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth().testTag("firebase_bucket_input"),
+                        modifier = Modifier.fillMaxWidth().testTag("firebase_database_url_input"),
                         shape = RoundedCornerShape(10.dp)
                     )
 
                     Text(
                         text = when (activeLang) {
-                            "mg" -> "Alaivo tao amin'ny Firebase Console > Storage ny anaran'ny bucket, ary avereno ho \"allow read, write: if true\" ny rules ao amin'ny lalana backups/. Raha tsy misy bucket voatondro dia tsy afaka mampiasa ity fikirakirana ity."
-                            "fr" -> "Créez un projet Firebase (gratuit), activez Storage, copiez le nom du bucket ici et autorisez la lecture/écriture sur le chemin backups/ dans les règles de sécurité. Sans bucket configuré, ces boutons resteront inactifs."
-                            else -> "Create a free Firebase project, enable Storage, paste the bucket name here and allow read/write on the backups/ path in the security rules. Without a configured bucket, these buttons will show a clear error."
+                            "mg" -> "Alaivo tao amin'ny Firebase Console > Realtime Database ilay adiresy URL, ary avereno ho \"true\" ny .read sy .write ao amin'ny rules ao amin'ny lalana backups. Tsindraika mikarakara Storage satria mila fandoavam-bola izy izao (Blaze), fa maimaimpoana ny Realtime Database."
+                            "fr" -> "Créez un projet Firebase (gratuit), activez Realtime Database, copiez son URL ici et autorisez la lecture/écriture sur le chemin backups dans les règles de sécurité. Contrairement à Cloud Storage (payant depuis 2024), Realtime Database reste gratuit sans compte de facturation."
+                            else -> "Create a free Firebase project, enable Realtime Database, paste its URL here and allow read/write on the backups path in the security rules. Unlike Cloud Storage (now paid), Realtime Database stays free with no billing account required."
                         },
                         fontSize = 11.sp,
                         color = secondaryTextColor
@@ -1295,21 +1295,21 @@ fun SettingsScreen(
                         // Cloud Backup Button
                         Button(
                             onClick = {
-                                if (firebaseBucketInput.isBlank()) {
+                                if (firebaseDatabaseUrlInput.isBlank()) {
                                     snackbarMessage = when (activeLang) {
-                                        "mg" -> "Ampidiro aloha ny anaran'ny bucket Firebase."
-                                        "fr" -> "Veuillez d'abord renseigner le bucket Firebase."
-                                        else -> "Please enter the Firebase bucket first."
+                                        "mg" -> "Ampidiro aloha ny URL Firebase Realtime Database."
+                                        "fr" -> "Veuillez d'abord renseigner l'URL Firebase Realtime Database."
+                                        else -> "Please enter the Firebase Realtime Database URL first."
                                     }
                                     showSnackbar = true
                                 } else {
-                                    viewModel.updateFirebaseStorageBucket(firebaseBucketInput.trim())
+                                    viewModel.updateFirebaseDatabaseUrl(firebaseDatabaseUrlInput.trim())
                                     isCloudBackupLoading = true
                                     coroutineScope.launch {
                                         val json = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                                             viewModel.getFullDatabaseJsonSync()
                                         }
-                                        val result = FirebaseBackupManager.uploadBackup(firebaseBucketInput.trim(), installationId, json)
+                                        val result = FirebaseBackupManager.uploadBackup(firebaseDatabaseUrlInput.trim(), installationId, json)
                                         isCloudBackupLoading = false
                                         snackbarMessage = if (result.isSuccess) {
                                             when (activeLang) {
@@ -1319,9 +1319,9 @@ fun SettingsScreen(
                                             }
                                         } else {
                                             when (activeLang) {
-                                                "mg" -> "Hadisoana: tsy voatahiry any amin'ny rahona (jereo ny bucket sy ny internet)."
-                                                "fr" -> "Échec de la sauvegarde Cloud (vérifiez le bucket et la connexion internet)."
-                                                else -> "Cloud backup failed (check the bucket name and internet connection)."
+                                                "mg" -> "Hadisoana: tsy voatahiry any amin'ny rahona (jereo ny URL sy ny internet)."
+                                                "fr" -> "Échec de la sauvegarde Cloud (vérifiez l'URL et la connexion internet)."
+                                                else -> "Cloud backup failed (check the database URL and internet connection)."
                                             }
                                         }
                                         showSnackbar = true
@@ -1356,18 +1356,18 @@ fun SettingsScreen(
                         // Cloud Restore Button
                         OutlinedButton(
                             onClick = {
-                                if (firebaseBucketInput.isBlank()) {
+                                if (firebaseDatabaseUrlInput.isBlank()) {
                                     snackbarMessage = when (activeLang) {
-                                        "mg" -> "Ampidiro aloha ny anaran'ny bucket Firebase."
-                                        "fr" -> "Veuillez d'abord renseigner le bucket Firebase."
-                                        else -> "Please enter the Firebase bucket first."
+                                        "mg" -> "Ampidiro aloha ny URL Firebase Realtime Database."
+                                        "fr" -> "Veuillez d'abord renseigner l'URL Firebase Realtime Database."
+                                        else -> "Please enter the Firebase Realtime Database URL first."
                                     }
                                     showSnackbar = true
                                 } else {
-                                    viewModel.updateFirebaseStorageBucket(firebaseBucketInput.trim())
+                                    viewModel.updateFirebaseDatabaseUrl(firebaseDatabaseUrlInput.trim())
                                     isCloudRestoreLoading = true
                                     coroutineScope.launch {
-                                        val result = FirebaseBackupManager.downloadBackup(firebaseBucketInput.trim(), installationId)
+                                        val result = FirebaseBackupManager.downloadBackup(firebaseDatabaseUrlInput.trim(), installationId)
                                         isCloudRestoreLoading = false
                                         result.onSuccess { json -> viewModel.syncFullDatabaseSync(json) }
                                         snackbarMessage = if (result.isSuccess) {
