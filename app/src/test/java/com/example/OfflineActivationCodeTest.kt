@@ -64,4 +64,25 @@ class RecoveryCodeTest {
             assertEquals(code, RecoveryCode.normalize(RecoveryCode.format(code)))
         }
     }
+
+    @Test
+    fun `uuid historique re-saisi retrouve exactement sa forme stockee`() {
+        // Les boutiques activées avant le code de récupération ont leur sauvegarde sous un UUID :
+        // sa re-saisie doit reconstruire EXACTEMENT la chaîne stockée (minuscules, tirets aux
+        // positions 8-4-4-4-12), sinon le chemin Firebase visé serait un coffre vide.
+        val stocke = "550e8400-e29b-41d4-a716-446655440000"
+        assertEquals(stocke, RecoveryCode.normalizeLegacyUuid(stocke))
+        assertEquals(stocke, RecoveryCode.normalizeLegacyUuid("550E8400-E29B-41D4-A716-446655440000"))
+        assertEquals(stocke, RecoveryCode.normalizeLegacyUuid("550e8400e29b41d4a716446655440000"))
+        assertEquals(stocke, RecoveryCode.normalizeLegacyUuid(" 550e8400 e29b 41d4 a716 446655440000 "))
+    }
+
+    @Test
+    fun `uuid invalide refuse`() {
+        assertNull(RecoveryCode.normalizeLegacyUuid("pas-un-uuid"))
+        assertNull(RecoveryCode.normalizeLegacyUuid("550e8400-e29b-41d4-a716-44665544000"))   // 31 hex
+        assertNull(RecoveryCode.normalizeLegacyUuid("550e8400-e29b-41d4-a716-4466554400zz")) // non-hex
+        // Un code moderne (12 caractères) ne doit jamais être pris pour un UUID.
+        assertNull(RecoveryCode.normalizeLegacyUuid(RecoveryCode.generate()))
+    }
 }

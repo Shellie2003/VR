@@ -36,6 +36,27 @@ object RecoveryCode {
     }
 
     /**
+     * Jetons HISTORIQUES : avant l'introduction du code de récupération, le chemin de sauvegarde
+     * était un UUID (36 caractères, minuscules, avec tirets) jamais affiché. Les boutiques
+     * activées à cette époque ont toujours leur sauvegarde sous ce chemin — et l'écran Paramètres
+     * leur affiche désormais ce UUID comme « code de récupération ». Il faut donc pouvoir le
+     * RE-SAISIR sur un nouveau téléphone, exactement sous sa forme stockée (minuscules, tirets
+     * aux positions 8-4-4-4-12), sinon ces clients-là seraient les seuls à ne pas pouvoir
+     * récupérer leurs données.
+     */
+    fun normalizeLegacyUuid(saisie: String): String? {
+        val hex = saisie.trim().lowercase().replace("-", "").replace(" ", "")
+        if (hex.length != 32 || hex.any { it !in "0123456789abcdef" }) return null
+        return buildString {
+            append(hex, 0, 8); append('-')
+            append(hex, 8, 12); append('-')
+            append(hex, 12, 16); append('-')
+            append(hex, 16, 20); append('-')
+            append(hex, 20, 32)
+        }
+    }
+
+    /**
      * Ramène une saisie utilisateur à la forme canonique, ou null si elle ne peut pas être un code
      * valide. Un null doit **toujours** être traité comme un refus : accepter une saisie douteuse
      * reviendrait à pointer la boutique vers un coffre vide et à perdre l'accès au vrai.

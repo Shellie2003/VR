@@ -234,9 +234,15 @@ class AppPreferences(context: Context) {
      * Rebranche cet appareil sur la sauvegarde d'un autre (téléphone perdu, remplacé, réinitialisé).
      * Retourne false si le code saisi n'a pas la forme attendue, auquel cas rien n'est modifié :
      * écraser le code par une saisie erronée couperait l'accès à la sauvegarde existante.
+     *
+     * Accepte les deux générations de codes : le format actuel (12 caractères Crockford) et les
+     * UUID historiques des boutiques activées avant cette version, dont la sauvegarde vit
+     * toujours sous son ancien chemin.
      */
     fun applyRecoveryCode(saisie: String): Boolean {
-        val normalise = RecoveryCode.normalize(saisie) ?: return false
+        val normalise = RecoveryCode.normalize(saisie)
+            ?: RecoveryCode.normalizeLegacyUuid(saisie)
+            ?: return false
         prefs.edit().putString(KEY_FIREBASE_BACKUP_TOKEN, normalise).apply()
         return true
     }
