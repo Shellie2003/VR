@@ -34,6 +34,10 @@ object ExportUtil {
     private const val EXPORT_SUBDIR = "Exports"
     private const val PUBLIC_EXPORT_DIR = "EpicerieExports"
 
+    // Encombrement maximal du logo en tête de rapport (en points, 72dpi).
+    private const val LOGO_MAX_HEIGHT = 46f
+    private const val LOGO_MAX_WIDTH = 130f
+
     /**
      * Writes a UTF-8 CSV file (with BOM so Excel renders accented FR/MG characters correctly).
      */
@@ -78,11 +82,17 @@ object ExportUtil {
         val weights = columnWeights ?: List(headers.size) { 1f }
         require(weights.size == headers.size) { "columnWeights must match headers size" }
 
+        // Identité de l'épicerie (logo + coordonnées) : lue ici plutôt que passée par l'appelant,
+        // pour que tout rapport exporté depuis n'importe quel écran la porte automatiquement.
+        val shopInfo = ShopInfo.depuis(context)
+        val logo = ShopLogoUtil.chargerLogo(shopInfo.logoPath)
+
         val pageWidth = 842 // A4 landscape at 72dpi, roomier for wide detailed tables
         val pageHeight = 595
         val leftMargin = 30f
         val rightMargin = 30f
-        val topMargin = 70f
+        // L'en-tête descend un peu quand un logo est présent, pour ne pas écraser le tableau.
+        val topMargin = if (logo != null) 86f else 70f
         val bottomMargin = 30f
         val rowHeight = 20f
         val headerRowHeight = 24f
@@ -102,6 +112,26 @@ object ExportUtil {
                 val page = pdfDocument.startPage(pageInfo)
                 val canvas = page.canvas
 
+                // Logo de l'épicerie en tête de page, à gauche ; le titre se décale à sa droite.
+                var titleX = leftMargin
+                if (logo != null) {
+                    val ratio = logo.width.toFloat() / logo.height.toFloat()
+                    var logoH = LOGO_MAX_HEIGHT
+                    var logoW = logoH * ratio
+                    if (logoW > LOGO_MAX_WIDTH) {
+                        logoW = LOGO_MAX_WIDTH
+                        logoH = logoW / ratio
+                    }
+                    val destination = android.graphics.RectF(
+                        leftMargin,
+                        18f,
+                        leftMargin + logoW,
+                        18f + logoH
+                    )
+                    canvas.drawBitmap(logo, null, destination, Paint().apply { isFilterBitmap = true })
+                    titleX = leftMargin + logoW + 12f
+                }
+
                 // Title + page indicator
                 val titlePaint = Paint().apply {
                     color = Color.BLACK
@@ -109,7 +139,7 @@ object ExportUtil {
                     isAntiAlias = true
                     typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
                 }
-                canvas.drawText(title, leftMargin, 35f, titlePaint)
+                canvas.drawText(title, titleX, 35f, titlePaint)
 
                 val pagePaint = Paint().apply {
                     color = Color.DKGRAY
@@ -125,7 +155,18 @@ object ExportUtil {
                     textSize = 9f
                     isAntiAlias = true
                 }
-                canvas.drawText("Exporté le ${dateFormat.format(java.util.Date())}", leftMargin, 50f, subtitlePaint)
+                // Nom + coordonnées de l'épicerie sur une ligne, puis la date d'export : un rapport
+                // sorti de l'app doit être identifiable tel quel, sans en-tête ajouté à la main.
+                val entete = buildString {
+                    append(shopInfo.nom.ifBlank { "Varotra" })
+                    val coordonnees = shopInfo.lignesCoordonnees()
+                    if (coordonnees.isNotEmpty()) {
+                        append("  —  ")
+                        append(coordonnees.joinToString("  —  "))
+                    }
+                }
+                canvas.drawText(entete, titleX, 50f, subtitlePaint)
+                canvas.drawText("Exporté le ${dateFormat.format(java.util.Date())}", titleX, 62f, subtitlePaint)
 
                 // Header row background
                 var y = topMargin

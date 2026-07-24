@@ -148,6 +148,62 @@ class InventoryViewModel(
         groceryName.value = name
     }
 
+    // ------------------------------------------------------------------------------------------
+    // Fiche d'identité de l'épicerie (regroupée dans l'écran Épicerie, imprimée sur tous les PDF)
+    // ------------------------------------------------------------------------------------------
+
+    val shopAddress = MutableStateFlow(appPreferences.shopAddress)
+    val shopPhone = MutableStateFlow(appPreferences.shopPhone)
+    val shopNif = MutableStateFlow(appPreferences.shopNif)
+    val shopStat = MutableStateFlow(appPreferences.shopStat)
+    val shopLogoPath = MutableStateFlow(appPreferences.shopLogoPath)
+    val shopReceiptFooter = MutableStateFlow(appPreferences.shopReceiptFooter)
+
+    /** Enregistre la fiche en une fois (l'écran Épicerie a un seul bouton « Enregistrer »). */
+    fun updateShopInfo(
+        nom: String,
+        adresse: String,
+        telephone: String,
+        nif: String,
+        stat: String,
+        piedDePage: String
+    ) {
+        updateGroceryName(nom.trim().ifBlank { groceryName.value })
+        appPreferences.shopAddress = adresse.trim()
+        shopAddress.value = adresse.trim()
+        appPreferences.shopPhone = telephone.trim()
+        shopPhone.value = telephone.trim()
+        appPreferences.shopNif = nif.trim()
+        shopNif.value = nif.trim()
+        appPreferences.shopStat = stat.trim()
+        shopStat.value = stat.trim()
+        appPreferences.shopReceiptFooter = piedDePage.trim()
+        shopReceiptFooter.value = piedDePage.trim()
+    }
+
+    /** Importe un logo choisi dans la galerie. Retourne false si l'image est illisible. */
+    fun importerLogo(uri: android.net.Uri): Boolean {
+        val ancien = appPreferences.shopLogoPath
+        val chemin = com.example.util.ShopLogoUtil.importerLogo(context, uri) ?: return false
+        // Le fichier de destination porte toujours le même nom : l'ancien logo est écrasé, il n'y
+        // a donc rien à supprimer sauf si le chemin a changé (migration d'un ancien emplacement).
+        if (ancien.isNotBlank() && ancien != chemin) {
+            com.example.util.ShopLogoUtil.supprimerLogo(ancien)
+        }
+        appPreferences.shopLogoPath = chemin
+        // Le chemin étant stable, on force la recomposition avec une valeur distincte puis la
+        // valeur réelle, sinon un remplacement de logo ne rafraîchirait pas l'aperçu à l'écran.
+        shopLogoPath.value = ""
+        shopLogoPath.value = chemin
+        return true
+    }
+
+    fun supprimerLogo() {
+        com.example.util.ShopLogoUtil.supprimerLogo(appPreferences.shopLogoPath)
+        appPreferences.shopLogoPath = ""
+        shopLogoPath.value = ""
+    }
+
     fun updateColorTheme(theme: String) {
         appPreferences.colorTheme = theme
         colorTheme.value = theme
@@ -889,18 +945,132 @@ class InventoryViewModel(
         language.value = lang
     }
 
+    /**
+     * Code d'activation hors-ligne : le développeur le calcule à partir de l'ID d'installation et
+     * le communique (SMS, appel) au client qui vient de payer. C'est le chemin de secours pour une
+     * épicerie sans connexion le jour de l'installation ; le chemin normal est
+     * [verifierLicenceEnLigne].
+     */
     fun submitActivationCode(code: String): Boolean {
         val cleanCode = code.trim()
         val instId = installationId.toLongOrNull() ?: 0L
         val expected = ((instId * 3) + 123456) % 1000000
         val expectedStr = String.format("%06d", expected)
-        
+
         if (cleanCode == expectedStr) {
             appPreferences.isActivated = true
             isActivated.value = true
+            // Une activation par code vaut licence active ; la vérification en ligne prendra le
+            // relais dès que l'appareil retrouvera du réseau.
+            appPreferences.licenceState = com.example.util.LicenceManager.ETAT_ACTIVE
+            licenceState.value = com.example.util.LicenceManager.ETAT_ACTIVE
             return true
         }
         return false
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Licence : l'app reste verrouillée tant que le paiement n'a pas été validé côté développeur
+    // ------------------------------------------------------------------------------------------
+
+    val licenceState = MutableStateFlow(appPreferences.licenceState)
+    val licenceEnVerification = MutableStateFlow(false)
+    /** Message de résultat de la dernière vérification, affiché sur l'écran d'activation. */
+    val licenceMessage = MutableStateFlow<String?>(null)
+
+    fun consommerLicenceMessage() {
+        licenceMessage.value = null
+    }
+
+    /**
+     * Interroge la base du développeur et déverrouille l'app si la licence est active.
+     * Retourne le résultat via [licenceState] / [licenceMessage] pour que l'écran d'activation
+     * puisse réagir sans connaître les détails du transport réseau.
+     */
+    fun verifierLicenceEnLigne() {
+        if (licenceEnVerification.value) return
+        licenceEnVerification.value = true
+        viewModelScope.launch(coroutineExceptionHandler) {
+            val resultat = com.example.util.LicenceManager.verifierLicence(installationId)
+            licenceEnVerification.value = false
+            resultat.fold(
+                onSuccess = { licence ->
+                    appPreferences.licenceState = licence.etat
+                    appPreferences.licenceExpiry = licence.expiration
+                    appPreferences.licenceLastCheck = System.currentTimeMillis()
+                    appPreferences.licenceShopLabel = licence.epicerie
+                    licenceState.value = licence.etat
+                    if (licence.estActive) {
+                        appPreferences.isActivated = true
+                        isActivated.value = true
+                        licenceMessage.value = when (language.value) {
+                            "mg" -> "Nekena ny fanalahidy. Misokatra ny application."
+                            "fr" -> "Licence validée. Application activée."
+                            else -> "Licence validated. App activated."
+                        }
+                    } else {
+                        // Licence absente, suspendue ou expirée : on reverrouille, même si
+                        // l'appareil avait été activé auparavant (impayé, fin d'abonnement).
+                        appPreferences.isActivated = false
+                        isActivated.value = false
+                        licenceMessage.value = messageLicenceRefusee(licence.etat)
+                    }
+                },
+                onFailure = {
+                    // Panne réseau : on ne verrouille jamais une épicerie qui travaille à cause
+                    // d'une coupure. On garde le dernier état connu tant que la tolérance court.
+                    licenceMessage.value = when (language.value) {
+                        "mg" -> "Tsy tafiditra amin'ny aterineto. Andramo indray rehefa misy fifandraisana."
+                        "fr" -> "Connexion impossible. Réessayez une fois connecté à Internet."
+                        else -> "Connection failed. Try again once online."
+                    }
+                }
+            )
+        }
+    }
+
+    private fun messageLicenceRefusee(etat: String): String = when (etat) {
+        com.example.util.LicenceManager.ETAT_EXPIREE -> when (language.value) {
+            "mg" -> "Lany daty ny fanalahidy. Mifandraisa amin'ny mpamorona."
+            "fr" -> "Licence expirée. Contactez le fournisseur pour la renouveler."
+            else -> "Licence expired. Contact the vendor to renew."
+        }
+        com.example.util.LicenceManager.ETAT_SUSPENDUE -> when (language.value) {
+            "mg" -> "Nahantona ny fanalahidy. Mifandraisa amin'ny mpamorona."
+            "fr" -> "Licence suspendue. Contactez le fournisseur."
+            else -> "Licence suspended. Contact the vendor."
+        }
+        else -> when (language.value) {
+            "mg" -> "Mbola tsy voarakitra ity ID ity. Alefaso amin'ny mpamorona rehefa vita ny fandoavam-bola."
+            "fr" -> "Cet ID n'est pas encore enregistré. Communiquez-le au fournisseur après paiement."
+            else -> "This ID is not registered yet. Send it to the vendor once payment is done."
+        }
+    }
+
+    /**
+     * Contrôle discret au démarrage d'une app déjà activée : on revérifie de temps en temps que
+     * la licence n'a pas été suspendue, sans jamais bloquer le démarrage ni gêner l'utilisateur.
+     */
+    fun verifierLicenceAuDemarrage() {
+        if (!isActivated.value) return
+        val derniereVerif = appPreferences.licenceLastCheck
+        val doitReverifier =
+            System.currentTimeMillis() - derniereVerif > com.example.util.LicenceManager.RECHECK_INTERVAL_MS
+        if (!doitReverifier) return
+
+        viewModelScope.launch(coroutineExceptionHandler) {
+            val resultat = com.example.util.LicenceManager.verifierLicence(installationId)
+            val licence = resultat.getOrNull() ?: return@launch
+            appPreferences.licenceState = licence.etat
+            appPreferences.licenceExpiry = licence.expiration
+            appPreferences.licenceLastCheck = System.currentTimeMillis()
+            licenceState.value = licence.etat
+            if (!licence.estActive) {
+                appPreferences.isActivated = false
+                isActivated.value = false
+                licenceMessage.value = messageLicenceRefusee(licence.etat)
+            }
+        }
     }
 
     private suspend fun seedSampleProducts() {

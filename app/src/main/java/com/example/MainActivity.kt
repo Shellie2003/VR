@@ -64,7 +64,9 @@ enum class ScreenTab {
     Synchronisation, // Multi-terminal synchronization screen
     CaisseMouvements, // Cash drawer manual in/out movements journal
     Dashboard, // Reports & dashboard: revenue chart, top products
-    Peremption // C.4: expiry lots management and alerts
+    Peremption, // C.4: expiry lots management and alerts
+    Epicerie, // Fiche d'identité de l'épicerie (nom, logo, coordonnées) utilisée dans les PDF
+    Securite // Alertes anti-triche et journal d'audit (réservé au gérant)
 }
 
 class MainActivity : ComponentActivity() {
@@ -168,6 +170,10 @@ fun MainLifecycleContainer() {
             }
         }
 
+        // Contrôle discret de la licence : une app déjà activée revérifie de temps en temps
+        // qu'elle n'a pas été suspendue, sans jamais retarder ni bloquer le démarrage.
+        viewModel.verifierLicenceAuDemarrage()
+
         // 1.0 second Splash screen simulation for ultra fast startup
         delay(1000)
         isSplashVisible = false
@@ -264,6 +270,11 @@ fun SplashScreen(t: (String) -> String) {
 fun ActivationScreen(viewModel: InventoryViewModel, t: (String) -> String) {
     var codeInput by remember { mutableStateOf("") }
     var codeError by remember { mutableStateOf(false) }
+    // Chemin normal : le client paie, communique son ID, le fournisseur crée la licence dans sa
+    // base Firebase, puis le client appuie ici. Le code à 6 chiffres reste le secours hors-ligne.
+    val enVerification by viewModel.licenceEnVerification.collectAsState()
+    val licenceMessage by viewModel.licenceMessage.collectAsState()
+    val activeLang by viewModel.language.collectAsState()
 
     Box(
         modifier = Modifier
@@ -378,6 +389,66 @@ fun ActivationScreen(viewModel: InventoryViewModel, t: (String) -> String) {
                 ) {
                     Text(t("activate_btn"), fontWeight = FontWeight.Bold)
                 }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                // Vérification en ligne : aucune saisie, l'app lit sa propre licence dans la base
+                // du fournisseur. C'est le chemin nominal, le code manuel n'étant là que pour les
+                // installations sans réseau.
+                OutlinedButton(
+                    onClick = { viewModel.verifierLicenceEnLigne() },
+                    enabled = !enVerification,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("verify_licence_button"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    if (enVerification) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.CloudSync,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Hamarino ny fanalahidiko"
+                            "fr" -> "Vérifier mon activation"
+                            else -> "Check my activation"
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                licenceMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                Text(
+                    text = when (activeLang) {
+                        "mg" -> "Alefaso amin'ny mpivarotra ny ID etsy ambony rehefa vita ny fandoavam-bola."
+                        "fr" -> "Communiquez l'ID ci-dessus au fournisseur après paiement, puis appuyez sur « Vérifier mon activation »."
+                        else -> "Send the ID above to the vendor after payment, then tap \"Check my activation\"."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
@@ -460,7 +531,7 @@ fun MainAppLayout(
             )
 
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements && currentTab != ScreenTab.Dashboard && currentTab != ScreenTab.Peremption) {
+                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements && currentTab != ScreenTab.Dashboard && currentTab != ScreenTab.Peremption && currentTab != ScreenTab.Epicerie && currentTab != ScreenTab.Securite) {
                     TopAppBarSection(
                         viewModel = viewModel,
                         onNavigateToSettings = navigateToSettings,
@@ -519,7 +590,9 @@ fun MainAppLayout(
                             onNavigateToSync = { currentTab = ScreenTab.Synchronisation },
                             onNavigateToCaisseMouvements = { currentTab = ScreenTab.CaisseMouvements },
                             onNavigateToDashboard = { currentTab = ScreenTab.Dashboard },
-                            onNavigateToPeremption = { currentTab = ScreenTab.Peremption }
+                            onNavigateToPeremption = { currentTab = ScreenTab.Peremption },
+                            onNavigateToEpicerie = { currentTab = ScreenTab.Epicerie },
+                            onNavigateToSecurite = { currentTab = ScreenTab.Securite }
                         )
                         ScreenTab.Commission -> CommissionScreen(
                             viewModel = viewModel,
@@ -545,6 +618,14 @@ fun MainAppLayout(
                             viewModel = viewModel,
                             onNavigateBack = { currentTab = ScreenTab.Parametres }
                         )
+                        ScreenTab.Epicerie -> EpicerieScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = { currentTab = ScreenTab.Parametres }
+                        )
+                        ScreenTab.Securite -> SecuriteScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = { currentTab = ScreenTab.Parametres }
+                        )
                     }
                 }
             }
@@ -553,7 +634,7 @@ fun MainAppLayout(
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {
-                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements && currentTab != ScreenTab.Dashboard && currentTab != ScreenTab.Peremption) {
+                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements && currentTab != ScreenTab.Dashboard && currentTab != ScreenTab.Peremption && currentTab != ScreenTab.Epicerie && currentTab != ScreenTab.Securite) {
                     TopAppBarSection(
                         viewModel = viewModel,
                         onNavigateToSettings = navigateToSettings,
@@ -636,7 +717,9 @@ fun MainAppLayout(
                         onNavigateToSync = { currentTab = ScreenTab.Synchronisation },
                         onNavigateToCaisseMouvements = { currentTab = ScreenTab.CaisseMouvements },
                         onNavigateToDashboard = { currentTab = ScreenTab.Dashboard },
-                        onNavigateToPeremption = { currentTab = ScreenTab.Peremption }
+                        onNavigateToPeremption = { currentTab = ScreenTab.Peremption },
+                        onNavigateToEpicerie = { currentTab = ScreenTab.Epicerie },
+                        onNavigateToSecurite = { currentTab = ScreenTab.Securite }
                     )
                     ScreenTab.Commission -> CommissionScreen(
                         viewModel = viewModel,
@@ -659,6 +742,14 @@ fun MainAppLayout(
                         onNavigateBack = { currentTab = ScreenTab.Parametres }
                     )
                     ScreenTab.Peremption -> PeremptionScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { currentTab = ScreenTab.Parametres }
+                    )
+                    ScreenTab.Epicerie -> EpicerieScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { currentTab = ScreenTab.Parametres }
+                    )
+                    ScreenTab.Securite -> SecuriteScreen(
                         viewModel = viewModel,
                         onNavigateBack = { currentTab = ScreenTab.Parametres }
                     )

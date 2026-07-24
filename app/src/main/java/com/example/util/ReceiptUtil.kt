@@ -21,6 +21,10 @@ object ReceiptUtil {
 
     private const val PAGE_WIDTH = 226 // ~80mm thermal receipt width at 72dpi
 
+    // Encombrement maximal du logo en tête de ticket (en points, 72dpi).
+    private const val LOGO_MAX_HEIGHT = 44f
+    private const val LOGO_MAX_WIDTH = 140f
+
     fun generateReceiptPdf(
         context: Context,
         groceryName: String,
@@ -37,9 +41,18 @@ object ReceiptUtil {
         // as an informational breakdown line — it never changes the amount charged to the customer.
         val totalTax = items.sumOf { it.taxAmount }
 
+        // Identité de l'épicerie (logo + coordonnées) : lue ici plutôt que passée par l'appelant,
+        // pour que tout reçu généré n'importe où dans l'app la porte automatiquement.
+        val shopInfo = ShopInfo.depuis(context)
+        val logo = ShopLogoUtil.chargerLogo(shopInfo.logoPath)
+        val lignesCoordonnees = shopInfo.lignesCoordonnees()
+
         val lineHeight = 16f
-        val headerHeight = 90f
-        val footerHeight = 118f + (if (totalTax > 0.0) 14f else 0f)
+        val logoHeight = if (logo != null) LOGO_MAX_HEIGHT + 8f else 0f
+        val coordonneesHeight = lignesCoordonnees.size * 11f
+        val piedHeight = if (shopInfo.piedDePage.isNotBlank()) 12f else 0f
+        val headerHeight = 90f + logoHeight + coordonneesHeight
+        val footerHeight = 118f + piedHeight + (if (totalTax > 0.0) 14f else 0f)
         val pageHeight = (headerHeight + items.size * lineHeight + footerHeight).toInt().coerceAtLeast(250)
 
         val pdfDocument = PdfDocument()
@@ -51,6 +64,26 @@ object ReceiptUtil {
             val center = PAGE_WIDTH / 2f
             var y = 22f
 
+            // Logo centré en tête de ticket, à taille contrainte : sur un rouleau de 80 mm, une
+            // image trop haute repousserait le détail des articles hors de la zone imprimable.
+            if (logo != null) {
+                val ratio = logo.width.toFloat() / logo.height.toFloat()
+                var logoH = LOGO_MAX_HEIGHT
+                var logoW = logoH * ratio
+                if (logoW > LOGO_MAX_WIDTH) {
+                    logoW = LOGO_MAX_WIDTH
+                    logoH = logoW / ratio
+                }
+                val destination = android.graphics.RectF(
+                    center - logoW / 2f,
+                    y - 14f,
+                    center + logoW / 2f,
+                    y - 14f + logoH
+                )
+                canvas.drawBitmap(logo, null, destination, Paint().apply { isFilterBitmap = true })
+                y += logoH + 8f
+            }
+
             val titlePaint = Paint().apply {
                 color = Color.BLACK
                 textSize = 13f
@@ -58,7 +91,7 @@ object ReceiptUtil {
                 textAlign = Paint.Align.CENTER
                 typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
             }
-            canvas.drawText(groceryName.ifBlank { "Varotra" }, center, y, titlePaint)
+            canvas.drawText(groceryName.ifBlank { shopInfo.nom.ifBlank { "Varotra" } }, center, y, titlePaint)
             y += 16f
 
             val dateFmt = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.FRANCE)
@@ -67,6 +100,10 @@ object ReceiptUtil {
                 textSize = 8f
                 isAntiAlias = true
                 textAlign = Paint.Align.CENTER
+            }
+            lignesCoordonnees.forEach { ligne ->
+                canvas.drawText(ligne, center, y, subPaint)
+                y += 11f
             }
             canvas.drawText(dateFmt.format(Date(timestamp)), center, y, subPaint)
             y += 16f
@@ -152,6 +189,10 @@ object ReceiptUtil {
                 textAlign = Paint.Align.CENTER
             }
             canvas.drawText("Misaotra ! Merci ! Thank you!", center, y, thanksPaint)
+            if (shopInfo.piedDePage.isNotBlank()) {
+                y += 12f
+                canvas.drawText(shopInfo.piedDePage, center, y, thanksPaint)
+            }
 
             pdfDocument.finishPage(page)
 

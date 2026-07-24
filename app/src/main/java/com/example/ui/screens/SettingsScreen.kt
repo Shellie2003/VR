@@ -47,7 +47,9 @@ fun SettingsScreen(
     onNavigateToSync: () -> Unit,
     onNavigateToCaisseMouvements: () -> Unit,
     onNavigateToDashboard: () -> Unit,
-    onNavigateToPeremption: () -> Unit
+    onNavigateToPeremption: () -> Unit,
+    onNavigateToEpicerie: () -> Unit,
+    onNavigateToSecurite: () -> Unit
 ) {
     val context = LocalContext.current
     // Tablet/large-screen layout: cap the settings column's width and center it instead of
@@ -64,8 +66,6 @@ fun SettingsScreen(
     val firebaseBackupToken = viewModel.firebaseBackupToken
     val allVendeursVal by viewModel.allVendeurs.collectAsState()
 
-    // Local state for grocery name editing
-    var nameInput by remember(groceryNameVal) { mutableStateOf(groceryNameVal) }
 
     // Translate helper
     val t = { key: String -> LanguageManager.translate(key, activeLang) }
@@ -252,83 +252,78 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 2. CARD FOR STORE NAME EDITING
+            // 2. CARTE VERS LA FICHE ÉPICERIE
+            // Le nom de l'épicerie ne vit plus seul ici : il fait partie d'une fiche d'identité
+            // (nom, logo, adresse, téléphone, NIF/STAT, pied de reçu) qui alimente tous les PDF.
+            // Un lien évite de dupliquer la saisie à deux endroits et allège cet écran.
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 8.dp)
+                    .clickable { onNavigateToEpicerie() }
+                    .testTag("settings_epicerie_button"),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = cardBg),
-                border = androidx.compose.foundation.BorderStroke(1.dp, cardBorderColor)
+                colors = CardDefaults.cardColors(containerColor = themeColor.copy(alpha = 0.08f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, themeColor.copy(alpha = 0.3f))
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Storefront,
-                            contentDescription = null,
-                            tint = themeColor,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = storeNameLabel,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = mainTextColor
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(themeColor),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Storefront,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                text = storeNameLabel,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                            Text(
+                                text = groceryNameVal,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = mainTextColor
+                            )
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Logo, adiresy, telefaonina, NIF/STAT — miseho amin'ny PDF"
+                                    "fr" -> "Logo, adresse, téléphone, NIF/STAT — repris sur les PDF"
+                                    else -> "Logo, address, phone, tax IDs — printed on every PDF"
+                                },
+                                fontSize = 11.sp,
+                                color = secondaryTextColor
+                            )
+                        }
                     }
 
-                    OutlinedTextField(
-                        value = nameInput,
-                        onValueChange = { nameInput = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("grocery_name_input"),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = if (isDark) Color(0xFF1B4332) else Color.White,
-                            unfocusedContainerColor = if (isDark) Color(0xFF1B4332) else Color.White,
-                            focusedBorderColor = themeColor,
-                            unfocusedBorderColor = if (isDark) Color(0xFF2C5E43) else Color(0xFFCBD5E1),
-                            focusedTextColor = mainTextColor,
-                            unfocusedTextColor = mainTextColor
-                        )
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = themeColor,
+                        modifier = Modifier.size(24.dp)
                     )
-
-                    Button(
-                        onClick = {
-                            if (nameInput.trim().isNotEmpty()) {
-                                viewModel.updateGroceryName(nameInput.trim())
-                                showSnackbar = true
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = themeColor,
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .align(Alignment.End)
-                            .height(40.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = saveBtnText,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
                 }
             }
 
@@ -1020,6 +1015,76 @@ fun SettingsScreen(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = null,
                         tint = themeColor,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            // CARTE VERS SÉCURITÉ & SURVEILLANCE (alertes anti-triche + journal d'audit)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .clickable { onNavigateToSecurite() }
+                    .testTag("settings_securite_button"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFD32F2F).copy(alpha = 0.08f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD32F2F).copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFD32F2F)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Security,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Fiarovana sy Fanaraha-maso"
+                                    "fr" -> "Sécurité & Surveillance"
+                                    else -> "Security & Monitoring"
+                                },
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFD32F2F)
+                            )
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Fampitandremana sy tantaran'ny asa nataon'ny mpiasa"
+                                    "fr" -> "Alertes et journal des gestes sensibles des employés"
+                                    else -> "Alerts and audit journal of sensitive actions"
+                                },
+                                fontSize = 11.sp,
+                                color = secondaryTextColor
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = Color(0xFFD32F2F),
                         modifier = Modifier.size(24.dp)
                     )
                 }
