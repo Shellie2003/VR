@@ -52,7 +52,7 @@ object FirebaseBackupManager {
      * Laisser cette constante vide désactive simplement la sauvegarde cloud par défaut : le client
      * garde alors la possibilité de renseigner sa propre base dans Paramètres.
      */
-    const val CENTRAL_BACKUP_DATABASE_URL = "https://varotra-backups-default-rtdb.firebaseio.com"
+    const val CENTRAL_BACKUP_DATABASE_URL = "https://varotra-1528a-default-rtdb.asia-southeast1.firebasedatabase.app/"
 
     /**
      * URL réellement utilisée pour sauvegarder : celle saisie par le client dans Paramètres si
