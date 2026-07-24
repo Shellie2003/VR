@@ -1,7 +1,6 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -52,6 +51,7 @@ fun SecuriteScreen(
     val fenetreJours by viewModel.fenetreAnalyseJours.collectAsState()
 
     var ongletAlertes by remember { mutableStateOf(true) }
+    var confirmerPurge by remember { mutableStateOf(false) }
 
     val dateFormat = remember { SimpleDateFormat("dd/MM HH:mm", Locale.FRANCE) }
 
@@ -72,8 +72,76 @@ fun SecuriteScreen(
                 IconButton(onClick = onNavigateBack, modifier = Modifier.testTag("securite_back_button")) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                 }
+            },
+            actions = {
+                // Le journal grossit indéfiniment : le gérant peut archiver les traces anciennes.
+                // La purge est elle-même journalisée et refusée à un employé.
+                if (!ongletAlertes) {
+                    IconButton(
+                        onClick = { confirmerPurge = true },
+                        modifier = Modifier.testTag("securite_purge_button")
+                    ) {
+                        Icon(Icons.Default.DeleteSweep, contentDescription = null)
+                    }
+                }
             }
         )
+
+        if (confirmerPurge) {
+            AlertDialog(
+                onDismissRequest = { confirmerPurge = false },
+                title = {
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Hofafana ny tantara taloha?"
+                            "fr" -> "Purger les traces anciennes ?"
+                            else -> "Purge old traces?"
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Hofafana ny rakitra mihoatra ny 90 andro. Tsy voakasika ny 90 andro farany."
+                            "fr" -> "Les traces de plus de 90 jours seront supprimées. Les 90 derniers jours sont conservés."
+                            else -> "Traces older than 90 days will be deleted. The last 90 days are kept."
+                        }
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.purgerJournalAudit(
+                                System.currentTimeMillis() - 90L * 24 * 60 * 60 * 1000
+                            )
+                            confirmerPurge = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Hofafana"
+                                "fr" -> "Purger"
+                                else -> "Purge"
+                            },
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmerPurge = false }) {
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Aoka"
+                                "fr" -> "Annuler"
+                                else -> "Cancel"
+                            }
+                        )
+                    }
+                }
+            )
+        }
 
         // Fenêtre d'analyse : une épicerie regarde rarement plus loin qu'un mois en arrière, mais
         // le gérant doit pouvoir resserrer sur la semaine écoulée après un incident.

@@ -484,7 +484,8 @@ class InventoryViewModel(
 
     /**
      * Refuse l'action, la journalise comme tentative bloquée et prépare le message à afficher.
-     * Retourne toujours false, pour pouvoir écrire `if (!autoriserSuppression(...)) return false`.
+     * Retourne toujours false, pour pouvoir écrire directement
+     * `if (!peutSupprimerHistorique()) return refuserSuppression(...)`.
      */
     private fun refuserSuppression(type: String, cible: String, montant: Double): Boolean {
         journaliser(
@@ -1065,7 +1066,14 @@ class InventoryViewModel(
             appPreferences.licenceExpiry = licence.expiration
             appPreferences.licenceLastCheck = System.currentTimeMillis()
             licenceState.value = licence.etat
-            if (!licence.estActive) {
+
+            // On ne reverrouille QUE sur un refus explicite du serveur (suspendue ou expirée).
+            // Une licence introuvable ne suffit pas : une épicerie activée hors-ligne par code à
+            // 6 chiffres n'a pas forcément de nœud créé côté Firebase, et se retrouverait bloquée
+            // en pleine journée de vente pour une raison purement administrative.
+            val refusExplicite = licence.etat == com.example.util.LicenceManager.ETAT_SUSPENDUE ||
+                licence.etat == com.example.util.LicenceManager.ETAT_EXPIREE
+            if (refusExplicite) {
                 appPreferences.isActivated = false
                 isActivated.value = false
                 licenceMessage.value = messageLicenceRefusee(licence.etat)
