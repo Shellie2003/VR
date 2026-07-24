@@ -49,7 +49,7 @@ object LicenceManager {
      * volontairement en dur : le client ne doit jamais avoir à créer ni saisir quoi que ce soit).
      * Format attendu : "https://<projet>-default-rtdb.firebaseio.com".
      */
-    const val CENTRAL_DATABASE_URL = "https://varotra-licences-default-rtdb.firebaseio.com"
+    const val CENTRAL_DATABASE_URL = "https://varotra-8c4d8-default-rtdb.asia-southeast1.firebasedatabase.app/"
 
     /** Durée pendant laquelle une licence déjà validée reste acceptée sans réseau. */
     private const val GRACE_PERIOD_MS = 30L * 24 * 60 * 60 * 1000 // 30 jours
