@@ -23,9 +23,10 @@ import java.util.concurrent.TimeUnit
  *
  * Règles de sécurité à poser sur la base des sauvegardes. Noter le niveau : l'autorisation est
  * donnée SOUS `backups/$token`, jamais sur `backups` lui-même — sinon un seul GET sur
- * `/backups.json` récupérerait les données de tous les clients d'un coup. Le token étant un UUID
- * aléatoire jamais affiché à l'écran (voir AppPreferences.firebaseBackupToken), il faut le
- * connaître exactement pour atteindre une sauvegarde :
+ * `/backups.json` récupérerait les données de tous les clients d'un coup. Le token est le code de
+ * récupération de la boutique (voir [RecoveryCode]) : 60 bits d'entropie, donc impossible à
+ * deviner, mais volontairement lisible et re-saisissable pour qu'une sauvegarde reste
+ * récupérable après la perte du téléphone :
  *   {
  *     "rules": {
  *       "backups": {
