@@ -17,5 +17,8 @@ data class Retour(
     // The payment mode of the original sale, reused to decide how the refund affects the cash
     // drawer (see InventoryRepository.processReturn): ESPECES triggers an automatic cash-out
     // MouvementCaisse, other modes don't touch the physical till.
-    val modePaiementOrigine: String = "ESPECES"
+    val modePaiementOrigine: String = "ESPECES",
+    // Traçabilité multi-appareils : qui a validé ce retour/remboursement.
+    val deviceName: String = "",
+    val vendeurNom: String = ""
 )

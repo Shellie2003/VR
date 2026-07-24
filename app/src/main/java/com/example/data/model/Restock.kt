@@ -15,5 +15,8 @@ data class Restock(
     val unitSellingPrice: Double,
     val supplierId: Long?,
     val supplierName: String?,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    // Traçabilité multi-appareils : quel poste (et quel employé connecté) a saisi ce réappro.
+    val deviceName: String = "",
+    val vendeurNom: String = ""
 )

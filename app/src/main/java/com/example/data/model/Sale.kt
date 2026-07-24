@@ -21,5 +21,9 @@ data class Sale(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val timestamp: Long,
     val totalAmount: Double,
-    val items: List<SoldItem>
+    val items: List<SoldItem>,
+    // Traçabilité multi-appareils : quel poste (et quel employé connecté) a encaissé cette vente.
+    // Vide sur les ventes enregistrées avant l'introduction de la fonctionnalité.
+    val deviceName: String = "",
+    val vendeurNom: String = ""
 )

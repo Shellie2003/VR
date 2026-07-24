@@ -53,7 +53,8 @@ class DeletionTombstoneTest {
         caisseSessionDao = db.caisseSessionDao(),
         vendeurDao = db.vendeurDao(),
         retourDao = db.retourDao(),
-        deletedRecordDao = db.deletedRecordDao()
+        deletedRecordDao = db.deletedRecordDao(),
+        auditLogDao = db.auditLogDao()
     )
 
     @Test

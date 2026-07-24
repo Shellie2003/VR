@@ -10,5 +10,8 @@ data class MouvementCaisse(
     val montant: Double,
     val motif: String,
     val note: String = "",
-    val date: Long = System.currentTimeMillis()
+    val date: Long = System.currentTimeMillis(),
+    // Traçabilité multi-appareils : qui a sorti / entré de l'argent de la caisse.
+    val deviceName: String = "",
+    val vendeurNom: String = ""
 )

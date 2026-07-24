@@ -101,7 +101,8 @@ fun MainLifecycleContainer() {
             database.caisseSessionDao(),
             database.vendeurDao(),
             database.retourDao(),
-            database.deletedRecordDao()
+            database.deletedRecordDao(),
+            database.auditLogDao()
         )
     }
     
@@ -391,6 +392,17 @@ fun MainAppLayout(
     var productToEdit by remember { mutableStateOf<Product?>(null) }
     val isActivated by viewModel.isActivated.collectAsState()
     var calculatorInitialSubTab by remember { mutableStateOf("checkout") }
+
+    // Refus de droits (employé tentant une suppression réservée au gérant) : un seul observateur
+    // ici couvre tous les écrans, plutôt qu'un traitement dupliqué dans chaque boîte de dialogue.
+    val messageSecurite by viewModel.messageSecurite.collectAsState()
+    val securityToastContext = LocalContext.current
+    LaunchedEffect(messageSecurite) {
+        messageSecurite?.let { message ->
+            android.widget.Toast.makeText(securityToastContext, message, android.widget.Toast.LENGTH_LONG).show()
+            viewModel.consommerMessageSecurite()
+        }
+    }
 
     // Navigation redirects
     val navigateToHome = {

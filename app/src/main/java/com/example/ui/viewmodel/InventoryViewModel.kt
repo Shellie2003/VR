@@ -16,8 +16,10 @@ import com.example.data.model.Vendeur
 import com.example.data.model.Retour
 import com.example.data.model.LotProduit
 import com.example.data.model.DeletedRecord
+import com.example.data.model.AuditLog
 import com.example.data.repository.InventoryRepository
 import com.example.util.AppPreferences
+import com.example.util.FormatUtil
 import com.example.util.NotificationHelper
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -46,6 +48,18 @@ private object TombstoneKeys {
     fun lot(productKey: String, datePeremption: Long, numeroLot: String?): String =
         "${productKey}_${datePeremption}_${numeroLot ?: ""}"
 }
+
+/**
+ * Regroupe les cinq flux alimentant la détection d'anomalies. Sans ce porteur il faudrait
+ * combiner plus de flux que `combine` n'en accepte d'un coup.
+ */
+private data class DonneesSurveillance(
+    val sales: List<Sale>,
+    val retours: List<Retour>,
+    val mouvements: List<MouvementCaisse>,
+    val sessions: List<CaisseSession>,
+    val logs: List<AuditLog>
+)
 
 data class CartItem(
     val id: String, // "product_<id>" or "misc_<uuid>"
@@ -84,6 +98,16 @@ class InventoryViewModel(
     val isActivated = MutableStateFlow(appPreferences.isActivated)
     val installationId = appPreferences.installationId
     val firebaseBackupToken = appPreferences.firebaseBackupToken
+
+    // Identification de l'appareil : nom lisible estampillé sur chaque transaction. C'est le nom
+    // de la personne qui tient l'appareil, pas celui de l'épicerie (voir AppPreferences.deviceName).
+    val deviceName = MutableStateFlow(appPreferences.deviceName)
+
+    fun updateDeviceName(name: String) {
+        val clean = name.trim().ifBlank { android.os.Build.MODEL ?: "Appareil" }
+        appPreferences.deviceName = clean
+        deviceName.value = clean
+    }
 
     val groceryName = MutableStateFlow(appPreferences.groceryName)
     val colorTheme = MutableStateFlow(appPreferences.colorTheme)
@@ -203,19 +227,47 @@ class InventoryViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun processReturn(sale: Sale, returnedItems: List<SoldItem>, motif: String, modePaiementOrigine: String = "ESPECES") {
+        val total = returnedItems.sumOf { it.price * it.quantity }
+        // Le retour n'est pas bloqué (un employé doit pouvoir rembourser un client), mais il est
+        // systématiquement tracé : c'est le canal de fraude le plus courant en caisse.
+        journaliser(
+            type = AuditLog.Companion.Type.RETOUR,
+            cible = "Vente #${sale.id}",
+            details = motif.ifBlank { "Sans motif" },
+            montant = total,
+            severite = AuditLog.SEVERITE_INFO
+        )
         viewModelScope.launch(coroutineExceptionHandler) {
-            repository.processReturn(sale, returnedItems, motif, modePaiementOrigine)
+            repository.processReturn(
+                sale = sale,
+                returnedItems = returnedItems,
+                motif = motif,
+                modePaiementOrigine = modePaiementOrigine,
+                deviceName = deviceName.value,
+                vendeurNom = activeVendeur.value?.nom ?: ""
+            )
             com.example.sync.SyncManager.triggerDatabaseSync()
             triggerLocalSafetyBackup()
         }
     }
 
-    fun deleteRetour(retour: Retour) {
+    fun deleteRetour(retour: Retour): Boolean {
+        val cible = "Retour vente #${retour.saleId} (${FormatUtil.formatPrice(retour.totalAmount)} Ar)"
+        if (!peutSupprimerHistorique()) {
+            return refuserSuppression(AuditLog.Companion.Type.SUPPRESSION_RETOUR, cible, retour.totalAmount)
+        }
+        journaliser(
+            type = AuditLog.Companion.Type.SUPPRESSION_RETOUR,
+            cible = cible,
+            montant = retour.totalAmount,
+            severite = AuditLog.SEVERITE_ALERTE
+        )
         viewModelScope.launch(coroutineExceptionHandler) {
             repository.deleteRetour(retour)
             repository.recordDeletion("retour", TombstoneKeys.retour(retour.saleId, retour.timestamp))
             triggerLocalSafetyBackup()
         }
+        return true
     }
 
     // C.4: expiry lots (only meaningful for produits with gerePeremption = true)
@@ -278,6 +330,12 @@ class InventoryViewModel(
         if (vendeur.pinHash != Vendeur.hashPin(pin)) return false
         _activeVendeurId.value = vendeur.id
         appPreferences.activeVendeurId = vendeur.id
+        // Tracé pour pouvoir relier chaque transaction à une prise de poste identifiée.
+        journaliser(
+            type = AuditLog.Companion.Type.CONNEXION,
+            cible = vendeur.nom,
+            details = "Connexion ${vendeur.role} sur ${deviceName.value}"
+        )
         return true
     }
 
@@ -306,6 +364,135 @@ class InventoryViewModel(
         val vendeurs = allVendeurs.value
         if (vendeurs.isEmpty()) return false
         return activeVendeur.value?.role != Vendeur.ROLE_GERANT
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Droits, traçabilité et détection d'anomalies
+    // ------------------------------------------------------------------------------------------
+
+    /**
+     * L'appareil agit-il avec les droits du gérant ?
+     *
+     * Tant qu'aucun compte n'a été créé (cas de l'épicier seul, très majoritaire), la réponse est
+     * oui : l'app se comporte exactement comme avant, sans PIN ni restriction. Dès qu'un gérant a
+     * créé des comptes employés, seul un gérant connecté conserve les droits sensibles.
+     */
+    val estGerant: Boolean
+        get() = allVendeurs.value.isEmpty() || activeVendeur.value?.role == Vendeur.ROLE_GERANT
+
+    /**
+     * Suppression d'un historique de transaction (vente, dette, retour, mouvement de caisse,
+     * réappro) : réservée au gérant. C'est le geste qui efface la preuve d'un encaissement.
+     */
+    fun peutSupprimerHistorique(): Boolean = estGerant
+
+    /** Message affiché à l'écran quand une action a été refusée (consommé par l'UI). */
+    val messageSecurite = MutableStateFlow<String?>(null)
+
+    fun consommerMessageSecurite() {
+        messageSecurite.value = null
+    }
+
+    private fun messageRefus(): String = when (language.value) {
+        "mg" -> "Ny Gérant ihany no mahazo mamafa tantara."
+        "fr" -> "Suppression réservée au gérant."
+        else -> "Deleting history is manager-only."
+    }
+
+    /** Écrit une trace dans le journal d'audit. Ne bloque jamais l'appelant. */
+    fun journaliser(
+        type: String,
+        cible: String = "",
+        details: String = "",
+        montant: Double = 0.0,
+        severite: String = AuditLog.SEVERITE_INFO,
+        bloque: Boolean = false
+    ) {
+        val vendeur = activeVendeur.value
+        viewModelScope.launch(coroutineExceptionHandler) {
+            repository.insertAuditLog(
+                AuditLog(
+                    deviceName = deviceName.value,
+                    utilisateur = vendeur?.nom ?: "",
+                    role = vendeur?.role ?: "",
+                    type = type,
+                    cible = cible,
+                    details = details,
+                    montant = montant,
+                    severite = severite,
+                    bloque = bloque
+                )
+            )
+        }
+    }
+
+    /**
+     * Refuse l'action, la journalise comme tentative bloquée et prépare le message à afficher.
+     * Retourne toujours false, pour pouvoir écrire `if (!autoriserSuppression(...)) return false`.
+     */
+    private fun refuserSuppression(type: String, cible: String, montant: Double): Boolean {
+        journaliser(
+            type = type,
+            cible = cible,
+            details = "Tentative de suppression refusée (rôle employé)",
+            montant = montant,
+            severite = AuditLog.SEVERITE_ALERTE,
+            bloque = true
+        )
+        messageSecurite.value = messageRefus()
+        return false
+    }
+
+    /** Les 500 dernières traces, pour l'écran Sécurité. */
+    val auditLogs: StateFlow<List<AuditLog>> = repository.recentAuditLogs
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Fenêtre d'analyse des anomalies, en jours (modifiable depuis l'écran Sécurité). */
+    val fenetreAnalyseJours = MutableStateFlow(30)
+
+    /**
+     * Anomalies détectées sur la fenêtre courante. Recalculé automatiquement dès qu'une vente, un
+     * retour, un mouvement de caisse, une session ou une trace d'audit change.
+     */
+    val anomalies: StateFlow<List<com.example.util.AnomalyDetector.Anomalie>> = combine(
+        combine(
+            allSales, allRetours, allMouvementsCaisse, allCaisseSessions, auditLogs
+        ) { sales, retours, mouvements, sessions, logs ->
+            DonneesSurveillance(sales, retours, mouvements, sessions, logs)
+        },
+        allProducts,
+        fenetreAnalyseJours,
+        language
+    ) { donnees, produits, jours, lang ->
+        com.example.util.AnomalyDetector.analyser(
+            sales = donnees.sales,
+            retours = donnees.retours,
+            mouvements = donnees.mouvements,
+            sessions = donnees.sessions,
+            auditLogs = donnees.logs,
+            products = produits,
+            depuis = System.currentTimeMillis() - jours * 24L * 60 * 60 * 1000,
+            lang = lang
+        )
+    }
+        .flowOn(kotlinx.coroutines.Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Purge du journal d'audit : réservée au gérant, et elle-même journalisée. */
+    fun purgerJournalAudit(avantMillis: Long): Boolean {
+        if (!peutSupprimerHistorique()) {
+            return refuserSuppression(AuditLog.Companion.Type.PURGE_JOURNAL, "Journal d'audit", 0.0)
+        }
+        journaliser(
+            type = AuditLog.Companion.Type.PURGE_JOURNAL,
+            cible = "Journal d'audit",
+            details = "Purge des traces antérieures",
+            severite = AuditLog.SEVERITE_ALERTE
+        )
+        viewModelScope.launch(coroutineExceptionHandler) {
+            repository.purgeAuditLogsBefore(avantMillis)
+        }
+        return true
     }
 
     // Theoretical cash balance: ESPECES sales only (Mvola/Orange Money/Crédit never put physical
@@ -337,6 +524,18 @@ class InventoryViewModel(
             val entrees = mouvementsInWindow.filter { it.type == "ENTREE" }.sumOf { it.montant }
             val sorties = mouvementsInWindow.filter { it.type == "SORTIE" }.sumOf { it.montant }
             val theorique = session.montantOuverture + cashSales + entrees - sorties
+            val ecart = montantCompte - theorique
+            // Un manquant à la fermeture est le symptôme le plus direct d'une fuite d'argent :
+            // on le trace nominativement pour que le gérant sache sur quel poste il s'est produit.
+            if (ecart < 0) {
+                journaliser(
+                    type = AuditLog.Companion.Type.ECART_CAISSE,
+                    cible = "Fermeture de caisse",
+                    details = "Compté ${FormatUtil.formatPrice(montantCompte)} Ar / théorique ${FormatUtil.formatPrice(theorique)} Ar",
+                    montant = -ecart,
+                    severite = AuditLog.SEVERITE_ALERTE
+                )
+            }
             repository.updateCaisseSession(
                 session.copy(
                     dateFermeture = now,
@@ -351,35 +550,76 @@ class InventoryViewModel(
     }
 
     fun saveMouvementCaisse(mouvement: MouvementCaisse) {
+        val signe = mouvement.copy(
+            deviceName = mouvement.deviceName.ifBlank { deviceName.value },
+            vendeurNom = mouvement.vendeurNom.ifBlank { activeVendeur.value?.nom ?: "" }
+        )
+        if (signe.type == "SORTIE") {
+            journaliser(
+                type = AuditLog.Companion.Type.SORTIE_CAISSE,
+                cible = signe.motif,
+                details = signe.note,
+                montant = signe.montant,
+                severite = AuditLog.SEVERITE_INFO
+            )
+        }
         viewModelScope.launch(coroutineExceptionHandler) {
-            repository.insertMouvementCaisse(mouvement)
+            repository.insertMouvementCaisse(signe)
             com.example.sync.SyncManager.triggerDatabaseSync()
             triggerLocalSafetyBackup()
         }
     }
 
-    fun deleteMouvementCaisse(mouvement: MouvementCaisse) {
+    fun deleteMouvementCaisse(mouvement: MouvementCaisse): Boolean {
+        val cible = "${mouvement.type} caisse ${FormatUtil.formatPrice(mouvement.montant)} Ar"
+        if (!peutSupprimerHistorique()) {
+            return refuserSuppression(AuditLog.Companion.Type.SUPPRESSION_MOUVEMENT_CAISSE, cible, mouvement.montant)
+        }
+        journaliser(
+            type = AuditLog.Companion.Type.SUPPRESSION_MOUVEMENT_CAISSE,
+            cible = cible,
+            details = mouvement.motif,
+            montant = mouvement.montant,
+            severite = AuditLog.SEVERITE_ALERTE
+        )
         viewModelScope.launch(coroutineExceptionHandler) {
             repository.deleteMouvementCaisse(mouvement)
             repository.recordDeletion("mouvementCaisse", TombstoneKeys.mouvementCaisse(mouvement.type, mouvement.date))
             com.example.sync.SyncManager.triggerDatabaseSync()
             triggerLocalSafetyBackup()
         }
+        return true
     }
 
     fun saveRestock(restock: com.example.data.model.Restock) {
+        val signe = restock.copy(
+            deviceName = restock.deviceName.ifBlank { deviceName.value },
+            vendeurNom = restock.vendeurNom.ifBlank { activeVendeur.value?.nom ?: "" }
+        )
         viewModelScope.launch(coroutineExceptionHandler) {
-            repository.insertRestock(restock)
+            repository.insertRestock(signe)
             triggerLocalSafetyBackup()
         }
     }
 
-    fun deleteRestock(restock: com.example.data.model.Restock) {
+    fun deleteRestock(restock: com.example.data.model.Restock): Boolean {
+        val cible = "Réappro ${restock.productName}"
+        if (!peutSupprimerHistorique()) {
+            return refuserSuppression(AuditLog.Companion.Type.SUPPRESSION_REAPPRO, cible, restock.totalCostPrice)
+        }
+        journaliser(
+            type = AuditLog.Companion.Type.SUPPRESSION_REAPPRO,
+            cible = cible,
+            details = "${restock.totalUnits} unité(s)",
+            montant = restock.totalCostPrice,
+            severite = AuditLog.SEVERITE_ATTENTION
+        )
         viewModelScope.launch(coroutineExceptionHandler) {
             repository.deleteRestock(restock)
             repository.recordDeletion("restock", TombstoneKeys.restock(restock.productId, restock.timestamp))
             triggerLocalSafetyBackup()
         }
+        return true
     }
 
     val categories: StateFlow<List<String>> = repository.allCategories
@@ -1028,6 +1268,9 @@ class InventoryViewModel(
             saleJsonObj.put("timestamp", newSale.timestamp)
             saleJsonObj.put("totalAmount", newSale.totalAmount)
             saleJsonObj.put("modePaiement", modePaiement)
+            // Signature du terminal client, conservée par le serveur à l'enregistrement.
+            saleJsonObj.put("deviceName", deviceName.value)
+            saleJsonObj.put("vendeurNom", activeVendeur.value?.nom ?: "")
             val itemsArr = org.json.JSONArray()
             newSale.items.forEach {
                 val itemObj = org.json.JSONObject()
@@ -1071,7 +1314,10 @@ class InventoryViewModel(
                 val newSale = Sale(
                     timestamp = System.currentTimeMillis(),
                     totalAmount = total,
-                    items = soldItems
+                    items = soldItems,
+                    // Signature de la transaction : quel poste, quel employé.
+                    deviceName = deviceName.value,
+                    vendeurNom = activeVendeur.value?.nom ?: ""
                 )
 
                 // 1. Perform atomic transaction
@@ -1144,11 +1390,27 @@ class InventoryViewModel(
         }
     }
 
-    fun deleteProduct(product: Product) {
+    fun deleteProduct(product: Product): Boolean {
         if (com.example.sync.SyncManager.isConnected.value && !com.example.sync.SyncManager.isServer.value) {
             addSyncLog("Tsy mahazo mamafa entana ny Client (La suppression est réservée au Serveur)")
-            return
+            return false
         }
+        // Retirer un produit du catalogue efface aussi son stock : c'est un geste de gestion, pas
+        // une opération de caisse, donc réservé au gérant dès que des comptes employés existent.
+        if (!peutSupprimerHistorique()) {
+            return refuserSuppression(
+                AuditLog.Companion.Type.SUPPRESSION_PRODUIT,
+                "Produit ${product.name}",
+                product.price * product.stock
+            )
+        }
+        journaliser(
+            type = AuditLog.Companion.Type.SUPPRESSION_PRODUIT,
+            cible = "Produit ${product.name}",
+            details = "Stock restant: ${FormatUtil.formatQty(product.stock, product.unit)}",
+            montant = product.price * product.stock,
+            severite = AuditLog.SEVERITE_ATTENTION
+        )
         viewModelScope.launch {
             repository.deleteProduct(product)
             repository.recordDeletion("product", TombstoneKeys.product(product.barcode, product.sku, product.name))
@@ -1156,9 +1418,23 @@ class InventoryViewModel(
             com.example.sync.SyncManager.triggerDatabaseSync()
             triggerLocalSafetyBackup()
         }
+        return true
     }
 
     fun adjustStock(product: Product, newStock: Double) {
+        // Une correction de stock à la baisse est le moyen le plus simple de « régulariser » une
+        // marchandise disparue : on en garde une trace nominative sans jamais bloquer le geste,
+        // qui reste légitime au quotidien (casse, périmé, erreur de comptage).
+        val ecart = newStock - product.stock
+        if (ecart < 0) {
+            journaliser(
+                type = AuditLog.Companion.Type.AJUSTEMENT_STOCK,
+                cible = "Produit ${product.name}",
+                details = "Stock ${FormatUtil.formatQty(product.stock, product.unit)} → ${FormatUtil.formatQty(newStock, product.unit)}",
+                montant = -ecart * product.price,
+                severite = AuditLog.SEVERITE_ATTENTION
+            )
+        }
         viewModelScope.launch {
             val updatedProduct = product.copy(stock = newStock)
             repository.updateProduct(updatedProduct)
@@ -1170,19 +1446,42 @@ class InventoryViewModel(
         }
     }
 
-    fun deleteSale(sale: Sale) {
+    /**
+     * Suppression d'une vente : réservée au gérant, et journalisée dans tous les cas — qu'elle
+     * aboutisse (qui a effacé quoi) ou qu'elle soit refusée (qui a essayé).
+     */
+    fun deleteSale(sale: Sale): Boolean {
+        val cible = "Vente ${FormatUtil.formatPrice(sale.totalAmount)} Ar du ${formatDateCourte(sale.timestamp)}"
+        if (!peutSupprimerHistorique()) {
+            return refuserSuppression(AuditLog.Companion.Type.SUPPRESSION_VENTE, cible, sale.totalAmount)
+        }
+        journaliser(
+            type = AuditLog.Companion.Type.SUPPRESSION_VENTE,
+            cible = cible,
+            details = "${sale.items.size} article(s)",
+            montant = sale.totalAmount,
+            severite = AuditLog.SEVERITE_ALERTE
+        )
         viewModelScope.launch {
             repository.deleteSale(sale)
             repository.recordDeletion("sale", TombstoneKeys.sale(sale.timestamp))
             com.example.sync.SyncManager.triggerDatabaseSync()
             triggerLocalSafetyBackup()
         }
+        return true
     }
+
+    private fun formatDateCourte(timestamp: Long): String =
+        java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.FRANCE).format(java.util.Date(timestamp))
 
     // Debt Management CRUD
     fun saveDebt(debt: Debt) {
+        val signe = debt.copy(
+            deviceName = debt.deviceName.ifBlank { deviceName.value },
+            vendeurNom = debt.vendeurNom.ifBlank { activeVendeur.value?.nom ?: "" }
+        )
         viewModelScope.launch {
-            repository.insertDebt(debt)
+            repository.insertDebt(signe)
             com.example.sync.SyncManager.triggerDatabaseSync()
             triggerLocalSafetyBackup()
         }
@@ -1206,13 +1505,25 @@ class InventoryViewModel(
         }
     }
 
-    fun deleteDebt(debt: Debt) {
+    fun deleteDebt(debt: Debt): Boolean {
+        val cible = "Trosa ${debt.debtorName} (${FormatUtil.formatPrice(debt.balance)} Ar)"
+        if (!peutSupprimerHistorique()) {
+            return refuserSuppression(AuditLog.Companion.Type.SUPPRESSION_DETTE, cible, debt.balance)
+        }
+        journaliser(
+            type = AuditLog.Companion.Type.SUPPRESSION_DETTE,
+            cible = cible,
+            details = if (debt.isPaid) "Dette soldée" else "Dette NON soldée",
+            montant = debt.balance,
+            severite = if (debt.isPaid) AuditLog.SEVERITE_ATTENTION else AuditLog.SEVERITE_ALERTE
+        )
         viewModelScope.launch {
             repository.deleteDebt(debt)
             repository.recordDeletion("debt", TombstoneKeys.debt(debt.debtorName, debt.date))
             com.example.sync.SyncManager.triggerDatabaseSync()
             triggerLocalSafetyBackup()
         }
+        return true
     }
 
     // Fournisseur Management
@@ -1265,7 +1576,12 @@ class InventoryViewModel(
             val sale = Sale(
                 timestamp = timestamp,
                 totalAmount = totalAmount,
-                items = list
+                items = list,
+                // La vente vient d'un terminal client : on garde SON nom d'appareil, pas celui du
+                // serveur qui la valide, sinon toutes les ventes du magasin sembleraient venir
+                // d'un seul poste.
+                deviceName = obj.optString("deviceName", ""),
+                vendeurNom = obj.optString("vendeurNom", "")
             )
             kotlinx.coroutines.runBlocking {
                 repository.checkoutSale(sale, modePaiement = modePaiement)
@@ -1482,7 +1798,11 @@ class InventoryViewModel(
                     val saleObj = org.json.JSONObject()
                     saleObj.put("timestamp", sale.timestamp)
                     saleObj.put("totalAmount", sale.totalAmount)
-                    
+                    // Traçabilité conservée à travers la synchro et les sauvegardes : sans ça, une
+                    // vente changerait d'auteur (ou le perdrait) en passant d'un appareil à l'autre.
+                    saleObj.put("deviceName", sale.deviceName)
+                    saleObj.put("vendeurNom", sale.vendeurNom)
+
                     val itemsArr = org.json.JSONArray()
                     sale.items.forEach { item ->
                         val itemObj = org.json.JSONObject()
@@ -1508,6 +1828,8 @@ class InventoryViewModel(
                     debtObj.put("note", debt.note)
                     debtObj.put("isPaid", debt.isPaid)
                     debtObj.put("dueDate", debt.dueDate ?: org.json.JSONObject.NULL)
+                    debtObj.put("deviceName", debt.deviceName)
+                    debtObj.put("vendeurNom", debt.vendeurNom)
                     debtsArr.put(debtObj)
                 }
 
@@ -1525,6 +1847,8 @@ class InventoryViewModel(
                     restockObj.put("supplierId", restock.supplierId ?: -1L)
                     restockObj.put("supplierName", restock.supplierName ?: "")
                     restockObj.put("timestamp", restock.timestamp)
+                    restockObj.put("deviceName", restock.deviceName)
+                    restockObj.put("vendeurNom", restock.vendeurNom)
                     restocksArr.put(restockObj)
                 }
 
@@ -1536,6 +1860,8 @@ class InventoryViewModel(
                     mvtObj.put("motif", mouvement.motif)
                     mvtObj.put("note", mouvement.note)
                     mvtObj.put("date", mouvement.date)
+                    mvtObj.put("deviceName", mouvement.deviceName)
+                    mvtObj.put("vendeurNom", mouvement.vendeurNom)
                     mouvementsCaisseArr.put(mvtObj)
                 }
 
@@ -1571,6 +1897,8 @@ class InventoryViewModel(
                     rObj.put("totalAmount", retour.totalAmount)
                     rObj.put("motif", retour.motif)
                     rObj.put("modePaiementOrigine", retour.modePaiementOrigine)
+                    rObj.put("deviceName", retour.deviceName)
+                    rObj.put("vendeurNom", retour.vendeurNom)
                     val rItemsArr = org.json.JSONArray()
                     retour.items.forEach { item ->
                         val itemObj = org.json.JSONObject()
@@ -1840,7 +2168,11 @@ class InventoryViewModel(
                         Sale(
                             timestamp = obj.getLong("timestamp"),
                             totalAmount = obj.getDouble("totalAmount"),
-                            items = itemsList
+                            items = itemsList,
+                            // optString : les sauvegardes créées avant cette version n'ont pas ces
+                            // champs, elles restent restaurables sans auteur connu.
+                            deviceName = obj.optString("deviceName", ""),
+                            vendeurNom = obj.optString("vendeurNom", "")
                         )
                     )
                 }
@@ -1881,7 +2213,9 @@ class InventoryViewModel(
                             date = obj.getLong("date"),
                             note = obj.optString("note", ""),
                             isPaid = obj.optBoolean("isPaid", false),
-                            dueDate = if (obj.isNull("dueDate")) null else obj.optLong("dueDate")
+                            dueDate = if (obj.isNull("dueDate")) null else obj.optLong("dueDate"),
+                            deviceName = obj.optString("deviceName", ""),
+                            vendeurNom = obj.optString("vendeurNom", "")
                         )
                     )
                 }
@@ -1931,7 +2265,9 @@ class InventoryViewModel(
                             unitSellingPrice = obj.getDouble("unitSellingPrice"),
                             supplierId = if (obj.has("supplierId") && obj.getLong("supplierId") != -1L) obj.getLong("supplierId") else null,
                             supplierName = if (obj.has("supplierName")) obj.getString("supplierName") else null,
-                            timestamp = obj.getLong("timestamp")
+                            timestamp = obj.getLong("timestamp"),
+                            deviceName = obj.optString("deviceName", ""),
+                            vendeurNom = obj.optString("vendeurNom", "")
                         )
                     )
                 }
@@ -1963,7 +2299,9 @@ class InventoryViewModel(
                             montant = obj.getDouble("montant"),
                             motif = obj.getString("motif"),
                             note = obj.optString("note", ""),
-                            date = obj.getLong("date")
+                            date = obj.getLong("date"),
+                            deviceName = obj.optString("deviceName", ""),
+                            vendeurNom = obj.optString("vendeurNom", "")
                         )
                     )
                 }
@@ -2097,7 +2435,9 @@ class InventoryViewModel(
                             items = rItems,
                             totalAmount = obj.getDouble("totalAmount"),
                             motif = obj.optString("motif", ""),
-                            modePaiementOrigine = obj.optString("modePaiementOrigine", "ESPECES")
+                            modePaiementOrigine = obj.optString("modePaiementOrigine", "ESPECES"),
+                            deviceName = obj.optString("deviceName", ""),
+                            vendeurNom = obj.optString("vendeurNom", "")
                         )
                     )
                 }

@@ -23,6 +23,8 @@ import com.example.data.model.CaisseSession
 import com.example.data.model.Vendeur
 import com.example.data.model.Retour
 import com.example.data.model.DeletedRecord
+import com.example.data.model.AuditLog
+import androidx.room.migration.Migration
 
 @Database(
     entities = [
@@ -42,9 +44,10 @@ import com.example.data.model.DeletedRecord
         CaisseSession::class,
         Vendeur::class,
         Retour::class,
-        DeletedRecord::class
+        DeletedRecord::class,
+        AuditLog::class
     ],
-    version = 20,
+    version = 21,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -58,6 +61,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun vendeurDao(): VendeurDao
     abstract fun retourDao(): RetourDao
     abstract fun deletedRecordDao(): DeletedRecordDao
+    abstract fun auditLogDao(): AuditLogDao
 
     abstract fun produitDao(): ProduitDao
     abstract fun uniteProduitDao(): UniteProduitDao
@@ -71,6 +75,42 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        /**
+         * v20 -> v21 : identification de l'appareil sur chaque transaction + journal d'audit.
+         *
+         * Écrite explicitement (au lieu de laisser `fallbackToDestructiveMigration` faire son
+         * travail) parce qu'une épicerie déjà en production perdrait sinon TOUT son historique de
+         * ventes, dettes et caisse à la simple installation de cette mise à jour.
+         */
+        val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                for (table in listOf("sales", "restocks", "mouvements_caisse", "retours", "debts")) {
+                    db.execSQL("ALTER TABLE $table ADD COLUMN deviceName TEXT NOT NULL DEFAULT ''")
+                    db.execSQL("ALTER TABLE $table ADD COLUMN vendeurNom TEXT NOT NULL DEFAULT ''")
+                }
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS audit_logs (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        timestamp INTEGER NOT NULL,
+                        deviceName TEXT NOT NULL,
+                        utilisateur TEXT NOT NULL,
+                        role TEXT NOT NULL,
+                        type TEXT NOT NULL,
+                        cible TEXT NOT NULL,
+                        details TEXT NOT NULL,
+                        montant REAL NOT NULL,
+                        severite TEXT NOT NULL,
+                        bloque INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_audit_logs_timestamp ON audit_logs (timestamp)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_audit_logs_type ON audit_logs (type)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_audit_logs_severite ON audit_logs (severite)")
+            }
+        }
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -102,6 +142,7 @@ abstract class AppDatabase : RoomDatabase() {
                         db.execSQL("INSERT INTO unites_produit (id, produitId, nomUnite, facteurVersBase, prixVente, prixAchat, codeBarre, estUniteBase, estUniteVenteDefaut, ordre, actif) VALUES (4, 4, 'Pièce', 1.0, 1000.0, 850.0, '3250541505351', 1, 1, 0, 1)")
                     }
                 })
+                .addMigrations(MIGRATION_20_21)
                 .fallbackToDestructiveMigration(true)
                 .build()
                 INSTANCE = instance

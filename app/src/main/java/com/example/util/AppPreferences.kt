@@ -20,7 +20,86 @@ class AppPreferences(context: Context) {
         private const val KEY_LAST_OVERDUE_DEBT_CHECK = "key_last_overdue_debt_check"
         private const val KEY_ACTIVE_VENDEUR_ID = "key_active_vendeur_id"
         private const val KEY_LAST_EXPIRY_CHECK = "key_last_expiry_check"
+        private const val KEY_DEVICE_NAME = "key_device_name"
+        private const val KEY_SHOP_ADDRESS = "key_shop_address"
+        private const val KEY_SHOP_PHONE = "key_shop_phone"
+        private const val KEY_SHOP_NIF = "key_shop_nif"
+        private const val KEY_SHOP_STAT = "key_shop_stat"
+        private const val KEY_SHOP_LOGO_PATH = "key_shop_logo_path"
+        private const val KEY_SHOP_RECEIPT_FOOTER = "key_shop_receipt_footer"
+        private const val KEY_LICENCE_STATE = "key_licence_state"
+        private const val KEY_LICENCE_EXPIRY = "key_licence_expiry"
+        private const val KEY_LICENCE_LAST_CHECK = "key_licence_last_check"
+        private const val KEY_LICENCE_SHOP_LABEL = "key_licence_shop_label"
     }
+
+    /**
+     * Nom de CET appareil, estampillé sur chaque transaction pour savoir qui l'a enregistrée.
+     * C'est le nom de la personne qui tient l'appareil (« Téléphone de Koto », « Caisse 2 »),
+     * délibérément distinct de [groceryName] qui est le nom de l'épicerie.
+     *
+     * Par défaut on prend le modèle du téléphone : c'est déjà distinctif entre deux appareils, et
+     * le gérant peut le renommer à tout moment depuis Paramètres.
+     */
+    var deviceName: String
+        get() {
+            val stored = prefs.getString(KEY_DEVICE_NAME, "") ?: ""
+            if (stored.isNotBlank()) return stored
+            val fallback = android.os.Build.MODEL?.takeIf { it.isNotBlank() } ?: "Appareil"
+            prefs.edit().putString(KEY_DEVICE_NAME, fallback).apply()
+            return fallback
+        }
+        set(value) = prefs.edit().putString(KEY_DEVICE_NAME, value.trim()).apply()
+
+    // --- Fiche d'identité de l'épicerie, réutilisée dans tous les PDF (reçus, rapports) ---
+
+    var shopAddress: String
+        get() = prefs.getString(KEY_SHOP_ADDRESS, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SHOP_ADDRESS, value).apply()
+
+    var shopPhone: String
+        get() = prefs.getString(KEY_SHOP_PHONE, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SHOP_PHONE, value).apply()
+
+    var shopNif: String
+        get() = prefs.getString(KEY_SHOP_NIF, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SHOP_NIF, value).apply()
+
+    var shopStat: String
+        get() = prefs.getString(KEY_SHOP_STAT, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SHOP_STAT, value).apply()
+
+    /** Chemin absolu du logo importé, copié dans le stockage interne de l'app. */
+    var shopLogoPath: String
+        get() = prefs.getString(KEY_SHOP_LOGO_PATH, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SHOP_LOGO_PATH, value).apply()
+
+    /** Ligne libre imprimée en bas des reçus (« Merci de votre visite », horaires...). */
+    var shopReceiptFooter: String
+        get() = prefs.getString(KEY_SHOP_RECEIPT_FOOTER, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SHOP_RECEIPT_FOOTER, value).apply()
+
+    // --- Licence (activation après paiement, vérifiée sur la base Firebase du développeur) ---
+
+    /** ACTIVE | EXPIREE | SUSPENDUE | INCONNUE — dernier statut connu, utilisable hors-ligne. */
+    var licenceState: String
+        get() = prefs.getString(KEY_LICENCE_STATE, "INCONNUE") ?: "INCONNUE"
+        set(value) = prefs.edit().putString(KEY_LICENCE_STATE, value).apply()
+
+    /** Fin de validité en millis ; 0 = licence sans date de fin (perpétuelle). */
+    var licenceExpiry: Long
+        get() = prefs.getLong(KEY_LICENCE_EXPIRY, 0L)
+        set(value) = prefs.edit().putLong(KEY_LICENCE_EXPIRY, value).apply()
+
+    /** Dernière vérification en ligne réussie, pour tolérer les coupures réseau. */
+    var licenceLastCheck: Long
+        get() = prefs.getLong(KEY_LICENCE_LAST_CHECK, 0L)
+        set(value) = prefs.edit().putLong(KEY_LICENCE_LAST_CHECK, value).apply()
+
+    /** Nom d'épicerie enregistré côté serveur pour cette licence (affiché à l'activation). */
+    var licenceShopLabel: String
+        get() = prefs.getString(KEY_LICENCE_SHOP_LABEL, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_LICENCE_SHOP_LABEL, value).apply()
 
     // C.4: yyyy-MM-dd of the last time an expiry-alert notification was shown, so we notify at
     // most once per day instead of on every app launch.

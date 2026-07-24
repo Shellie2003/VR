@@ -24,7 +24,8 @@ class InventoryRepository(
     val caisseSessionDao: CaisseSessionDao,
     val vendeurDao: VendeurDao,
     val retourDao: RetourDao,
-    val deletedRecordDao: DeletedRecordDao
+    val deletedRecordDao: DeletedRecordDao,
+    val auditLogDao: AuditLogDao
 ) {
     val allProducts: Flow<List<Product>> = productDao.getAllProducts().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allSales: Flow<List<Sale>> = saleDao.getAllSales().flowOn(kotlinx.coroutines.Dispatchers.IO)
@@ -40,6 +41,20 @@ class InventoryRepository(
     // C.4: every expiry lot across every produit (for the alerts screen and notifications)
     val allLots: Flow<List<LotProduit>> = lotProduitDao.getAllLots().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allTombstones: Flow<List<DeletedRecord>> = deletedRecordDao.getAllTombstones().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    // Journal d'audit : traçabilité des gestes sensibles, base des alertes anti-triche.
+    val recentAuditLogs: Flow<List<AuditLog>> = auditLogDao.getRecentLogs().flowOn(kotlinx.coroutines.Dispatchers.IO)
+
+    suspend fun insertAuditLog(log: AuditLog) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        auditLogDao.insertLog(log)
+    }
+
+    suspend fun getAuditLogsSince(since: Long): List<AuditLog> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        auditLogDao.getLogsSince(since)
+    }
+
+    suspend fun purgeAuditLogsBefore(before: Long) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        auditLogDao.deleteLogsBefore(before)
+    }
 
     suspend fun recordDeletion(entityType: String, naturalKey: String) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         deletedRecordDao.insertTombstone(DeletedRecord(entityType = entityType, naturalKey = naturalKey))
@@ -406,7 +421,9 @@ class InventoryRepository(
         sale: Sale,
         returnedItems: List<SoldItem>,
         motif: String,
-        modePaiementOrigine: String
+        modePaiementOrigine: String,
+        deviceName: String = "",
+        vendeurNom: String = ""
     ): Retour = database.withTransaction {
         for (item in returnedItems) {
             val originalId = item.productId.toLong()
@@ -455,7 +472,9 @@ class InventoryRepository(
             items = returnedItems,
             totalAmount = totalReturned,
             motif = motif,
-            modePaiementOrigine = modePaiementOrigine
+            modePaiementOrigine = modePaiementOrigine,
+            deviceName = deviceName,
+            vendeurNom = vendeurNom
         )
         val retourId = retourDao.insertRetour(retour)
 
@@ -465,7 +484,12 @@ class InventoryRepository(
                     type = "SORTIE",
                     montant = totalReturned,
                     motif = "Remboursement vente #${sale.id}",
-                    note = motif
+                    note = motif,
+                    // La sortie de caisse automatique porte la même signature que le retour qui
+                    // l'a provoquée, sinon un remboursement frauduleux ressortirait comme un
+                    // mouvement anonyme dans le journal de caisse.
+                    deviceName = deviceName,
+                    vendeurNom = vendeurNom
                 )
             )
         }
