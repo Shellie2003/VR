@@ -12,23 +12,57 @@ import java.util.concurrent.TimeUnit
 /**
  * Lightweight Firebase Realtime Database backup client using its public REST API directly over
  * OkHttp (same stack as OpenFoodFactsApi), so no Firebase SDK / Google Play Services / the
- * google-services Gradle plugin is required. This means the app keeps compiling normally even
- * when no Firebase project has been configured yet: the database URL is entered by the user at
- * runtime in Paramètres (no rebuild needed), and calls simply fail with a clear error if it's
- * left empty or misconfigured.
+ * google-services Gradle plugin is required — et donc aucune clé d'API Google embarquée dans
+ * l'APK. Les sauvegardes partent par défaut vers [CENTRAL_BACKUP_DATABASE_URL] (la base du
+ * développeur) ; un gérant peut toujours renseigner sa propre base dans Paramètres pour héberger
+ * ses données lui-même.
  *
  * Realtime Database is used instead of Cloud Storage because, since October 2024, Firebase
  * Storage requires the paid Blaze plan even for minimal usage, whereas Realtime Database (like
  * Firestore) is still fully usable on the free Spark plan with no billing account required.
  *
- * Requires the target Realtime Database's rules to allow read/write on path "backups", e.g.:
+ * Règles de sécurité à poser sur la base des sauvegardes. Noter le niveau : l'autorisation est
+ * donnée SOUS `backups/$token`, jamais sur `backups` lui-même — sinon un seul GET sur
+ * `/backups.json` récupérerait les données de tous les clients d'un coup. Le token étant un UUID
+ * aléatoire jamais affiché à l'écran (voir AppPreferences.firebaseBackupToken), il faut le
+ * connaître exactement pour atteindre une sauvegarde :
  *   {
  *     "rules": {
- *       "backups": { ".read": true, ".write": true }
+ *       "backups": {
+ *         "$token": { ".read": true, ".write": true }
+ *       }
  *     }
  *   }
  */
 object FirebaseBackupManager {
+
+    /**
+     * Base Realtime Database du DÉVELOPPEUR dédiée aux sauvegardes des clients — volontairement
+     * **distincte** de celle des licences ([com.example.util.LicenceManager.CENTRAL_DATABASE_URL]).
+     *
+     * Pourquoi deux projets Firebase séparés plutôt qu'un seul :
+     *  - les sauvegardes sont ce qui remplit le quota (1 Go sur le plan gratuit), les licences ne
+     *    pèsent que quelques octets. Si les deux partageaient la même base, une saturation des
+     *    sauvegardes empêcherait aussi les nouveaux clients de **s'activer** — une panne
+     *    commerciale, pas seulement technique ;
+     *  - les règles de sécurité n'ont rien à voir : les licences sont en lecture seule pour les
+     *    clients, les sauvegardes doivent être écrivables par eux ;
+     *  - on peut migrer, purger ou faire payer les sauvegardes sans jamais toucher aux licences.
+     *
+     * Laisser cette constante vide désactive simplement la sauvegarde cloud par défaut : le client
+     * garde alors la possibilité de renseigner sa propre base dans Paramètres.
+     */
+    const val CENTRAL_BACKUP_DATABASE_URL = "https://varotra-backups-default-rtdb.firebaseio.com"
+
+    /**
+     * URL réellement utilisée pour sauvegarder : celle saisie par le client dans Paramètres si
+     * elle existe (cas rare d'un gérant qui veut ses données chez lui), sinon la base du
+     * développeur. C'est ce qui permet à la sauvegarde cloud de fonctionner **dès l'installation**,
+     * sans que le client ait à créer le moindre projet Firebase.
+     */
+    fun resolveDatabaseUrl(userDatabaseUrl: String): String =
+        userDatabaseUrl.trim().ifBlank { CENTRAL_BACKUP_DATABASE_URL }
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)

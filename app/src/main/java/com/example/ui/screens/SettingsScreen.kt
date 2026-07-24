@@ -1512,18 +1512,27 @@ fun SettingsScreen(
                         }
                     }
 
-                    if (firebaseDatabaseUrlVal.isNotBlank()) {
-                        Text(
-                            text = when (activeLang) {
-                                "mg" -> "✓ Mandeha ho azy ny fanaovana backup rehefa misy internet."
-                                "fr" -> "✓ La sauvegarde se fait automatiquement dès que le téléphone a internet."
-                                else -> "✓ Backup happens automatically whenever the phone has internet."
-                            },
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF2E7D32)
-                        )
-                    }
+                    // La sauvegarde cloud est active dès l'installation : sans URL saisie, elle part
+                    // vers le serveur Varotra. Le message est donc affiché en permanence, en
+                    // précisant simplement où atterrissent les données.
+                    Text(
+                        text = if (firebaseDatabaseUrlVal.isBlank()) {
+                            when (activeLang) {
+                                "mg" -> "✓ Mandeha ho azy ny backup any amin'ny serveur Varotra rehefa misy internet."
+                                "fr" -> "✓ Sauvegarde automatique sur le serveur Varotra dès que le téléphone a internet."
+                                else -> "✓ Automatic backup to the Varotra server whenever the phone has internet."
+                            }
+                        } else {
+                            when (activeLang) {
+                                "mg" -> "✓ Mandeha ho azy ny backup any amin'ny base-nao manokana."
+                                "fr" -> "✓ Sauvegarde automatique sur votre propre base Firebase."
+                                else -> "✓ Automatic backup to your own Firebase database."
+                            }
+                        },
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF2E7D32)
+                    )
 
                     HorizontalDivider(color = cardBorderColor.copy(alpha = 0.5f))
 
@@ -1533,9 +1542,9 @@ fun SettingsScreen(
                         label = {
                             Text(
                                 text = when (activeLang) {
-                                    "mg" -> "URL Firebase Realtime Database"
-                                    "fr" -> "URL Firebase Realtime Database"
-                                    else -> "Firebase Realtime Database URL"
+                                    "mg" -> "URL Firebase manokana (tsy voatery)"
+                                    "fr" -> "URL Firebase personnelle (facultatif)"
+                                    else -> "Own Firebase URL (optional)"
                                 }
                             )
                         },
@@ -1547,9 +1556,9 @@ fun SettingsScreen(
 
                     Text(
                         text = when (activeLang) {
-                            "mg" -> "Alaivo tao amin'ny Firebase Console > Realtime Database ilay adiresy URL, ary avereno ho \"true\" ny .read sy .write ao amin'ny rules ao amin'ny lalana backups. Tsindraika mikarakara Storage satria mila fandoavam-bola izy izao (Blaze), fa maimaimpoana ny Realtime Database. Tokony ho ianao irery no mahafantatra ity adiresy URL ity, fa tsy alefa amin'olon-kafa, satria misy tondro tsy fantatr'olona miaro ny tahirinao."
-                            "fr" -> "Créez un projet Firebase (gratuit), activez Realtime Database, copiez son URL ici et autorisez la lecture/écriture sur le chemin backups dans les règles de sécurité. Contrairement à Cloud Storage (payant depuis 2024), Realtime Database reste gratuit sans compte de facturation. Ne partage cette URL avec personne : c'est elle, combinée à un identifiant privé jamais affiché à l'écran, qui protège l'accès à tes données."
-                            else -> "Create a free Firebase project, enable Realtime Database, paste its URL here and allow read/write on the backups path in the security rules. Unlike Cloud Storage (now paid), Realtime Database stays free with no billing account required. Don't share this URL with anyone: combined with a private identifier that is never shown on screen, it's what protects access to your data."
+                            "mg" -> "Avelao foana ity toerana ity: mandeha ho azy ny backup any amin'ny serveur Varotra. Raha tianao ny hitahiry ny angona any amin'ny Firebase anao manokana, ampidiro eto ny URL-n'ny Realtime Database-nao."
+                            "fr" -> "Laissez ce champ vide : la sauvegarde se fait automatiquement sur le serveur Varotra, vous n'avez rien à créer. Ne le remplissez que si vous voulez héberger vos données sur votre propre projet Firebase (Realtime Database)."
+                            else -> "Leave this field empty: backups go to the Varotra server automatically, nothing to set up. Fill it in only if you want to host your data on your own Firebase project (Realtime Database)."
                         },
                         fontSize = 11.sp,
                         color = secondaryTextColor
@@ -1562,21 +1571,17 @@ fun SettingsScreen(
                         // Cloud Backup Button
                         Button(
                             onClick = {
-                                if (firebaseDatabaseUrlInput.isBlank()) {
-                                    snackbarMessage = when (activeLang) {
-                                        "mg" -> "Ampidiro aloha ny URL Firebase Realtime Database."
-                                        "fr" -> "Veuillez d'abord renseigner l'URL Firebase Realtime Database."
-                                        else -> "Please enter the Firebase Realtime Database URL first."
-                                    }
-                                    showSnackbar = true
-                                } else {
+                                // Champ vide = sauvegarde sur le serveur Varotra (comportement par
+                                // défaut) : on ne bloque donc plus l'utilisateur, on résout l'URL.
+                                run {
                                     viewModel.updateFirebaseDatabaseUrl(firebaseDatabaseUrlInput.trim())
+                                    val urlEffective = FirebaseBackupManager.resolveDatabaseUrl(firebaseDatabaseUrlInput)
                                     isCloudBackupLoading = true
                                     coroutineScope.launch {
                                         val json = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                                             viewModel.getFullDatabaseJsonSync()
                                         }
-                                        val result = FirebaseBackupManager.uploadBackup(firebaseDatabaseUrlInput.trim(), firebaseBackupToken, json)
+                                        val result = FirebaseBackupManager.uploadBackup(urlEffective, firebaseBackupToken, json)
                                         isCloudBackupLoading = false
                                         snackbarMessage = if (result.isSuccess) {
                                             when (activeLang) {
@@ -1623,18 +1628,12 @@ fun SettingsScreen(
                         // Cloud Restore Button
                         OutlinedButton(
                             onClick = {
-                                if (firebaseDatabaseUrlInput.isBlank()) {
-                                    snackbarMessage = when (activeLang) {
-                                        "mg" -> "Ampidiro aloha ny URL Firebase Realtime Database."
-                                        "fr" -> "Veuillez d'abord renseigner l'URL Firebase Realtime Database."
-                                        else -> "Please enter the Firebase Realtime Database URL first."
-                                    }
-                                    showSnackbar = true
-                                } else {
+                                run {
                                     viewModel.updateFirebaseDatabaseUrl(firebaseDatabaseUrlInput.trim())
+                                    val urlEffective = FirebaseBackupManager.resolveDatabaseUrl(firebaseDatabaseUrlInput)
                                     isCloudRestoreLoading = true
                                     coroutineScope.launch {
-                                        val result = FirebaseBackupManager.downloadBackup(firebaseDatabaseUrlInput.trim(), firebaseBackupToken)
+                                        val result = FirebaseBackupManager.downloadBackup(urlEffective, firebaseBackupToken)
                                         isCloudRestoreLoading = false
                                         result.onSuccess { json -> viewModel.syncFullDatabaseSync(json) }
                                         snackbarMessage = if (result.isSuccess) {

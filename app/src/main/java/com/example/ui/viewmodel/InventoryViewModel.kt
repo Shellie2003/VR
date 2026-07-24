@@ -2703,7 +2703,10 @@ class InventoryViewModel(
     // regains connectivity after being offline (see the NetworkMonitor callback registered in init).
     private fun maybeAutoBackupToFirebase() {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
-            val dbUrl = appPreferences.firebaseDatabaseUrl
+            // Par défaut, la sauvegarde part vers la base du développeur : elle fonctionne donc
+            // dès l'installation, sans que le client ait à créer ni saisir quoi que ce soit. Une
+            // URL renseignée dans Paramètres prend le pas (gérant qui héberge ses données lui-même).
+            val dbUrl = com.example.util.FirebaseBackupManager.resolveDatabaseUrl(appPreferences.firebaseDatabaseUrl)
             if (dbUrl.isBlank()) return@launch
             if (!com.example.util.NetworkMonitor.isOnline(context)) return@launch
             try {
