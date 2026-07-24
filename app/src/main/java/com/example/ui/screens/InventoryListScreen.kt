@@ -450,12 +450,27 @@ fun ProductInventoryCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(
-                        text = "${FormatUtil.formatPrice(product.price)} Ar",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Black,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
+                    // Même prix effectif que la carte de l'écran d'accueil (PriceUtil), y compris
+                    // en mode "Gros" : les deux écrans lisent la même règle, donc plus d'écart
+                    // possible après un réapprovisionnement.
+                    val shopMode by viewModel.shopMode.collectAsState()
+                    val isWholesaleActive = com.example.util.PriceUtil.isWholesaleActive(product, shopMode)
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "${FormatUtil.formatPrice(com.example.util.PriceUtil.displayPrice(product, shopMode))} Ar",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        if (isWholesaleActive) {
+                            Text(
+                                text = "Gros",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                     if (!isSelectionMode) {
                         IconButton(
                             onClick = { onEditProduct(product) },

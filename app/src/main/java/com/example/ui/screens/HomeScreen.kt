@@ -433,8 +433,11 @@ fun HomeScreen(
                                 }
 
                                 // Price
-                                val isWholesaleActive = shopMode == "wholesale" && product.wholesalePrice != null && product.wholesalePrice > 0.0
-                                val displayedPrice = if (isWholesaleActive) product.wholesalePrice!! else product.price
+                                // Prix affiché : passe obligatoirement par PriceUtil, exactement comme
+                                // la carte de l'écran Stock, pour que les deux écrans ne puissent
+                                // jamais afficher deux prix différents pour un même produit.
+                                val isWholesaleActive = com.example.util.PriceUtil.isWholesaleActive(product, shopMode)
+                                val displayedPrice = com.example.util.PriceUtil.displayPrice(product, shopMode)
 
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,

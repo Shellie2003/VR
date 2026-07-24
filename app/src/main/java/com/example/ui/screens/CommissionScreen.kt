@@ -712,10 +712,14 @@ fun CommissionScreen(
                             // Calculate new stock and update
                             val newStock = prod.stock + totalUnits
                             // Update price, stock, supplier, wholesalePrice on product
+                            // `prixAchatUniteBase` = prix d'ACHAT unitaire (ce que le réappro vient
+                            // de coûter). `wholesalePrice` est un prix de VENTE en gros saisi par le
+                            // gérant dans la fiche produit : l'écraser ici avec le coût d'achat
+                            // faisait vendre à prix coûtant en mode Grossiste et faisait diverger le
+                            // prix affiché entre l'écran d'accueil et l'écran Stock. On n'y touche plus.
                             val updatedProduct = prod.copy(
                                 stock = newStock,
                                 price = sellPriceVal,
-                                wholesalePrice = costPerUnit,
                                 prixAchatUniteBase = costPerUnit,
                                 fournisseurId = selectedFournisseurId
                             )

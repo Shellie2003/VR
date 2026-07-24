@@ -469,6 +469,38 @@ object LanguageManager {
             "mg" to "Misy olana ny tahiry entana!",
             "fr" to "Erreur de stock lors de la validation !",
             "en" to "Stock error during validation!"
+        ),
+        "close_btn" to mapOf(
+            "mg" to "Hidiana",
+            "fr" to "Fermer",
+            "en" to "Close"
+        ),
+        // Identification de l'appareil : chaque transaction est estampillée avec ce nom pour
+        // savoir qui (quel poste / quel employé) l'a enregistrée.
+        "device_name_label" to mapOf(
+            "mg" to "Anaran'ity finday ity (mpampiasa)",
+            "fr" to "Nom de cet appareil (utilisateur)",
+            "en" to "This device's name (user)"
+        ),
+        "device_name_hint" to mapOf(
+            "mg" to "Oh: Telefonin'i Koto. Miseho amin'ny varotra rehetra.",
+            "fr" to "Ex : Téléphone de Koto. Apparaît sur chaque transaction.",
+            "en" to "E.g. Koto's phone. Stamped on every transaction."
+        ),
+        "gerant_only_action" to mapOf(
+            "mg" to "Ny Gérant ihany no mahazo manao izany.",
+            "fr" to "Action réservée au gérant.",
+            "en" to "Manager-only action."
+        ),
+        "shop_info_title" to mapOf(
+            "mg" to "Mombamomba ny Fivarotana",
+            "fr" to "Informations de l'épicerie",
+            "en" to "Shop information"
+        ),
+        "security_title" to mapOf(
+            "mg" to "Fiarovana sy Fanaraha-maso",
+            "fr" to "Sécurité & Surveillance",
+            "en" to "Security & Monitoring"
         )
     )
 

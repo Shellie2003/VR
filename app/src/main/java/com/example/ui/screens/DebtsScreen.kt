@@ -2,6 +2,8 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -570,10 +572,26 @@ fun DebtCard(
     val formatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE) }
     val dateStr = formatter.format(Date(debt.date))
 
+    // Les articles du trosa sont stockés dans `note` et la carte doit rester compacte : elle les
+    // tronque donc avec des « … ». Un appui sur la carte ouvre le détail complet, lisible.
+    var showDetailDialog by remember(debt.id) { mutableStateOf(false) }
+
+    if (showDetailDialog) {
+        DebtDetailDialog(
+            debt = debt,
+            activeLang = activeLang,
+            onDismiss = { showDetailDialog = false },
+            onRepay = {
+                showDetailDialog = false
+                onRepay()
+            }
+        )
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .let { if (isSelectionMode) it.clickable { onToggleSelect() } else it }
+            .clickable { if (isSelectionMode) onToggleSelect() else showDetailDialog = true }
             .testTag("debt_card_${debt.id}"),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
@@ -710,6 +728,30 @@ fun DebtCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth()
                 )
+                if (!isSelectionMode) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Visibility,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Tsindrio hijery ny antsipiriany"
+                                "fr" -> "Appuyer pour voir le détail des articles"
+                                else -> "Tap to see the full item list"
+                            },
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             }
 
             if (!debt.isPaid && !isSelectionMode) {
@@ -886,5 +928,211 @@ fun DebtorGroupCard(
                 }
             }
         }
+    }
+}
+
+/**
+ * Détail complet d'un trosa (dette). La carte de la liste doit rester compacte, elle tronque donc
+ * la liste des articles avec des « … » ; ce dialogue affiche la même information en entier, un
+ * article par ligne, avec le récapitulatif des montants (initial / déjà payé / reste à payer).
+ *
+ * Les articles sont enregistrés dans `Debt.note` sous la forme
+ * "Article (2 x 1 500), Autre article (1 x 3 000)" au moment de la vente à crédit
+ * (voir CalculatorScreen). On découpe donc sur les virgules qui suivent une parenthèse fermante,
+ * ce qui préserve les noms d'articles contenant eux-mêmes une virgule. Une note saisie à la main
+ * (qui ne suit pas ce format) est simplement affichée telle quelle.
+ */
+@Composable
+fun DebtDetailDialog(
+    debt: Debt,
+    activeLang: String,
+    onDismiss: () -> Unit,
+    onRepay: () -> Unit
+) {
+    val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.FRANCE) }
+    val dueDateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE) }
+
+    val itemLines: List<String> = remember(debt.note) {
+        if (debt.note.isBlank()) {
+            emptyList()
+        } else {
+            debt.note.split(Regex("(?<=\\)),\\s*"))
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+        }
+    }
+    val alreadyPaid = (debt.amount - debt.balance).coerceAtLeast(0.0)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = debt.debtorName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = dateFormatter.format(Date(debt.date)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = when (activeLang) {
+                        "mg" -> "Entana nalaina"
+                        "fr" -> "Articles pris à crédit"
+                        else -> "Items taken on credit"
+                    },
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                if (itemLines.isEmpty()) {
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Tsy misy antsipiriany voarakitra."
+                            "fr" -> "Aucun détail d'article enregistré."
+                            else -> "No item detail recorded."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        itemLines.forEachIndexed { index, line ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Text(
+                                    text = "${index + 1}.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                // Pas de maxLines ici : c'est tout l'intérêt du dialogue, le nom
+                                // complet de l'article doit être lisible, quelle que soit sa longueur.
+                                Text(
+                                    text = line,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider()
+
+                DebtDetailAmountRow(
+                    label = when (activeLang) {
+                        "mg" -> "Vola rehetra"
+                        "fr" -> "Montant initial"
+                        else -> "Initial amount"
+                    },
+                    value = "${FormatUtil.formatPrice(debt.amount)} Ar"
+                )
+                if (alreadyPaid > 0.0) {
+                    DebtDetailAmountRow(
+                        label = when (activeLang) {
+                            "mg" -> "Efa naloa"
+                            "fr" -> "Déjà payé"
+                            else -> "Already paid"
+                        },
+                        value = "${FormatUtil.formatPrice(alreadyPaid)} Ar",
+                        valueColor = Color(0xFF2E7D32)
+                    )
+                }
+                DebtDetailAmountRow(
+                    label = when (activeLang) {
+                        "mg" -> "Sisa tsy maintsy aloa"
+                        "fr" -> "Reste à payer"
+                        else -> "Remaining balance"
+                    },
+                    value = "${FormatUtil.formatPrice(debt.balance)} Ar",
+                    valueColor = if (debt.isPaid) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error,
+                    isBold = true
+                )
+                debt.dueDate?.let { due ->
+                    DebtDetailAmountRow(
+                        label = when (activeLang) {
+                            "mg" -> "Fetr'andro"
+                            "fr" -> "Échéance"
+                            else -> "Due date"
+                        },
+                        value = dueDateFormatter.format(Date(due)),
+                        valueColor = if (debt.isOverdue()) Color(0xFFD32F2F) else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            if (!debt.isPaid) {
+                Button(onClick = onRepay) {
+                    Icon(Icons.Default.Payment, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = LanguageManager.translate("repay_btn", activeLang),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            } else {
+                TextButton(onClick = onDismiss) {
+                    Text(LanguageManager.translate("close_btn", activeLang))
+                }
+            }
+        },
+        dismissButton = {
+            if (!debt.isPaid) {
+                TextButton(onClick = onDismiss) {
+                    Text(LanguageManager.translate("close_btn", activeLang))
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun DebtDetailAmountRow(
+    label: String,
+    value: String,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
+    isBold: Boolean = false
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.outline
+        )
+        Text(
+            text = value,
+            style = if (isBold) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
+            fontWeight = if (isBold) FontWeight.Black else FontWeight.SemiBold,
+            color = valueColor
+        )
     }
 }
