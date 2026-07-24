@@ -133,7 +133,10 @@ fun MainLifecycleContainer() {
                 viewModel.addSyncLog(text)
             }
             override fun getFullDatabaseJson(): String {
-                return viewModel.getFullDatabaseJsonSync()
+                // Synchronisation P2P : elle passe par le Wi-Fi local, gratuit, et l'appareil
+                // pair n'a aucun autre moyen d'obtenir les photos produits — c'est le seul
+                // endroit où on les embarque.
+                return viewModel.getFullDatabaseJsonSync(includeImages = true)
             }
             override fun handleFullDatabaseSync(syncJson: String) {
                 viewModel.syncFullDatabaseSync(syncJson)
@@ -463,6 +466,22 @@ fun MainAppLayout(
     var productToEdit by remember { mutableStateOf<Product?>(null) }
     val isActivated by viewModel.isActivated.collectAsState()
     var calculatorInitialSubTab by remember { mutableStateOf("checkout") }
+
+    // Les sauvegardes sont regroupées (3 s en local, 60 s pour le cloud) afin de ne pas
+    // resérialiser toute la base à chaque vente. Contrepartie : si l'app passe en arrière-plan
+    // pendant ce délai, les dernières ventes ne seraient pas encore parties. On force donc un
+    // envoi immédiat au moment où l'app quitte l'avant-plan — le seul instant où elle risque
+    // d'être tuée par le système.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                viewModel.flushBackupsNow()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // Refus de droits (employé tentant une suppression réservée au gérant) : un seul observateur
     // ici couvre tous les écrans, plutôt qu'un traitement dupliqué dans chaque boîte de dialogue.

@@ -31,7 +31,17 @@ class AppPreferences(context: Context) {
         private const val KEY_LICENCE_EXPIRY = "key_licence_expiry"
         private const val KEY_LICENCE_LAST_CHECK = "key_licence_last_check"
         private const val KEY_LICENCE_SHOP_LABEL = "key_licence_shop_label"
+        private const val KEY_LAST_CLOUD_BACKUP = "key_last_cloud_backup"
     }
+
+    /**
+     * Horodatage du dernier envoi cloud réussi. Affiché au gérant : une sauvegarde silencieuse
+     * dont on ignore si elle fonctionne ne rassure personne, et c'est le seul moyen de repérer
+     * une boutique qui n'a plus sauvegardé depuis des semaines faute de réseau.
+     */
+    var lastCloudBackupTime: Long
+        get() = prefs.getLong(KEY_LAST_CLOUD_BACKUP, 0L)
+        set(value) = prefs.edit().putLong(KEY_LAST_CLOUD_BACKUP, value).apply()
 
     /**
      * Nom de CET appareil, estampillé sur chaque transaction pour savoir qui l'a enregistrée.
@@ -180,22 +190,45 @@ class AppPreferences(context: Context) {
         }
 
     /**
-     * High-entropy, never-displayed token used only as the Firebase Realtime Database backup
-     * path. Deliberately NOT the same as [installationId], which is a 6-digit number shown (and
-     * copyable) on the activation screen and therefore guessable/brute-forceable in ~10^6 tries.
-     * With open ".read"/".write" rules (the simplest setup for a non-technical shop owner), the
-     * only thing standing between a random visitor and someone's backup data is this path being
-     * unguessable, so it needs real entropy (a UUID), not a small public-facing number.
+     * Chemin de la sauvegarde sur Firebase, et **seul moyen de la retrouver**.
+     *
+     * Historiquement c'était un UUID aléatoire jamais affiché : imparable contre un curieux, mais
+     * cela rendait la sauvegarde définitivement irrécupérable dès que le téléphone était perdu —
+     * le nouvel appareil générait un autre UUID et regardait un chemin vide, alors que l'écran
+     * Paramètres promettait justement une protection « même en cas de perte du téléphone ».
+     *
+     * C'est donc devenu un **code de récupération lisible et re-saisissable** (voir
+     * [RecoveryCode]), affiché au gérant pour qu'il le note, et communiqué au fournisseur en même
+     * temps que l'ID d'installation lors de l'achat. Sur un nouveau téléphone, saisir ce code
+     * rebranche l'app sur la sauvegarde existante.
+     *
+     * Il garde assez d'entropie (60 bits) pour rester impossible à deviner malgré des règles
+     * Firebase ouvertes par chemin.
      */
     val firebaseBackupToken: String
         get() {
             var token = prefs.getString(KEY_FIREBASE_BACKUP_TOKEN, "") ?: ""
             if (token.isEmpty()) {
-                token = java.util.UUID.randomUUID().toString()
+                token = RecoveryCode.generate()
                 prefs.edit().putString(KEY_FIREBASE_BACKUP_TOKEN, token).apply()
             }
             return token
         }
+
+    /** Le même code, mis en forme pour être lu et recopié : VRT-A3F9-K2M7-QP4X. */
+    val recoveryCodeFormatted: String
+        get() = RecoveryCode.format(firebaseBackupToken)
+
+    /**
+     * Rebranche cet appareil sur la sauvegarde d'un autre (téléphone perdu, remplacé, réinitialisé).
+     * Retourne false si le code saisi n'a pas la forme attendue, auquel cas rien n'est modifié :
+     * écraser le code par une saisie erronée couperait l'accès à la sauvegarde existante.
+     */
+    fun applyRecoveryCode(saisie: String): Boolean {
+        val normalise = RecoveryCode.normalize(saisie) ?: return false
+        prefs.edit().putString(KEY_FIREBASE_BACKUP_TOKEN, normalise).apply()
+        return true
+    }
 
     val isTrialExpired: Boolean
         get() = false

@@ -28,9 +28,13 @@ interface ProductDao {
         AND (:category = 'All' OR category = :category)
         AND (:showLowStockOnly = 0 OR stock < lowStockThreshold)
         AND (:query = '' OR name LIKE '%' || :query || '%' OR category LIKE '%' || :query || '%' OR barcode LIKE '%' || :query || '%')
-        ORDER BY name ASC 
-        LIMIT 100
+        ORDER BY name ASC
     """)
+    // F6 — le `LIMIT 100` qui plafonnait cette requête faisait disparaître, sans le moindre
+    // message, tout produit au-delà du centième : une épicerie de 150 références en perdait 50 à
+    // l'écran d'accueil, dans le stock ET dans la recherche, alors qu'ils étaient bien en base.
+    // La liste est affichée par une LazyColumn/LazyGrid, qui ne compose que les lignes visibles :
+    // plusieurs milliers de produits ne posent pas de problème de rendu.
     fun searchProducts(query: String, category: String, showLowStockOnly: Boolean): Flow<List<Product>>
 
     @Query("""

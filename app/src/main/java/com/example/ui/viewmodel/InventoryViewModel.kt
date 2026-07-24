@@ -97,7 +97,28 @@ class InventoryViewModel(
     val language = MutableStateFlow(appPreferences.language)
     val isActivated = MutableStateFlow(appPreferences.isActivated)
     val installationId = appPreferences.installationId
-    val firebaseBackupToken = appPreferences.firebaseBackupToken
+    // Relu à chaque accès, et non capturé une fois pour toutes : saisir un code de récupération
+    // change ce token, et les écrans qui l'avaient mémorisé continueraient sinon d'écrire dans
+    // l'ancien coffre.
+    val firebaseBackupToken: String
+        get() = appPreferences.firebaseBackupToken
+
+    /** Code de récupération lisible, à noter par le gérant : c'est l'adresse de sa sauvegarde. */
+    val recoveryCode = MutableStateFlow(appPreferences.recoveryCodeFormatted)
+
+    /** Dernier envoi cloud réussi (0 = jamais), affiché dans Paramètres. */
+    val lastCloudBackupTime = MutableStateFlow(appPreferences.lastCloudBackupTime)
+
+    /**
+     * Rebranche cet appareil sur la sauvegarde d'un téléphone perdu ou remplacé.
+     * Retourne false si le code est invalide — dans ce cas rien n'est modifié, pour ne pas couper
+     * l'accès à la sauvegarde en cours sur une simple faute de frappe.
+     */
+    fun appliquerCodeRecuperation(saisie: String): Boolean {
+        if (!appPreferences.applyRecoveryCode(saisie)) return false
+        recoveryCode.value = appPreferences.recoveryCodeFormatted
+        return true
+    }
 
     // Identification de l'appareil : nom lisible estampillé sur chaque transaction. C'est le nom
     // de la personne qui tient l'appareil, pas celui de l'épicerie (voir AppPreferences.deviceName).
@@ -247,7 +268,12 @@ class InventoryViewModel(
     val debtFilter = MutableStateFlow("Toutes") // Toutes, Non payées, Payées
 
     // Database Flows
-    val allProducts: StateFlow<List<Product>> = repository.getLimitedProducts(100)
+    // F6 — catalogue complet. La borne de 100 produits, censée protéger les téléphones modestes,
+    // masquait en réalité toute référence au-delà de la centième : invisible à la caisse, absente
+    // du stock, introuvable en recherche, et pourtant décomptée dans les ventes. Un catalogue
+    // complet reste léger en mémoire (~500 octets par produit, soit 1 Mo pour 2000 références) et
+    // les listes sont paresseuses.
+    val allProducts: StateFlow<List<Product>> = repository.allProducts
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allSales: StateFlow<List<Sale>> = repository.allSales
@@ -1923,7 +1949,24 @@ class InventoryViewModel(
         }
     }
 
-    fun getFullDatabaseJsonSync(): String {
+    /**
+     * Sérialise toute la base en JSON.
+     *
+     * [includeImages] contrôle l'inclusion des photos produits encodées en base64, et c'est un
+     * choix lourd de conséquences :
+     *  - **false (défaut)** pour la sauvegarde locale et la sauvegarde cloud. Une photo pèse
+     *    ~150 Ko en JPEG, +33 % une fois en base64 ; une épicerie de 60 produits photographiés
+     *    produisait ainsi ~12 Mo de JSON **réécrits et téléversés à chaque vente**. C'était
+     *    ruineux pour le forfait data du client et cela remplissait le quota Firebase avec
+     *    quelques dizaines de boutiques seulement. Sans les images on retombe à quelques dizaines
+     *    de Ko. Les photos sont de l'agrément visuel : après restauration, celles des produits
+     *    à code-barres sont retrouvées gratuitement via Open Food Facts (voir
+     *    [rechercherPhotosManquantes]), les autres sont reprises par le gérant s'il le souhaite ;
+     *  - **true** pour la synchronisation P2P entre deux appareils de la même boutique : elle
+     *    passe par le Wi-Fi local, ne coûte rien, et le second appareil n'a aucun autre moyen
+     *    d'obtenir les photos.
+     */
+    fun getFullDatabaseJsonSync(includeImages: Boolean = false): String {
         return kotlinx.coroutines.runBlocking {
             try {
                 val products = repository.allProducts.first()
@@ -1948,7 +1991,10 @@ class InventoryViewModel(
                         obj.put("category", prod.category)
                         obj.put("stock", prod.stock)
                         obj.put("imageUrl", prod.imageUrl ?: "")
-                        obj.put("imageData", com.example.util.ImageBackupUtil.encodeLocalImage(prod.imageUrl) ?: "")
+                        obj.put(
+                            "imageData",
+                            if (includeImages) com.example.util.ImageBackupUtil.encodeLocalImage(prod.imageUrl) ?: "" else ""
+                        )
                         obj.put("unit", prod.unit)
                         obj.put("barcode", prod.barcode)
                         obj.put("wholesalePrice", prod.wholesalePrice ?: 0.0)
@@ -2684,10 +2730,31 @@ class InventoryViewModel(
         }
     }
 
+    // Regroupement des sauvegardes. Cette fonction est appelée après CHAQUE mutation (une
+    // vingtaine de points d'appel) : encaisser un panier de 5 articles la déclenchait autant de
+    // fois, chaque passage resérialisant toute la base. On ne garde donc qu'un seul travail en
+    // vol, relancé à chaque nouvelle sollicitation — une rafale de mutations produit une seule
+    // écriture disque et un seul envoi réseau.
+    private var localBackupJob: kotlinx.coroutines.Job? = null
+    private var cloudBackupJob: kotlinx.coroutines.Job? = null
+
+    // Le disque est rapide et local : on peut être réactif sans rien coûter au client.
+    private val LOCAL_BACKUP_DEBOUNCE_MS = 3_000L
+
+    // Le réseau, lui, est payant au mégaoctet pour l'épicier. Une sauvegarde par minute d'activité
+    // suffit largement : la perte maximale en cas de casse du téléphone reste d'une minute de
+    // ventes, déjà couverte par la sauvegarde locale.
+    private val CLOUD_BACKUP_DEBOUNCE_MS = 60_000L
+
     fun triggerLocalSafetyBackup() {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        localBackupJob?.cancel()
+        localBackupJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            kotlinx.coroutines.delay(LOCAL_BACKUP_DEBOUNCE_MS)
             try {
-                val dbJson = getFullDatabaseJsonSync()
+                // Sans les photos : les fichiers image sont déjà sur ce téléphone, les réencoder
+                // en base64 dans le fichier de sauvegarde local ne protégeait de rien et faisait
+                // grossir l'écriture d'un facteur cent.
+                val dbJson = getFullDatabaseJsonSync(includeImages = false)
                 com.example.util.BackupHelper.saveBackup(context, dbJson)
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -2696,30 +2763,125 @@ class InventoryViewModel(
         maybeAutoBackupToFirebase()
     }
 
+    /**
+     * Force une sauvegarde immédiate, sans attendre le regroupement — à utiliser quand l'app peut
+     * être tuée juste après (mise en arrière-plan, fermeture) et qu'attendre reviendrait à perdre
+     * les dernières minutes de ventes.
+     */
+    fun flushBackupsNow() {
+        localBackupJob?.cancel()
+        cloudBackupJob?.cancel()
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
+            try {
+                val dbJson = getFullDatabaseJsonSync(includeImages = false)
+                com.example.util.BackupHelper.saveBackup(context, dbJson)
+                uploadBackupToCloud(dbJson)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     // Auto Firebase Cloud Backup: silently pushes the latest database to Firebase Realtime
     // Database whenever the user (a) has configured a Cloud Backup URL in Paramètres and (b) has a
     // working internet connection right now — no manual "Envoyer" click needed. Called after every
     // mutation (piggy-backing on triggerLocalSafetyBackup) and once immediately whenever the device
     // regains connectivity after being offline (see the NetworkMonitor callback registered in init).
     private fun maybeAutoBackupToFirebase() {
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
-            // Par défaut, la sauvegarde part vers la base du développeur : elle fonctionne donc
-            // dès l'installation, sans que le client ait à créer ni saisir quoi que ce soit. Une
-            // URL renseignée dans Paramètres prend le pas (gérant qui héberge ses données lui-même).
-            val dbUrl = com.example.util.FirebaseBackupManager.resolveDatabaseUrl(appPreferences.firebaseDatabaseUrl)
-            if (dbUrl.isBlank()) return@launch
-            if (!com.example.util.NetworkMonitor.isOnline(context)) return@launch
+        cloudBackupJob?.cancel()
+        cloudBackupJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
+            kotlinx.coroutines.delay(CLOUD_BACKUP_DEBOUNCE_MS)
             try {
-                val dbJson = getFullDatabaseJsonSync()
-                val result = com.example.util.FirebaseBackupManager.uploadBackup(
-                    dbUrl, appPreferences.firebaseBackupToken, dbJson
-                )
-                if (result.isSuccess) {
-                    addSyncLog("Sauvegarde Firebase automatique nahomby (${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())})")
-                }
+                uploadBackupToCloud(getFullDatabaseJsonSync(includeImages = false))
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        }
+    }
+
+    /** Envoi effectif vers Firebase, partagé par la sauvegarde regroupée et par [flushBackupsNow]. */
+    private suspend fun uploadBackupToCloud(dbJson: String) {
+        // Par défaut, la sauvegarde part vers la base du développeur : elle fonctionne donc
+        // dès l'installation, sans que le client ait à créer ni saisir quoi que ce soit. Une
+        // URL renseignée dans Paramètres prend le pas (gérant qui héberge ses données lui-même).
+        val dbUrl = com.example.util.FirebaseBackupManager.resolveDatabaseUrl(appPreferences.firebaseDatabaseUrl)
+        if (dbUrl.isBlank()) return
+        if (!com.example.util.NetworkMonitor.isOnline(context)) return
+        val result = com.example.util.FirebaseBackupManager.uploadBackup(
+            dbUrl, appPreferences.firebaseBackupToken, dbJson
+        )
+        if (result.isSuccess) {
+            appPreferences.lastCloudBackupTime = System.currentTimeMillis()
+            lastCloudBackupTime.value = appPreferences.lastCloudBackupTime
+            addSyncLog("Sauvegarde Firebase automatique nahomby (${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())})")
+        }
+    }
+
+    /** Nombre de photos retrouvées lors de la dernière passe, pour informer le gérant. */
+    val photosRetrouvees = MutableStateFlow(0)
+    val rechercheDePhotosEnCours = MutableStateFlow(false)
+
+    /**
+     * Retrouve les photos perdues après une restauration.
+     *
+     * Les sauvegardes ne transportent plus les images (voir [getFullDatabaseJsonSync]) : sur un
+     * téléphone neuf, les produits reviennent donc sans photo. Pour tous ceux qui ont un
+     * code-barres, l'image est publiquement disponible sur Open Food Facts — la même source que
+     * l'app interroge déjà lors de l'ajout d'un produit. On la redemande donc, gratuitement, au
+     * lieu de faire porter ces mégaoctets à chaque sauvegarde de chaque boutique.
+     *
+     * Volontairement tolérant : une requête qui échoue est ignorée en silence (le produit garde
+     * son icône), et l'ensemble tourne en arrière-plan sans jamais bloquer la caisse.
+     */
+    fun rechercherPhotosManquantes() {
+        if (rechercheDePhotosEnCours.value) return
+        rechercheDePhotosEnCours.value = true
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
+            var retrouvees = 0
+            try {
+                if (!com.example.util.NetworkMonitor.isOnline(context)) return@launch
+                val produits = repository.allProducts.first()
+                val candidats = produits.filter { produit ->
+                    produit.barcode.isNotBlank() && !photoDisponible(produit.imageUrl)
+                }
+                for (produit in candidats) {
+                    try {
+                        val reponse = com.example.util.OpenFoodFactsApi.service
+                            .getProductByBarcode(produit.barcode)
+                        val imageUrl = reponse.product?.imageUrl
+                        if (!imageUrl.isNullOrBlank()) {
+                            repository.updateProduct(produit.copy(imageUrl = imageUrl))
+                            retrouvees++
+                        }
+                    } catch (e: Exception) {
+                        // Code-barres inconnu d'Open Food Facts, réseau capricieux : on passe au
+                        // suivant, c'est de l'agrément visuel, jamais une donnée de gestion.
+                    }
+                }
+            } finally {
+                photosRetrouvees.value = retrouvees
+                rechercheDePhotosEnCours.value = false
+                if (retrouvees > 0) {
+                    addSyncLog("Photos retrouvées via code-barres: $retrouvees")
+                    triggerLocalSafetyBackup()
+                }
+            }
+        }
+    }
+
+    /**
+     * Une photo est considérée disponible si elle est distante (URL http, toujours réaffichable)
+     * ou si son fichier local existe encore. Après une restauration sur un téléphone neuf, les
+     * chemins "file://" pointent vers des fichiers qui n'existent pas : ce sont ceux-là qu'il faut
+     * retrouver.
+     */
+    private fun photoDisponible(imageUrl: String?): Boolean {
+        if (imageUrl.isNullOrBlank()) return false
+        if (imageUrl.startsWith("http")) return true
+        return try {
+            java.io.File(imageUrl.removePrefix("file://")).exists()
+        } catch (e: Exception) {
+            false
         }
     }
 

@@ -197,6 +197,10 @@ fun SettingsScreen(
     var firebaseDatabaseUrlInput by remember(firebaseDatabaseUrlVal) { mutableStateOf(firebaseDatabaseUrlVal) }
     var isCloudBackupLoading by remember { mutableStateOf(false) }
     var isCloudRestoreLoading by remember { mutableStateOf(false) }
+    // Récupération sur un nouveau téléphone : saisie du code d'une ancienne installation.
+    var showRecoveryCodeDialog by remember { mutableStateOf(false) }
+    var recoveryCodeInput by remember { mutableStateOf("") }
+    var recoveryCodeError by remember { mutableStateOf(false) }
 
     val isDark = MaterialTheme.colorScheme.background == Color(0xFF002114)
     val cardBg = if (isDark) Color(0xFF1B4332) else Color(0xFFF8FAFC)
@@ -1534,6 +1538,97 @@ fun SettingsScreen(
                         color = Color(0xFF2E7D32)
                     )
 
+                    val lastBackup by viewModel.lastCloudBackupTime.collectAsState()
+                    if (lastBackup > 0L) {
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Backup farany: ${java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.FRANCE).format(java.util.Date(lastBackup))}"
+                                "fr" -> "Dernière sauvegarde : ${java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.FRANCE).format(java.util.Date(lastBackup))}"
+                                else -> "Last backup: ${java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.FRANCE).format(java.util.Date(lastBackup))}"
+                            },
+                            fontSize = 11.sp,
+                            color = secondaryTextColor
+                        )
+                    }
+
+                    HorizontalDivider(color = cardBorderColor.copy(alpha = 0.5f))
+
+                    // CODE DE RÉCUPÉRATION — sans lui, une sauvegarde cloud ne sert à rien : c'est
+                    // la seule adresse qui permet de la retrouver depuis un autre téléphone.
+                    val recoveryCodeVal by viewModel.recoveryCode.collectAsState()
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Kaody famerenana (soraty an-taratasy!)"
+                                "fr" -> "Code de récupération (notez-le sur un papier !)"
+                                else -> "Recovery code (write it down!)"
+                            },
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = mainTextColor
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = recoveryCodeVal,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Black,
+                                color = themeColor,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(themeColor.copy(alpha = 0.10f))
+                                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                                    .testTag("recovery_code_text")
+                            )
+                            val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                            IconButton(onClick = {
+                                clipboard.setText(androidx.compose.ui.text.AnnotatedString(recoveryCodeVal))
+                                snackbarMessage = when (activeLang) {
+                                    "mg" -> "Voadika ny kaody."
+                                    "fr" -> "Code copié."
+                                    else -> "Code copied."
+                                }
+                                showSnackbar = true
+                            }) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = null, tint = themeColor)
+                            }
+                        }
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Raha very na simba ny finday, ity kaody ity ihany no ahafahana mamerina ny angona. Alefaso amin'ny mpivarotra koa izy."
+                                "fr" -> "Si le téléphone est perdu ou cassé, ce code est le seul moyen de retrouver vos données. Communiquez-le aussi à votre fournisseur."
+                                else -> "If the phone is lost or broken, this code is the only way to get your data back. Also send it to your vendor."
+                            },
+                            fontSize = 11.sp,
+                            color = secondaryTextColor
+                        )
+                        OutlinedButton(
+                            onClick = {
+                                recoveryCodeInput = ""
+                                recoveryCodeError = false
+                                showRecoveryCodeDialog = true
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("enter_recovery_code_button"),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Nanolo finday? Ampidiro ny kaody taloha"
+                                    "fr" -> "Nouveau téléphone ? Saisir mon ancien code"
+                                    else -> "New phone? Enter my previous code"
+                                },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
                     HorizontalDivider(color = cardBorderColor.copy(alpha = 0.5f))
 
                     OutlinedTextField(
@@ -1635,7 +1730,12 @@ fun SettingsScreen(
                                     coroutineScope.launch {
                                         val result = FirebaseBackupManager.downloadBackup(urlEffective, firebaseBackupToken)
                                         isCloudRestoreLoading = false
-                                        result.onSuccess { json -> viewModel.syncFullDatabaseSync(json) }
+                                        result.onSuccess { json ->
+                                            viewModel.syncFullDatabaseSync(json)
+                                            // Les photos ne voyagent plus dans la sauvegarde :
+                                            // on les redemande à Open Food Facts par code-barres.
+                                            viewModel.rechercherPhotosManquantes()
+                                        }
                                         snackbarMessage = if (result.isSuccess) {
                                             when (activeLang) {
                                                 "mg" -> "Tafita! Tafaverina ny tahiry avy any amin'ny rahona."
@@ -1677,6 +1777,115 @@ fun SettingsScreen(
                         }
                     }
                 }
+            }
+
+            if (showRecoveryCodeDialog) {
+                AlertDialog(
+                    onDismissRequest = { showRecoveryCodeDialog = false },
+                    title = {
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Mamerina angona avy amin'ny finday taloha"
+                                "fr" -> "Récupérer les données d'un ancien téléphone"
+                                else -> "Recover data from a previous phone"
+                            },
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Ampidiro ny kaody famerenana an'ilay finday taloha, avy eo tsindrio \"Restaurer\"."
+                                    "fr" -> "Saisissez le code de récupération de l'ancien téléphone, puis appuyez sur « Restaurer »."
+                                    else -> "Enter the previous phone's recovery code, then tap \"Restore\"."
+                                },
+                                fontSize = 13.sp
+                            )
+                            OutlinedTextField(
+                                value = recoveryCodeInput,
+                                onValueChange = {
+                                    recoveryCodeInput = it
+                                    recoveryCodeError = false
+                                },
+                                placeholder = { Text("VRT-A3F9-K2M7-QP4X") },
+                                isError = recoveryCodeError,
+                                singleLine = true,
+                                supportingText = {
+                                    if (recoveryCodeError) {
+                                        Text(
+                                            text = when (activeLang) {
+                                                "mg" -> "Diso ny kaody. Hamarino tsara ny litera sy isa."
+                                                "fr" -> "Code invalide. Vérifiez lettres et chiffres."
+                                                else -> "Invalid code. Check letters and digits."
+                                            },
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().testTag("recovery_code_input")
+                            )
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Tsy voatahiry ao amin'ny backup ny sarin'ny entana. Ho tadiavina ho azy amin'ny alalan'ny code-barres izy ireo aorian'ny famerenana."
+                                    "fr" -> "Les photos ne sont pas sauvegardées. Celles des produits à code-barres seront retrouvées automatiquement après la restauration."
+                                    else -> "Photos are not backed up. Those of barcoded products will be fetched automatically after restoring."
+                                },
+                                fontSize = 11.sp,
+                                color = secondaryTextColor
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            if (!viewModel.appliquerCodeRecuperation(recoveryCodeInput)) {
+                                recoveryCodeError = true
+                            } else {
+                                showRecoveryCodeDialog = false
+                                isCloudRestoreLoading = true
+                                coroutineScope.launch {
+                                    val urlEffective = FirebaseBackupManager.resolveDatabaseUrl(firebaseDatabaseUrlInput)
+                                    val result = FirebaseBackupManager.downloadBackup(urlEffective, viewModel.firebaseBackupToken)
+                                    isCloudRestoreLoading = false
+                                    result.onSuccess { json ->
+                                        viewModel.syncFullDatabaseSync(json)
+                                        // Les photos ne voyagent plus dans la sauvegarde : on les
+                                        // redemande à Open Food Facts pour les produits à code-barres.
+                                        viewModel.rechercherPhotosManquantes()
+                                    }
+                                    snackbarMessage = if (result.isSuccess) {
+                                        when (activeLang) {
+                                            "mg" -> "Tafita! Tafaverina ny angona. Karohina ny sary."
+                                            "fr" -> "Restauration réussie ! Recherche des photos en cours."
+                                            else -> "Restore successful! Fetching photos."
+                                        }
+                                    } else {
+                                        when (activeLang) {
+                                            "mg" -> "Tsy nisy backup hita tamin'io kaody io."
+                                            "fr" -> "Aucune sauvegarde trouvée pour ce code."
+                                            else -> "No backup found for this code."
+                                        }
+                                    }
+                                    showSnackbar = true
+                                }
+                            }
+                        }) {
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Haverina"
+                                    "fr" -> "Restaurer"
+                                    else -> "Restore"
+                                },
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showRecoveryCodeDialog = false }) {
+                            Text(LanguageManager.translate("cancel_btn", activeLang))
+                        }
+                    }
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))

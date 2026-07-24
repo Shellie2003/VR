@@ -143,7 +143,24 @@ abstract class AppDatabase : RoomDatabase() {
                     }
                 })
                 .addMigrations(MIGRATION_20_21)
-                .fallbackToDestructiveMigration(true)
+                // F4 — Filet de sécurité volontairement restreint.
+                //
+                // Avant : `fallbackToDestructiveMigration(true)`, c'est-à-dire « en cas de doute,
+                // efface tout ». En développement c'est commode ; en production, avec des
+                // épiceries qui ont des mois de ventes et de dettes en base, la première montée de
+                // version livrée sans migration écrite aurait effacé leur historique en silence,
+                // sans message, sans récupération possible.
+                //
+                // Désormais la destruction n'est tolérée que pour les versions 1 à 19, celles
+                // d'avant la mise en production — de toute façon déjà effacées par ce même
+                // mécanisme dans les versions précédentes. À partir de la 20, toute évolution de
+                // schéma DOIT s'accompagner d'une migration : à défaut, l'app plante bruyamment
+                // au premier lancement de développement, ce qui se remarque tout de suite,
+                // au lieu de détruire silencieusement les données d'un client.
+                .fallbackToDestructiveMigrationFrom(
+                    true,
+                    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19
+                )
                 .build()
                 INSTANCE = instance
                 instance
