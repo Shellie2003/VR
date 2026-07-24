@@ -111,6 +111,17 @@ class AppPreferences(context: Context) {
         get() = prefs.getString(KEY_LICENCE_SHOP_LABEL, "") ?: ""
         set(value) = prefs.edit().putString(KEY_LICENCE_SHOP_LABEL, value).apply()
 
+    /**
+     * Numéro de licence sous lequel ce téléphone est enregistré côté Firebase. Vide tant que
+     * l'appareil n'a jamais été activé en ligne — on retombe alors sur [installationId], qui EST
+     * le numéro de licence pour le premier appareil d'un client. Un appareil supplémentaire (ou
+     * un téléphone de remplacement) saisit le numéro de la licence existante à l'activation, et
+     * il est mémorisé ici pour toutes les vérifications suivantes.
+     */
+    var licenceNumber: String
+        get() = prefs.getString("key_licence_number", "") ?: ""
+        set(value) = prefs.edit().putString("key_licence_number", value.trim()).apply()
+
     // C.4: yyyy-MM-dd of the last time an expiry-alert notification was shown, so we notify at
     // most once per day instead of on every app launch.
     var lastExpiryCheckDate: String

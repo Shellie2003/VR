@@ -12,28 +12,48 @@ import java.util.concurrent.TimeUnit
  * DÉVELOPPEUR (une seule base, la nôtre — le client n'a strictement rien à configurer).
  *
  * Fonctionnement voulu :
- *  1. à l'installation, l'app est VERROUILLÉE et affiche son "ID d'installation" (6 chiffres) ;
- *  2. le client paie et communique cet ID ;
- *  3. le développeur crée le nœud correspondant dans la console Firebase ;
+ *  1. à l'installation, l'app est VERROUILLÉE et affiche son "ID d'installation" (6 chiffres)
+ *     et son "code appareil" (dérivé d'ANDROID_ID, stable pour le téléphone physique) ;
+ *  2. le client paie et communique les deux ;
+ *  3. le développeur crée le nœud de licence dans la console Firebase, avec le code appareil
+ *     dans la liste `appareils` ;
  *  4. le client appuie sur « Vérifier mon activation » : l'app lit son nœud et se déverrouille.
  *
- * Structure attendue côté Firebase (`/licences/<installationId>`) :
+ * Structure attendue côté Firebase (`/licences/<numéroDeLicence>` — le numéro de licence est
+ * l'ID d'installation du premier appareil du client) :
  * ```json
  * {
  *   "actif": true,
  *   "expiration": 1790000000000,        // millis, 0 ou absent = licence sans échéance
  *   "epicerie": "Épicerie Koto",        // libellé affiché à l'activation
- *   "note": "payé le 12/03 - Mvola"
+ *   "note": "payé le 12/03 - Mvola",
+ *   "recoveryCode": "VRT-A3F9-K2M7-QP4X",  // copie du code de récupération des sauvegardes
+ *   "maxAppareils": 1,                  // information de gestion (le nombre vendu au client)
+ *   "transferts": 0,                    // compteur tenu à la main : un client qui « perd » son
+ *                                       // téléphone trois fois dans l'année se voit tout de suite
+ *   "appareils": {
+ *     "a3f29b10c44de5f6": { "nom": "Téléphone de Koto", "depuis": 1790000000000 }
+ *   }
  * }
  * ```
  *
+ * La liste `appareils` est la clé du dispositif anti-« fausse perte » : seul un appareil dont le
+ * code figure dans la liste est ACTIVE. Elle n'est modifiable QUE par le développeur dans la
+ * console (règles en lecture seule) — c'est un choix délibéré : un client qui prétend avoir perdu
+ * son téléphone pour équiper un second poste doit passer par le fournisseur, qui retire l'ancien
+ * code en ajoutant le nouveau. L'ancien téléphone, retiré de la liste, se verrouille de lui-même
+ * à sa prochaine vérification périodique ([ETAT_TRANSFEREE]). Mentir ne rapporte plus d'appareil
+ * supplémentaire. Un nœud SANS champ `appareils` reste traité comme valide (licences créées avant
+ * cette version).
+ *
  * Règles de sécurité à poser sur cette base (les clients LISENT leur licence, ils ne peuvent
- * jamais l'écrire — sinon n'importe qui s'auto-activerait) :
+ * jamais l'écrire — sinon n'importe qui s'auto-activerait ou s'ajouterait à la liste
+ * `appareils`) ; les sauvegardes vivent dans un AUTRE projet Firebase, voir
+ * [FirebaseBackupManager] :
  * ```json
  * {
  *   "rules": {
- *     "licences":  { "$id":    { ".read": true, ".write": false } },
- *     "backups":   { "$token": { ".read": true, ".write": true  } }
+ *     "licences": { "$id": { ".read": true, ".write": false } }
  *   }
  * }
  * ```
@@ -62,6 +82,9 @@ object LicenceManager {
     const val ETAT_SUSPENDUE = "SUSPENDUE"
     const val ETAT_INCONNUE = "INCONNUE"
 
+    /** La licence existe et est payée, mais CET appareil n'est pas (ou plus) dans sa liste. */
+    const val ETAT_TRANSFEREE = "TRANSFEREE"
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
@@ -77,16 +100,19 @@ object LicenceManager {
     }
 
     /**
-     * Interroge la base centrale pour l'ID d'installation donné.
+     * Interroge la base centrale pour le numéro de licence donné et vérifie que [deviceId]
+     * (le code appareil canonique, voir [DeviceIdentity.rawId]) figure bien dans la liste
+     * `appareils` du nœud.
      *
      * - succès : [Result] portant la [Licence] telle que le serveur la décrit ;
-     * - nœud absent (jamais payé, ou ID mal communiqué) : [Licence] avec [ETAT_INCONNUE] ;
+     * - nœud absent (jamais payé, ou numéro mal communiqué) : [Licence] avec [ETAT_INCONNUE] ;
+     * - nœud présent mais appareil hors liste : [ETAT_TRANSFEREE] ;
      * - panne réseau : [Result.failure], l'appelant décide alors s'il applique la tolérance
      *   hors-ligne (voir [estUtilisableHorsLigne]).
      */
-    suspend fun verifierLicence(installationId: String): Result<Licence> = withContext(Dispatchers.IO) {
+    suspend fun verifierLicence(numeroLicence: String, deviceId: String): Result<Licence> = withContext(Dispatchers.IO) {
         try {
-            val url = "${CENTRAL_DATABASE_URL.trimEnd('/')}/licences/$installationId.json"
+            val url = "${CENTRAL_DATABASE_URL.trimEnd('/')}/licences/${numeroLicence.trim()}.json"
             val request = Request.Builder().url(url).get().build()
             client.newCall(request).execute().use { response ->
                 val body = response.body?.string()
@@ -103,9 +129,18 @@ object LicenceManager {
                 val expiration = json.optLong("expiration", 0L)
                 val epicerie = json.optString("epicerie", "")
                 val note = json.optString("note", "")
+
+                // Liste des appareils autorisés. Absente ou vide = licence d'avant cette version,
+                // acceptée telle quelle pour ne pas verrouiller les clients existants ; le
+                // fournisseur la remplira à leur prochain contact.
+                val appareils = json.optJSONObject("appareils")
+                val listeRenseignee = appareils != null && appareils.length() > 0
+                val appareilAutorise = appareils?.has(deviceId.trim().lowercase()) == true
+
                 val etat = when {
                     !actif -> ETAT_SUSPENDUE
                     expiration > 0L && expiration < System.currentTimeMillis() -> ETAT_EXPIREE
+                    listeRenseignee && !appareilAutorise -> ETAT_TRANSFEREE
                     else -> ETAT_ACTIVE
                 }
                 Result.success(Licence(etat, expiration, epicerie, note))

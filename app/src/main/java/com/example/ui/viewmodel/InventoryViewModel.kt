@@ -976,15 +976,11 @@ class InventoryViewModel(
      * Code d'activation hors-ligne : le développeur le calcule à partir de l'ID d'installation et
      * le communique (SMS, appel) au client qui vient de payer. C'est le chemin de secours pour une
      * épicerie sans connexion le jour de l'installation ; le chemin normal est
-     * [verifierLicenceEnLigne].
+     * [verifierLicenceEnLigne]. F3 : HMAC-SHA256 à secret (voir OfflineActivationCode) — l'ancienne
+     * formule affine se calculait de tête à partir de l'ID affiché sur l'écran de verrouillage.
      */
     fun submitActivationCode(code: String): Boolean {
-        val cleanCode = code.trim()
-        val instId = installationId.toLongOrNull() ?: 0L
-        val expected = ((instId * 3) + 123456) % 1000000
-        val expectedStr = String.format("%06d", expected)
-
-        if (cleanCode == expectedStr) {
+        if (com.example.util.OfflineActivationCode.matches(installationId, code)) {
             appPreferences.isActivated = true
             isActivated.value = true
             // Une activation par code vaut licence active ; la vérification en ligne prendra le
@@ -1005,20 +1001,31 @@ class InventoryViewModel(
     /** Message de résultat de la dernière vérification, affiché sur l'écran d'activation. */
     val licenceMessage = MutableStateFlow<String?>(null)
 
+    /** Code appareil lisible (dérivé d'ANDROID_ID), affiché sur l'écran d'activation. */
+    val deviceCodeFormatted: String by lazy { com.example.util.DeviceIdentity.formatted(context) }
+
     fun consommerLicenceMessage() {
         licenceMessage.value = null
     }
 
     /**
-     * Interroge la base du développeur et déverrouille l'app si la licence est active.
-     * Retourne le résultat via [licenceState] / [licenceMessage] pour que l'écran d'activation
-     * puisse réagir sans connaître les détails du transport réseau.
+     * Interroge la base du développeur et déverrouille l'app si la licence est active ET que cet
+     * appareil figure dans sa liste `appareils`.
+     *
+     * [numeroLicenceSaisi] : vide pour le premier appareil d'un client (son propre ID
+     * d'installation EST le numéro de licence) ; renseigné pour un appareil supplémentaire ou un
+     * téléphone de remplacement, qui doit se rattacher à la licence existante. Mémorisé après le
+     * premier succès pour toutes les vérifications suivantes.
      */
-    fun verifierLicenceEnLigne() {
+    fun verifierLicenceEnLigne(numeroLicenceSaisi: String = "") {
         if (licenceEnVerification.value) return
         licenceEnVerification.value = true
+        val numero = numeroLicenceSaisi.trim()
+            .ifBlank { appPreferences.licenceNumber.ifBlank { installationId } }
         viewModelScope.launch(coroutineExceptionHandler) {
-            val resultat = com.example.util.LicenceManager.verifierLicence(installationId)
+            val resultat = com.example.util.LicenceManager.verifierLicence(
+                numero, com.example.util.DeviceIdentity.rawId(context)
+            )
             licenceEnVerification.value = false
             resultat.fold(
                 onSuccess = { licence ->
@@ -1028,12 +1035,17 @@ class InventoryViewModel(
                     appPreferences.licenceShopLabel = licence.epicerie
                     licenceState.value = licence.etat
                     if (licence.estActive) {
+                        appPreferences.licenceNumber = numero
                         appPreferences.isActivated = true
                         isActivated.value = true
+                        // Le nom de la boutique tel qu'enregistré chez le fournisseur est annoncé
+                        // au déverrouillage : une licence utilisée ailleurs afficherait le nom du
+                        // voisin, ce qui rend l'arrangement gênant à assumer.
+                        val boutique = licence.epicerie.takeIf { it.isNotBlank() }?.let { " — $it" } ?: ""
                         licenceMessage.value = when (language.value) {
-                            "mg" -> "Nekena ny fanalahidy. Misokatra ny application."
-                            "fr" -> "Licence validée. Application activée."
-                            else -> "Licence validated. App activated."
+                            "mg" -> "Nekena ny fanalahidy$boutique. Misokatra ny application."
+                            "fr" -> "Licence validée$boutique. Application activée."
+                            else -> "Licence validated$boutique. App activated."
                         }
                     } else {
                         // Licence absente, suspendue ou expirée : on reverrouille, même si
@@ -1067,6 +1079,11 @@ class InventoryViewModel(
             "fr" -> "Licence suspendue. Contactez le fournisseur."
             else -> "Licence suspended. Contact the vendor."
         }
+        com.example.util.LicenceManager.ETAT_TRANSFEREE -> when (language.value) {
+            "mg" -> "Ampiasaina amin'ny finday hafa ity fanalahidy ity. Mifandraisa amin'ny mpamorona raha hanova finday ianao."
+            "fr" -> "Cette licence est utilisée sur un autre appareil. Contactez le fournisseur pour transférer ou ajouter un poste."
+            else -> "This licence is in use on another device. Contact the vendor to transfer it or add a device."
+        }
         else -> when (language.value) {
             "mg" -> "Mbola tsy voarakitra ity ID ity. Alefaso amin'ny mpamorona rehefa vita ny fandoavam-bola."
             "fr" -> "Cet ID n'est pas encore enregistré. Communiquez-le au fournisseur après paiement."
@@ -1081,24 +1098,42 @@ class InventoryViewModel(
     fun verifierLicenceAuDemarrage() {
         if (!isActivated.value) return
         val derniereVerif = appPreferences.licenceLastCheck
-        val doitReverifier =
+
+        // Cadence de vérification pilotée par la tolérance hors-ligne : tant que la dernière
+        // vérification réussie date de moins de 30 jours (estUtilisableHorsLigne), un contrôle
+        // tous les 3 jours suffit. Au-delà, la licence n'a plus été confirmée depuis trop
+        // longtemps : on retente à CHAQUE démarrage jusqu'à réussir — sans jamais verrouiller sur
+        // une simple panne réseau, une coupure ne doit pas arrêter une boutique qui travaille.
+        val dansLaTolerance = com.example.util.LicenceManager.estUtilisableHorsLigne(
+            appPreferences.licenceState, derniereVerif, appPreferences.licenceExpiry
+        )
+        val doitReverifier = if (dansLaTolerance) {
             System.currentTimeMillis() - derniereVerif > com.example.util.LicenceManager.RECHECK_INTERVAL_MS
+        } else {
+            true
+        }
         if (!doitReverifier) return
 
         viewModelScope.launch(coroutineExceptionHandler) {
-            val resultat = com.example.util.LicenceManager.verifierLicence(installationId)
+            val numero = appPreferences.licenceNumber.ifBlank { installationId }
+            val resultat = com.example.util.LicenceManager.verifierLicence(
+                numero, com.example.util.DeviceIdentity.rawId(context)
+            )
             val licence = resultat.getOrNull() ?: return@launch
             appPreferences.licenceState = licence.etat
             appPreferences.licenceExpiry = licence.expiration
             appPreferences.licenceLastCheck = System.currentTimeMillis()
             licenceState.value = licence.etat
 
-            // On ne reverrouille QUE sur un refus explicite du serveur (suspendue ou expirée).
-            // Une licence introuvable ne suffit pas : une épicerie activée hors-ligne par code à
-            // 6 chiffres n'a pas forcément de nœud créé côté Firebase, et se retrouverait bloquée
-            // en pleine journée de vente pour une raison purement administrative.
+            // On ne reverrouille QUE sur un refus explicite du serveur : suspendue, expirée, ou
+            // appareil retiré de la liste (TRANSFEREE — c'est ce verrouillage différé qui rend le
+            // transfert de licence effectif sur l'ancien téléphone, sous 3 jours au plus).
+            // Une licence introuvable ne suffit pas : une épicerie activée hors-ligne par code
+            // n'a pas forcément de nœud créé côté Firebase, et se retrouverait bloquée en pleine
+            // journée de vente pour une raison purement administrative.
             val refusExplicite = licence.etat == com.example.util.LicenceManager.ETAT_SUSPENDUE ||
-                licence.etat == com.example.util.LicenceManager.ETAT_EXPIREE
+                licence.etat == com.example.util.LicenceManager.ETAT_EXPIREE ||
+                licence.etat == com.example.util.LicenceManager.ETAT_TRANSFEREE
             if (refusExplicite) {
                 appPreferences.isActivated = false
                 isActivated.value = false

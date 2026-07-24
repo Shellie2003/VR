@@ -273,6 +273,9 @@ fun SplashScreen(t: (String) -> String) {
 fun ActivationScreen(viewModel: InventoryViewModel, t: (String) -> String) {
     var codeInput by remember { mutableStateOf("") }
     var codeError by remember { mutableStateOf(false) }
+    // Appareil supplémentaire ou téléphone de remplacement : le client saisit le numéro de la
+    // licence existante (l'ID du premier appareil) pour s'y rattacher au lieu d'en créer une.
+    var numeroLicenceInput by remember { mutableStateOf("") }
     // Chemin normal : le client paie, communique son ID, le fournisseur crée la licence dans sa
     // base Firebase, puis le client appuie ici. Le code à 6 chiffres reste le secours hors-ligne.
     val enVerification by viewModel.licenceEnVerification.collectAsState()
@@ -337,12 +340,39 @@ fun ActivationScreen(viewModel: InventoryViewModel, t: (String) -> String) {
                         letterSpacing = 3.sp
                     )
 
+                    // Code appareil : identifie le TÉLÉPHONE physique (dérivé d'ANDROID_ID, il
+                    // survit à un effacement des données de l'app, contrairement à l'ID
+                    // ci-dessus). C'est lui que le fournisseur inscrit dans la liste `appareils`
+                    // de la licence.
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Kaodin'ity finday ity"
+                            "fr" -> "Code appareil"
+                            else -> "Device code"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Text(
+                        text = viewModel.deviceCodeFormatted,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.secondary,
+                        letterSpacing = 1.sp
+                    )
+
                     val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
                     val context = androidx.compose.ui.platform.LocalContext.current
 
                     TextButton(
                         onClick = {
-                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(viewModel.installationId))
+                            // Les deux identifiants copiés d'un coup : c'est exactement le message
+                            // que le client doit envoyer au fournisseur après paiement.
+                            clipboardManager.setText(
+                                androidx.compose.ui.text.AnnotatedString(
+                                    "ID: ${viewModel.installationId} / ${viewModel.deviceCodeFormatted}"
+                                )
+                            )
                             android.widget.Toast.makeText(context, t("copy_success"), android.widget.Toast.LENGTH_SHORT).show()
                         },
                         colors = ButtonDefaults.textButtonColors(
@@ -395,11 +425,32 @@ fun ActivationScreen(viewModel: InventoryViewModel, t: (String) -> String) {
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-                // Vérification en ligne : aucune saisie, l'app lit sa propre licence dans la base
-                // du fournisseur. C'est le chemin nominal, le code manuel n'étant là que pour les
-                // installations sans réseau.
+                // Appareil supplémentaire / nouveau téléphone : rattachement à une licence
+                // existante. Vide dans le cas nominal (premier appareil), où l'app cherche sous
+                // son propre ID.
+                OutlinedTextField(
+                    value = numeroLicenceInput,
+                    onValueChange = { numeroLicenceInput = it },
+                    label = {
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Laharan'ny licence efa misy (raha fanampiny)"
+                                "fr" -> "N° de licence existante (si appareil ajouté)"
+                                else -> "Existing licence no. (added device only)"
+                            }
+                        )
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("licence_number_input"),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                // Vérification en ligne : l'app lit sa licence dans la base du fournisseur et
+                // vérifie que son code appareil y est autorisé. C'est le chemin nominal, le code
+                // manuel n'étant là que pour les installations sans réseau.
                 OutlinedButton(
-                    onClick = { viewModel.verifierLicenceEnLigne() },
+                    onClick = { viewModel.verifierLicenceEnLigne(numeroLicenceInput) },
                     enabled = !enVerification,
                     modifier = Modifier
                         .fillMaxWidth()

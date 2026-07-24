@@ -25,10 +25,11 @@ object LanguageManager {
             "fr" to "Installation ID (Envoyez à AinaDigit) :",
             "en" to "Installation ID (Send to AinaDigit):"
         ),
+        // 8 chiffres depuis F3 (code HMAC) — l'ancien code affine en faisait 6.
         "activation_code_label" to mapOf(
-            "mg" to "Hampiditra Kaody famahàna (6 tondro)",
-            "fr" to "Saisir le code d'activation (6 chiffres)",
-            "en" to "Enter activation code (6 digits)"
+            "mg" to "Hampiditra Kaody famahàna (8 tondro)",
+            "fr" to "Saisir le code d'activation (8 chiffres)",
+            "en" to "Enter activation code (8 digits)"
         ),
         "activate_btn" to mapOf(
             "mg" to "Active-o ny application",
