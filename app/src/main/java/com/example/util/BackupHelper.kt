@@ -1,10 +1,22 @@
 package com.example.util
 
+import android.content.ContentValues
 import android.content.Context
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.util.Log
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 object BackupHelper {
     private const val BACKUP_FILE_NAME = "database_safety_backup.json"
+
+    /** Dossier public, sous Téléchargements, qui survit à la désinstallation. */
+    const val DOSSIER_PUBLIC = "Varotra"
+    const val MIME_ARCHIVE = "application/zip"
 
     fun saveBackup(context: Context, json: String) {
         try {
@@ -35,23 +47,78 @@ object BackupHelper {
     }
 
     /**
-     * Copies the backup into the app's external files dir (covered by the FileProvider used for
-     * sharing/export elsewhere) so it can be sent through the Android share sheet — WhatsApp,
-     * Bluetooth, email, USB file transfer, an SD card — for shop owners who don't have a Firebase
-     * project or even an email address. Returns null if there's no backup yet.
+     * Prépare l'archive **complète** (données + photos) à envoyer par le partage Android —
+     * WhatsApp, Bluetooth, Drive, courriel, carte SD — pour les gérants qui n'ont ni projet
+     * Firebase ni adresse mail. Renvoie null s'il n'y a pas encore de sauvegarde.
+     *
+     * L'archive part de la sauvegarde de sécurité locale, qui est réécrite après chaque mutation :
+     * elle est donc toujours à jour au moment du partage, sans re-sérialiser la base ici.
      */
-    fun getShareableBackupFile(context: Context): File? {
+    fun creerArchivePartageable(context: Context): File? {
         return try {
-            val source = File(context.filesDir, BACKUP_FILE_NAME)
-            if (!source.exists()) return null
-            val exportDir = context.getExternalFilesDir("Exports") ?: return null
-            if (!exportDir.exists()) exportDir.mkdirs()
-            val dest = File(exportDir, BACKUP_FILE_NAME)
-            source.copyTo(dest, overwrite = true)
-            dest
+            val json = readBackup(context)
+            if (json.isNullOrBlank()) return null
+            val dossier = context.getExternalFilesDir("Exports") ?: context.filesDir
+            if (!dossier.exists()) dossier.mkdirs()
+            ArchiveUtil.creerArchive(context, json, File(dossier, nomArchive()))
         } catch (e: Exception) {
             e.printStackTrace()
             null
         }
+    }
+
+    /**
+     * Copie l'archive dans `Téléchargements/Varotra`, **le seul endroit qui survit à la
+     * désinstallation de l'application**.
+     *
+     * Android efface intégralement le stockage privé d'une application désinstallée : ni la base de
+     * données, ni les photos, ni la sauvegarde locale n'en réchappent — c'est le système qui
+     * l'impose, aucune application ne peut s'y soustraire. Déposer l'archive dans le dossier public
+     * Téléchargements est donc la seule façon qu'un gérant retrouve ses données après avoir
+     * désinstallé, changé de téléphone ou réinitialisé l'appareil. Le fichier y reste visible
+     * depuis n'importe quel gestionnaire de fichiers, et se recharge par « Importer une sauvegarde ».
+     *
+     * Aucune autorisation de stockage n'est demandée : MediaStore autorise une application à écrire
+     * dans Téléchargements depuis Android 10. Sous Android 9 et antérieur, on retombe sur un chemin
+     * direct, qui y était encore permis.
+     */
+    fun deposerDansTelechargements(context: Context, archive: File): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val valeurs = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, archive.name)
+                    put(MediaStore.MediaColumns.MIME_TYPE, MIME_ARCHIVE)
+                    put(
+                        MediaStore.MediaColumns.RELATIVE_PATH,
+                        Environment.DIRECTORY_DOWNLOADS + "/" + DOSSIER_PUBLIC
+                    )
+                }
+                val resolveur = context.contentResolver
+                val uri = resolveur.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, valeurs)
+                    ?: return false
+                resolveur.openOutputStream(uri)?.use { sortie ->
+                    archive.inputStream().use { it.copyTo(sortie) }
+                } ?: return false
+            } else {
+                val dossier = File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                    DOSSIER_PUBLIC
+                )
+                if (!dossier.exists()) dossier.mkdirs()
+                archive.copyTo(File(dossier, archive.name), overwrite = true)
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("BackupHelper", "Dépôt dans Téléchargements impossible", e)
+            false
+        }
+    }
+
+    /** Chemin affiché au gérant pour qu'il sache où chercher son fichier. */
+    fun cheminPublicLisible(): String = "Téléchargements/$DOSSIER_PUBLIC"
+
+    private fun nomArchive(): String {
+        val jour = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.US).format(Date())
+        return "varotra-sauvegarde-$jour.zip"
     }
 }

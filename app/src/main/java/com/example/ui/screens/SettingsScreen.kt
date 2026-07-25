@@ -167,12 +167,11 @@ fun SettingsScreen(
     ) { uri ->
         if (uri != null) {
             coroutineScope.launch {
+                // Accepte les deux formats : l'archive .zip de cette version (données + photos,
+                // extraites au passage dans le dossier photos) et le .json nu des versions
+                // précédentes — une sauvegarde d'il y a six mois doit rester restaurable.
                 val jsonText = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    try {
-                        context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-                    } catch (e: Exception) {
-                        null
-                    }
+                    com.example.util.ArchiveUtil.lireSauvegarde(context, uri)
                 }
                 if (jsonText.isNullOrBlank()) {
                     snackbarMessage = when (activeLang) {
@@ -1404,16 +1403,31 @@ fun SettingsScreen(
                         // Share backup file button (WhatsApp, Bluetooth, SD card, USB...)
                         OutlinedButton(
                             onClick = {
-                                val file = BackupHelper.getShareableBackupFile(context)
-                                if (file != null) {
-                                    ExportUtil.shareFile(context, file, "application/json")
-                                } else {
-                                    snackbarMessage = when (activeLang) {
-                                        "mg" -> "Hadisoana: Tsy misy backup hita ao amin'ny finday."
-                                        "fr" -> "Échec : Aucun fichier de sauvegarde trouvé."
-                                        else -> "Failed: No backup file found on this device."
+                                // Le partage embarque désormais les photos : c'est une archive zip
+                                // (données + photos), pas un JSON nu. Elle est aussi déposée dans
+                                // Téléchargements/Varotra, qui survit à la désinstallation.
+                                coroutineScope.launch {
+                                    val archive = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        val fichier = BackupHelper.creerArchivePartageable(context)
+                                        if (fichier != null) BackupHelper.deposerDansTelechargements(context, fichier)
+                                        fichier
                                     }
-                                    showSnackbar = true
+                                    if (archive != null) {
+                                        ExportUtil.shareFile(context, archive, BackupHelper.MIME_ARCHIVE)
+                                        snackbarMessage = when (activeLang) {
+                                            "mg" -> "Voatahiry ao amin'ny ${BackupHelper.cheminPublicLisible()} koa ny backup (misy ny sary)."
+                                            "fr" -> "Sauvegarde (photos incluses) également copiée dans ${BackupHelper.cheminPublicLisible()}."
+                                            else -> "Backup (photos included) also saved to ${BackupHelper.cheminPublicLisible()}."
+                                        }
+                                        showSnackbar = true
+                                    } else {
+                                        snackbarMessage = when (activeLang) {
+                                            "mg" -> "Hadisoana: Tsy misy backup hita ao amin'ny finday."
+                                            "fr" -> "Échec : Aucun fichier de sauvegarde trouvé."
+                                            else -> "Failed: No backup file found on this device."
+                                        }
+                                        showSnackbar = true
+                                    }
                                 }
                             },
                             modifier = Modifier.weight(1f).height(40.dp).testTag("share_backup_button"),

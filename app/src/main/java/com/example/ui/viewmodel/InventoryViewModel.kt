@@ -2028,7 +2028,7 @@ class InventoryViewModel(
                         obj.put("imageUrl", prod.imageUrl ?: "")
                         obj.put(
                             "imageData",
-                            if (includeImages) com.example.util.ImageBackupUtil.encodeLocalImage(prod.imageUrl) ?: "" else ""
+                            if (includeImages) com.example.util.ImageBackupUtil.encodeLocalImage(context, prod.imageUrl) ?: "" else ""
                         )
                         obj.put("unit", prod.unit)
                         obj.put("barcode", prod.barcode)
@@ -2326,10 +2326,18 @@ class InventoryViewModel(
                 val prodArr = org.json.JSONArray(productsStr)
                 for (i in 0 until prodArr.length()) {
                     val obj = prodArr.getJSONObject(i)
-                    val incomingImageUrl = obj.optString("imageUrl", "")
+                    val rawImageUrl = obj.optString("imageUrl", "")
                     // Recreate the local photo file if it's missing (fresh install, data wipe,
                     // new device) but was captured in this backup as base64 (see ImageBackupUtil).
-                    com.example.util.ImageBackupUtil.restoreLocalImageIfMissing(incomingImageUrl, obj.optString("imageData", ""))
+                    com.example.util.ImageBackupUtil.restoreLocalImageIfMissing(context, rawImageUrl, obj.optString("imageData", ""))
+                    // La référence reçue porte le chemin absolu du téléphone d'origine. Si la photo
+                    // est bien présente ici — extraite d'une archive zip, ou recréée depuis le
+                    // base64 — on réécrit la référence vers le fichier local : sans cela l'image
+                    // resterait cassée à l'écran alors que le fichier est là, et repartirait avec un
+                    // chemin étranger dans la prochaine sauvegarde.
+                    val incomingImageUrl = com.example.util.PhotoStore.resoudre(context, rawImageUrl)
+                        ?.let { com.example.util.PhotoStore.reference(it) }
+                        ?: rawImageUrl
                     productsList.add(
                         Product(
                             id = obj.optInt("id", 0),
@@ -2913,11 +2921,10 @@ class InventoryViewModel(
     private fun photoDisponible(imageUrl: String?): Boolean {
         if (imageUrl.isNullOrBlank()) return false
         if (imageUrl.startsWith("http")) return true
-        return try {
-            java.io.File(imageUrl.removePrefix("file://")).exists()
-        } catch (e: Exception) {
-            false
-        }
+        // Passe par PhotoStore : une photo restaurée depuis une archive porte le chemin absolu du
+        // téléphone d'origine, mais son fichier est bien là, sous le même nom. La tester sur le
+        // seul chemin absolu la déclarerait perdue et déclencherait une re-recherche inutile.
+        return com.example.util.PhotoStore.resoudre(context, imageUrl) != null
     }
 
     fun restoreLocalSafetyBackup(): Boolean {
