@@ -1,0 +1,73 @@
+name: Vérification de compilation
+
+# Ce workflow n'est PAS une fabrique d'APK : il ne construit aucun paquet installable et ne
+# téléverse aucun artefact. Il ne sert qu'à répondre à une seule question avant fusion — « le code
+# compile-t-il, et les tests passent-ils ? » — parce que l'environnement de développement ne
+# dispose pas du SDK Android et ne peut donc pas y répondre.
+#
+# `build_apk.yml` (APK de debug) reste désactivé, et `release.yml` reste seul responsable des
+# paquets distribuables : celui-ci ne les remplace ni ne les déclenche.
+
+on:
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+# Une nouvelle poussée sur une PR annule la vérification en cours : seul le dernier état compte,
+# et laisser tourner les précédentes ne ferait que consommer des minutes.
+concurrency:
+  group: verification-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verifier:
+    name: Compilation et tests unitaires
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v4
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      # Les deux signingConfigs retombent sur ${rootDir}/debug.keystore quand les secrets ne sont
+      # pas fournis. Aucune signature n'a lieu ici — rien n'est empaqueté — mais Gradle évalue la
+      # configuration, et un fichier absent ferait échouer la vérification pour un motif étranger
+      # au code. Ce keystore est jetable et ne sort jamais de la machine de CI.
+      - name: Keystore jetable
+        run: |
+          keytool -genkeypair -v -keystore debug.keystore \
+            -storepass android -keypass android -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Environnements locaux
+        run: |
+          if [ -f .env.example ]; then cp .env.example .env; fi
+          touch local.properties
+
+      - name: Droit d'exécution sur gradlew
+        run: chmod +x gradlew
+
+      # testDebugUnitTest : exécute les tests unitaires, dont Migration20To21Test qui rejoue la
+      # migration de schéma sur une base peuplée — casser la préservation des données à la mise à
+      # jour doit échouer ici, pas chez un client.
+      #
+      # compileReleaseKotlin : compile la variante réellement distribuée. C'est ce qui valide le
+      # code Kotlin, la fusion du manifeste et les ressources sans produire le moindre paquet.
+      - name: Tests unitaires et compilation
+        run: ./gradlew testDebugUnitTest compileReleaseKotlin --no-daemon --stacktrace
+
+      # Les rapports ne sont conservés qu'en cas d'échec : c'est le seul moment où on les lit.
+      - name: Rapports de tests (si échec)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapports-tests
+          path: app/build/reports/tests/
+          retention-days: 7
