@@ -2,6 +2,8 @@ package com.example.util
 
 import android.content.ContentValues
 import android.content.Context
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -100,11 +102,17 @@ object BackupHelper {
                     archive.inputStream().use { it.copyTo(sortie) }
                 } ?: return false
             } else {
+                // Android 9 et antérieur : écriture directe, qui exige WRITE_EXTERNAL_STORAGE.
+                // On vérifie AVANT d'écrire plutôt que de laisser l'exception décider : sans ce
+                // contrôle la fonction renvoyait false sur une exception, l'appelant l'ignorait,
+                // et le gérant s'entendait annoncer une sauvegarde qui n'existait pas — sur la
+                // seule fonction dont l'intérêt est justement de survivre à la désinstallation.
+                if (!autorisationStockageAncienneAccordee(context)) return false
                 val dossier = File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
                     DOSSIER_PUBLIC
                 )
-                if (!dossier.exists()) dossier.mkdirs()
+                if (!dossier.exists() && !dossier.mkdirs()) return false
                 archive.copyTo(File(dossier, archive.name), overwrite = true)
             }
             true
@@ -116,6 +124,20 @@ object BackupHelper {
 
     /** Chemin affiché au gérant pour qu'il sache où chercher son fichier. */
     fun cheminPublicLisible(): String = "Téléchargements/$DOSSIER_PUBLIC"
+
+    /**
+     * Vrai si le dépôt public exige encore une autorisation à demander (Android 9 et antérieur) et
+     * qu'elle n'est pas accordée. L'appelant s'en sert pour la réclamer au bon moment — au clic sur
+     * « Partager » — plutôt qu'au démarrage, où le gérant ne comprendrait pas pourquoi.
+     */
+    fun autorisationStockageRequise(context: Context): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q && !autorisationStockageAncienneAccordee(context)
+
+    private fun autorisationStockageAncienneAccordee(context: Context): Boolean =
+        ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+        ) == PackageManager.PERMISSION_GRANTED
 
     private fun nomArchive(): String {
         val jour = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.US).format(Date())

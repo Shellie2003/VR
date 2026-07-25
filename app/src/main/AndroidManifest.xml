@@ -7,6 +7,15 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!--
+        Uniquement pour Android 9 et antérieur : le dépôt de l'archive de sauvegarde dans le
+        dossier public Téléchargements y passe par un chemin direct, qui exige cette autorisation.
+        À partir d'Android 10 (maxSdkVersion=28), MediaStore s'en charge sans rien demander — la
+        permission n'est donc jamais réclamée sur un téléphone récent.
+    -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
