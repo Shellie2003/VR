@@ -87,9 +87,51 @@ class InventoryViewModel(
     private val context: Context
 ) : ViewModel() {
 
-    private val coroutineExceptionHandler = kotlinx.coroutines.CoroutineExceptionHandler { _, exception ->
-        android.util.Log.e("InventoryViewModel", "Hadisoana Coroutine: ${exception.localizedMessage ?: exception.message}", exception)
+    /**
+     * Message affiché au gérant quand une opération de fond a échoué. Null = rien à signaler.
+     *
+     * Sans ce canal, poser un CoroutineExceptionHandler sur les écritures reviendrait à remplacer
+     * un plantage par un **échec silencieux** — ce qui est pire dans une caisse : le vendeur voit
+     * son panier se vider, croit la vente enregistrée, et ne découvre le trou que le soir au
+     * comptage. Une opération qui échoue doit se voir.
+     */
+    val erreurOperation = MutableStateFlow<String?>(null)
+
+    fun consommerErreurOperation() { erreurOperation.value = null }
+
+    private val coroutineExceptionHandler = kotlinx.coroutines.CoroutineExceptionHandler { contexte, exception ->
+        val operation = contexte[kotlinx.coroutines.CoroutineName]?.name
+        android.util.Log.e(
+            "InventoryViewModel",
+            "Échec de coroutine${operation?.let { " ($it)" } ?: ""}: ${exception.localizedMessage ?: exception.message}",
+            exception
+        )
+        val quoi = operation ?: when (language.value) {
+            "mg" -> "asa iray"
+            "fr" -> "une opération"
+            else -> "an operation"
+        }
+        erreurOperation.value = when (language.value) {
+            "mg" -> "Tsy tanteraka ny $quoi. Hamarino alohan'ny hanohizana."
+            "fr" -> "Échec : $quoi n'a pas abouti. Vérifiez avant de continuer."
+            else -> "Failed: $quoi did not complete. Check before continuing."
+        }
     }
+
+    /**
+     * Lance un travail de fond du ViewModel avec le filet **et** le nom de l'opération, pour que le
+     * message d'échec dise au gérant ce qui n'a pas abouti plutôt qu'« une erreur est survenue ».
+     *
+     * À utiliser pour toute écriture : sans le gestionnaire, une exception dans `viewModelScope`
+     * n'est rattrapée nulle part et ferme l'application.
+     */
+    private fun lancerProtege(
+        operation: String,
+        bloc: suspend kotlinx.coroutines.CoroutineScope.() -> Unit
+    ) = viewModelScope.launch(
+        coroutineExceptionHandler + kotlinx.coroutines.CoroutineName(operation),
+        block = bloc
+    )
 
     val appPreferences = AppPreferences(context)
 
@@ -1542,7 +1584,7 @@ class InventoryViewModel(
             }
         }
 
-        viewModelScope.launch {
+        lancerProtege("l'enregistrement de la vente") {
             try {
                 val soldItems = cartSnapshot.map {
                     SoldItem(
@@ -1617,7 +1659,7 @@ class InventoryViewModel(
 
     // Actions for Products
     fun saveProduct(product: Product) {
-        viewModelScope.launch {
+        lancerProtege("l'enregistrement du produit") {
             if (product.id == 0) {
                 repository.insertProduct(product)
                 if (product.isLowStock) {
@@ -1655,7 +1697,7 @@ class InventoryViewModel(
             montant = product.price * product.stock,
             severite = AuditLog.SEVERITE_ATTENTION
         )
-        viewModelScope.launch {
+        lancerProtege("la suppression du produit") {
             repository.deleteProduct(product)
             repository.recordDeletion("product", TombstoneKeys.product(product.barcode, product.sku, product.name))
             removeFromCart("product_${product.id}")
@@ -1679,7 +1721,7 @@ class InventoryViewModel(
                 severite = AuditLog.SEVERITE_ATTENTION
             )
         }
-        viewModelScope.launch {
+        lancerProtege("l'ajustement du stock") {
             val updatedProduct = product.copy(stock = newStock)
             repository.updateProduct(updatedProduct)
             if (updatedProduct.isLowStock) {
@@ -1706,7 +1748,7 @@ class InventoryViewModel(
             montant = sale.totalAmount,
             severite = AuditLog.SEVERITE_ALERTE
         )
-        viewModelScope.launch {
+        lancerProtege("la suppression de la vente") {
             repository.deleteSale(sale)
             repository.recordDeletion("sale", TombstoneKeys.sale(sale.timestamp))
             com.example.sync.SyncManager.triggerDatabaseSync()
@@ -1724,7 +1766,7 @@ class InventoryViewModel(
             deviceName = debt.deviceName.ifBlank { deviceName.value },
             vendeurNom = debt.vendeurNom.ifBlank { activeVendeur.value?.nom ?: "" }
         )
-        viewModelScope.launch {
+        lancerProtege("l'enregistrement du trosa") {
             repository.insertDebt(signe)
             com.example.sync.SyncManager.triggerDatabaseSync()
             triggerLocalSafetyBackup()
@@ -1732,7 +1774,7 @@ class InventoryViewModel(
     }
 
     fun updateDebtRepayment(debtId: Int, repayAmount: Double) {
-        viewModelScope.launch {
+        lancerProtege("le remboursement du trosa") {
             val debts = allDebts.value
             val debt = debts.find { it.id == debtId }
             if (debt != null) {
@@ -1761,7 +1803,7 @@ class InventoryViewModel(
             montant = debt.balance,
             severite = if (debt.isPaid) AuditLog.SEVERITE_ATTENTION else AuditLog.SEVERITE_ALERTE
         )
-        viewModelScope.launch {
+        lancerProtege("la suppression du trosa") {
             repository.deleteDebt(debt)
             repository.recordDeletion("debt", TombstoneKeys.debt(debt.debtorName, debt.date))
             com.example.sync.SyncManager.triggerDatabaseSync()
@@ -1775,7 +1817,7 @@ class InventoryViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun saveFournisseur(fournisseur: Fournisseur) {
-        viewModelScope.launch {
+        lancerProtege("l'enregistrement du fournisseur") {
             repository.fournisseurDao.insertFournisseur(fournisseur)
         }
     }
@@ -1839,7 +1881,7 @@ class InventoryViewModel(
 
     fun updateStockSync(productId: String, newQuantity: Double) {
         val id = productId.toIntOrNull() ?: return
-        viewModelScope.launch {
+        lancerProtege("la mise à jour du stock") {
             val product = repository.getProductById(id)
             if (product != null) {
                 val updatedProduct = product.copy(stock = newQuantity)
@@ -1888,7 +1930,7 @@ class InventoryViewModel(
     }
 
     fun syncAllProductsSync(stockJson: String) {
-        viewModelScope.launch {
+        lancerProtege("la synchronisation du stock") {
             try {
                 val arr = org.json.JSONArray(stockJson)
                 // Fetched once from the repository (not allProducts.value, see syncFullDatabaseSync

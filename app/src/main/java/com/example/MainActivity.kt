@@ -251,6 +251,39 @@ fun MainLifecycleContainer() {
         )
     }
 
+    // Échec d'une écriture de fond (vente, stock, trosa…). Une boîte plutôt qu'un message furtif :
+    // le vendeur doit constater que l'opération n'a pas abouti, sinon il continue en croyant sa
+    // vente enregistrée et ne découvre le trou qu'au comptage du soir.
+    val erreurOperation by viewModel.erreurOperation.collectAsState()
+    erreurOperation?.let { message ->
+        AlertDialog(
+            onDismissRequest = { viewModel.consommerErreurOperation() },
+            title = {
+                Text(
+                    text = when (activeLang) {
+                        "mg" -> "Tsy vita ilay asa"
+                        "fr" -> "Opération non aboutie"
+                        else -> "Operation did not complete"
+                    },
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = { Text(text = message) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.consommerErreurOperation() }) {
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Azoko"
+                            "fr" -> "J'ai compris"
+                            else -> "Understood"
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        )
+    }
+
     val isDark = when (themeMode) {
         "dark" -> true
         "light" -> false
