@@ -68,19 +68,39 @@ jobs:
       - name: Tests unitaires
         run: ./gradlew testDebugUnitTest --no-daemon
 
-      # Le message d'échec de Gradle ne dit que « des tests ont échoué » ; la cause réelle est dans
-      # les XML de résultats. L'afficher ici évite d'avoir à télécharger l'artefact pour diagnostiquer.
-      - name: Détail des tests en échec
-        if: failure()
+      # Gradle ne dit que « des tests ont échoué ». La première version de cette étape déversait
+      # 4 000 caractères de XML par fichier : illisible, et surtout la ligne qui compte se
+      # retrouvait hors de portée quand on consulte la fin du journal. Un résumé d'une ligne par
+      # classe, plus le message de chaque échec, tient en quelques lignes et se lit d'un coup.
+      #
+      # `always()` et non `failure()` : savoir que 9 tests sur 14 passent a autant de valeur que
+      # savoir lesquels échouent — c'est ce qui permet de distinguer une régression d'une dette
+      # déjà connue.
+      - name: Résumé des tests
+        if: always()
         run: |
-          for fichier in app/build/test-results/testDebugUnitTest/*.xml; do
-            [ -f "$fichier" ] || continue
-            if grep -q "<failure\|<error" "$fichier"; then
-              echo "════════ $(basename "$fichier") ════════"
-              head -c 4000 "$fichier"
-              echo
-            fi
-          done
+          python3 - <<'PYTHON'
+          import glob, xml.etree.ElementTree as ET
+          total = echecs = 0
+          fichiers = sorted(glob.glob('app/build/test-results/testDebugUnitTest/*.xml'))
+          if not fichiers:
+              print("Aucun résultat de test : la tâche n'est pas allée jusque-là.")
+          for chemin in fichiers:
+              try:
+                  racine = ET.parse(chemin).getroot()
+              except Exception as e:
+                  print(f"?      {chemin} illisible : {e}")
+                  continue
+              n = int(racine.get('tests') or 0)
+              e = int(racine.get('failures') or 0) + int(racine.get('errors') or 0)
+              total += n; echecs += e
+              print(f"{'ECHEC' if e else 'ok':6} {racine.get('name')}  ({n} test(s), {e} échec(s))")
+              for cas in racine.iter('testcase'):
+                  for pb in list(cas.findall('failure')) + list(cas.findall('error')):
+                      msg = ' '.join((pb.get('message') or pb.get('type') or '').split())[:220]
+                      print(f"         -> {cas.get('name')} : {msg}")
+          print(f"TOTAL {total} test(s), {echecs} échec(s)")
+          PYTHON
 
       # Les rapports ne sont conservés qu'en cas d'échec : c'est le seul moment où on les lit.
       - name: Rapports de tests (si échec)
