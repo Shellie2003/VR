@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import com.example.util.enDecimal
+import com.example.util.enEntier
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -492,7 +494,7 @@ private fun LotEditDialog(
             Button(
                 onClick = {
                     val product = selectedProduct
-                    val qty = quantiteStr.toDoubleOrNull()
+                    val qty = quantiteStr.enDecimal()
                     productError = product == null
                     qtyError = qty == null || qty <= 0.0
 

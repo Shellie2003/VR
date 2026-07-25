@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import com.example.util.enDecimal
+import com.example.util.enEntier
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -302,7 +304,7 @@ fun DebtsScreen(
                         value = debtAmountStr,
                         onValueChange = {
                             debtAmountStr = it
-                            amountError = it.toDoubleOrNull() == null || it.toDouble() <= 0
+                            amountError = it.enDecimal() == null || it.toDouble() <= 0
                         },
                         label = { Text(t("debt_amount")) },
                         prefix = { Text("Ar ") },
@@ -351,7 +353,7 @@ fun DebtsScreen(
                 Button(
                     onClick = {
                         val nameClean = debtorName.trim()
-                        val amt = debtAmountStr.toDoubleOrNull() ?: 0.0
+                        val amt = debtAmountStr.enDecimal() ?: 0.0
 
                         nameError = nameClean.isEmpty()
                         amountError = amt <= 0
@@ -455,7 +457,7 @@ fun DebtsScreen(
                         value = repayAmountStr,
                         onValueChange = {
                             repayAmountStr = it
-                            repayError = it.toDoubleOrNull() == null || it.toDouble() <= 0 || it.toDouble() > debt.balance
+                            repayError = it.enDecimal() == null || it.toDouble() <= 0 || it.toDouble() > debt.balance
                         },
                         label = { Text(t("repay_amount_label")) },
                         prefix = { Text("Ar ") },
@@ -469,7 +471,7 @@ fun DebtsScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val valDouble = repayAmountStr.toDoubleOrNull() ?: 0.0
+                        val valDouble = repayAmountStr.enDecimal() ?: 0.0
                         repayError = valDouble <= 0 || valDouble > debt.balance
 
                         if (!repayError) {

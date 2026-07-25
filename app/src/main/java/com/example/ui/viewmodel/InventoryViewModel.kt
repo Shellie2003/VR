@@ -1,5 +1,7 @@
 package com.example.ui.viewmodel
 
+import com.example.util.enDecimal
+import com.example.util.enEntier
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -87,9 +89,51 @@ class InventoryViewModel(
     private val context: Context
 ) : ViewModel() {
 
-    private val coroutineExceptionHandler = kotlinx.coroutines.CoroutineExceptionHandler { _, exception ->
-        android.util.Log.e("InventoryViewModel", "Hadisoana Coroutine: ${exception.localizedMessage ?: exception.message}", exception)
+    /**
+     * Message affiché au gérant quand une opération de fond a échoué. Null = rien à signaler.
+     *
+     * Sans ce canal, poser un CoroutineExceptionHandler sur les écritures reviendrait à remplacer
+     * un plantage par un **échec silencieux** — ce qui est pire dans une caisse : le vendeur voit
+     * son panier se vider, croit la vente enregistrée, et ne découvre le trou que le soir au
+     * comptage. Une opération qui échoue doit se voir.
+     */
+    val erreurOperation = MutableStateFlow<String?>(null)
+
+    fun consommerErreurOperation() { erreurOperation.value = null }
+
+    private val coroutineExceptionHandler = kotlinx.coroutines.CoroutineExceptionHandler { contexte, exception ->
+        val operation = contexte[kotlinx.coroutines.CoroutineName]?.name
+        android.util.Log.e(
+            "InventoryViewModel",
+            "Échec de coroutine${operation?.let { " ($it)" } ?: ""}: ${exception.localizedMessage ?: exception.message}",
+            exception
+        )
+        val quoi = operation ?: when (language.value) {
+            "mg" -> "asa iray"
+            "fr" -> "une opération"
+            else -> "an operation"
+        }
+        erreurOperation.value = when (language.value) {
+            "mg" -> "Tsy tanteraka ny $quoi. Hamarino alohan'ny hanohizana."
+            "fr" -> "Échec : $quoi n'a pas abouti. Vérifiez avant de continuer."
+            else -> "Failed: $quoi did not complete. Check before continuing."
+        }
     }
+
+    /**
+     * Lance un travail de fond du ViewModel avec le filet **et** le nom de l'opération, pour que le
+     * message d'échec dise au gérant ce qui n'a pas abouti plutôt qu'« une erreur est survenue ».
+     *
+     * À utiliser pour toute écriture : sans le gestionnaire, une exception dans `viewModelScope`
+     * n'est rattrapée nulle part et ferme l'application.
+     */
+    private fun lancerProtege(
+        operation: String,
+        bloc: suspend kotlinx.coroutines.CoroutineScope.() -> Unit
+    ) = viewModelScope.launch(
+        coroutineExceptionHandler + kotlinx.coroutines.CoroutineName(operation),
+        block = bloc
+    )
 
     val appPreferences = AppPreferences(context)
 
@@ -897,6 +941,11 @@ class InventoryViewModel(
 
     // Seeding products on empty state with Dispatchers.IO to prevent main-thread block
     init {
+        // Branche la sauvegarde d'urgence sur le filet anti-plantage. Sans ce crochet, le filet ne
+        // ferait que constater les dégâts ; avec lui, une exception fatale n'emporte plus les
+        // mutations dont l'écriture disque était encore en attente.
+        com.example.util.CrashReporter.actionUrgence = { sauvegardeUrgenceSync() }
+
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
             repository.hasProducts().take(1).collect { hasProducts ->
                 val hasBackupFile = com.example.util.BackupHelper.hasBackup(context)
@@ -1537,7 +1586,7 @@ class InventoryViewModel(
             }
         }
 
-        viewModelScope.launch {
+        lancerProtege("l'enregistrement de la vente") {
             try {
                 val soldItems = cartSnapshot.map {
                     SoldItem(
@@ -1612,7 +1661,7 @@ class InventoryViewModel(
 
     // Actions for Products
     fun saveProduct(product: Product) {
-        viewModelScope.launch {
+        lancerProtege("l'enregistrement du produit") {
             if (product.id == 0) {
                 repository.insertProduct(product)
                 if (product.isLowStock) {
@@ -1650,7 +1699,7 @@ class InventoryViewModel(
             montant = product.price * product.stock,
             severite = AuditLog.SEVERITE_ATTENTION
         )
-        viewModelScope.launch {
+        lancerProtege("la suppression du produit") {
             repository.deleteProduct(product)
             repository.recordDeletion("product", TombstoneKeys.product(product.barcode, product.sku, product.name))
             removeFromCart("product_${product.id}")
@@ -1674,7 +1723,7 @@ class InventoryViewModel(
                 severite = AuditLog.SEVERITE_ATTENTION
             )
         }
-        viewModelScope.launch {
+        lancerProtege("l'ajustement du stock") {
             val updatedProduct = product.copy(stock = newStock)
             repository.updateProduct(updatedProduct)
             if (updatedProduct.isLowStock) {
@@ -1701,7 +1750,7 @@ class InventoryViewModel(
             montant = sale.totalAmount,
             severite = AuditLog.SEVERITE_ALERTE
         )
-        viewModelScope.launch {
+        lancerProtege("la suppression de la vente") {
             repository.deleteSale(sale)
             repository.recordDeletion("sale", TombstoneKeys.sale(sale.timestamp))
             com.example.sync.SyncManager.triggerDatabaseSync()
@@ -1719,7 +1768,7 @@ class InventoryViewModel(
             deviceName = debt.deviceName.ifBlank { deviceName.value },
             vendeurNom = debt.vendeurNom.ifBlank { activeVendeur.value?.nom ?: "" }
         )
-        viewModelScope.launch {
+        lancerProtege("l'enregistrement du trosa") {
             repository.insertDebt(signe)
             com.example.sync.SyncManager.triggerDatabaseSync()
             triggerLocalSafetyBackup()
@@ -1727,7 +1776,7 @@ class InventoryViewModel(
     }
 
     fun updateDebtRepayment(debtId: Int, repayAmount: Double) {
-        viewModelScope.launch {
+        lancerProtege("le remboursement du trosa") {
             val debts = allDebts.value
             val debt = debts.find { it.id == debtId }
             if (debt != null) {
@@ -1756,7 +1805,7 @@ class InventoryViewModel(
             montant = debt.balance,
             severite = if (debt.isPaid) AuditLog.SEVERITE_ATTENTION else AuditLog.SEVERITE_ALERTE
         )
-        viewModelScope.launch {
+        lancerProtege("la suppression du trosa") {
             repository.deleteDebt(debt)
             repository.recordDeletion("debt", TombstoneKeys.debt(debt.debtorName, debt.date))
             com.example.sync.SyncManager.triggerDatabaseSync()
@@ -1770,7 +1819,7 @@ class InventoryViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun saveFournisseur(fournisseur: Fournisseur) {
-        viewModelScope.launch {
+        lancerProtege("l'enregistrement du fournisseur") {
             repository.fournisseurDao.insertFournisseur(fournisseur)
         }
     }
@@ -1786,7 +1835,7 @@ class InventoryViewModel(
     }
 
     fun reserveStockSync(productId: String, quantity: Double): Boolean {
-        val id = productId.toIntOrNull() ?: return false
+        val id = productId.enEntier() ?: return false
         val product = kotlinx.coroutines.runBlocking { repository.getProductById(id) } ?: return false
         return product.stock >= quantity
     }
@@ -1833,8 +1882,8 @@ class InventoryViewModel(
     }
 
     fun updateStockSync(productId: String, newQuantity: Double) {
-        val id = productId.toIntOrNull() ?: return
-        viewModelScope.launch {
+        val id = productId.enEntier() ?: return
+        lancerProtege("la mise à jour du stock") {
             val product = repository.getProductById(id)
             if (product != null) {
                 val updatedProduct = product.copy(stock = newQuantity)
@@ -1883,7 +1932,7 @@ class InventoryViewModel(
     }
 
     fun syncAllProductsSync(stockJson: String) {
-        viewModelScope.launch {
+        lancerProtege("la synchronisation du stock") {
             try {
                 val arr = org.json.JSONArray(stockJson)
                 // Fetched once from the repository (not allProducts.value, see syncFullDatabaseSync
@@ -2028,7 +2077,7 @@ class InventoryViewModel(
                         obj.put("imageUrl", prod.imageUrl ?: "")
                         obj.put(
                             "imageData",
-                            if (includeImages) com.example.util.ImageBackupUtil.encodeLocalImage(prod.imageUrl) ?: "" else ""
+                            if (includeImages) com.example.util.ImageBackupUtil.encodeLocalImage(context, prod.imageUrl) ?: "" else ""
                         )
                         obj.put("unit", prod.unit)
                         obj.put("barcode", prod.barcode)
@@ -2326,10 +2375,18 @@ class InventoryViewModel(
                 val prodArr = org.json.JSONArray(productsStr)
                 for (i in 0 until prodArr.length()) {
                     val obj = prodArr.getJSONObject(i)
-                    val incomingImageUrl = obj.optString("imageUrl", "")
+                    val rawImageUrl = obj.optString("imageUrl", "")
                     // Recreate the local photo file if it's missing (fresh install, data wipe,
                     // new device) but was captured in this backup as base64 (see ImageBackupUtil).
-                    com.example.util.ImageBackupUtil.restoreLocalImageIfMissing(incomingImageUrl, obj.optString("imageData", ""))
+                    com.example.util.ImageBackupUtil.restoreLocalImageIfMissing(context, rawImageUrl, obj.optString("imageData", ""))
+                    // La référence reçue porte le chemin absolu du téléphone d'origine. Si la photo
+                    // est bien présente ici — extraite d'une archive zip, ou recréée depuis le
+                    // base64 — on réécrit la référence vers le fichier local : sans cela l'image
+                    // resterait cassée à l'écran alors que le fichier est là, et repartirait avec un
+                    // chemin étranger dans la prochaine sauvegarde.
+                    val incomingImageUrl = com.example.util.PhotoStore.resoudre(context, rawImageUrl)
+                        ?.let { com.example.util.PhotoStore.reference(it) }
+                        ?: rawImageUrl
                     productsList.add(
                         Product(
                             id = obj.optInt("id", 0),
@@ -2803,6 +2860,28 @@ class InventoryViewModel(
      * être tuée juste après (mise en arrière-plan, fermeture) et qu'attendre reviendrait à perdre
      * les dernières minutes de ventes.
      */
+    /**
+     * Écriture SYNCHRONE de la sauvegarde locale, réservée au filet anti-plantage.
+     *
+     * [flushBackupsNow] lance une coroutine : dans un gestionnaire d'exception fatale, le processus
+     * meurt avant qu'elle ne démarre — elle ne sauverait rien. Ici tout s'exécute sur le fil
+     * appelant.
+     *
+     * Volontairement **sans envoi cloud** : une requête HTTP dans un processus condamné n'aboutit
+     * pas, et l'attendre retarderait la fermeture au point de transformer un plantage en « ne
+     * répond pas ». La sauvegarde locale suffit — elle est relue au démarrage suivant.
+     */
+    fun sauvegardeUrgenceSync() {
+        try {
+            localBackupJob?.cancel()
+            val dbJson = getFullDatabaseJsonSync(includeImages = false)
+            com.example.util.BackupHelper.saveBackup(context, dbJson)
+        } catch (e: Throwable) {
+            // Un plantage pendant la sauvegarde d'urgence ne doit pas masquer le plantage d'origine.
+            android.util.Log.e("InventoryViewModel", "Sauvegarde d'urgence échouée", e)
+        }
+    }
+
     fun flushBackupsNow() {
         localBackupJob?.cancel()
         cloudBackupJob?.cancel()
@@ -2913,11 +2992,10 @@ class InventoryViewModel(
     private fun photoDisponible(imageUrl: String?): Boolean {
         if (imageUrl.isNullOrBlank()) return false
         if (imageUrl.startsWith("http")) return true
-        return try {
-            java.io.File(imageUrl.removePrefix("file://")).exists()
-        } catch (e: Exception) {
-            false
-        }
+        // Passe par PhotoStore : une photo restaurée depuis une archive porte le chemin absolu du
+        // téléphone d'origine, mais son fichier est bien là, sous le même nom. La tester sur le
+        // seul chemin absolu la déclarerait perdue et déclencherait une re-recherche inutile.
+        return com.example.util.PhotoStore.resoudre(context, imageUrl) != null
     }
 
     fun restoreLocalSafetyBackup(): Boolean {
@@ -2937,6 +3015,9 @@ class InventoryViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        // Le crochet est statique : le laisser pointer vers un ViewModel mort ferait travailler
+        // une instance dont le scope est déjà annulé.
+        com.example.util.CrashReporter.actionUrgence = null
         com.example.util.NetworkMonitor.stopObserving(context, networkCallback)
         android.util.Log.d("InventoryViewModel", "InventoryViewModel onCleared - viewModelScope automatically cancelled")
     }

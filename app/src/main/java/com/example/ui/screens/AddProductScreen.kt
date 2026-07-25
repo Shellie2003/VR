@@ -1,10 +1,15 @@
+@file:kotlin.OptIn(
+    com.google.accompanist.permissions.ExperimentalPermissionsApi::class
+)
+
 package com.example.ui.screens
 
-import android.graphics.Bitmap
+import com.example.util.enDecimal
+import com.example.util.enEntier
+import com.google.accompanist.permissions.isGranted
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.result.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
@@ -38,8 +43,6 @@ import com.example.data.model.Fournisseur
 import com.example.ui.viewmodel.InventoryViewModel
 import com.example.util.LanguageManager
 import java.io.File
-import java.io.FileOutputStream
-import java.io.InputStream
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.launch
@@ -114,14 +117,60 @@ fun AddProductScreen(
     var offSearchError by remember { mutableStateOf<String?>(null) }
     var offOnlyMadagascar by remember { mutableStateOf(true) }
 
+    // ------------------------------------------------------------------------------------------
+    // Prise de photo.
+    //
+    // Deux défauts corrigés ici, qui arrêtaient l'application au moment de photographier un
+    // produit :
+    //
+    //  1. `cameraLauncher.launch()` était appelé SANS jamais demander l'autorisation caméra. Or le
+    //     manifeste déclare `android.permission.CAMERA` (pour le scanner de codes-barres), et
+    //     Android impose alors que l'autorisation soit accordée avant tout ACTION_IMAGE_CAPTURE :
+    //     sinon il lève une SecurityException, qui arrête le processus. Sur une installation neuve
+    //     — précisément le cas après une réinstallation suivie d'une restauration — l'autorisation
+    //     n'a jamais été accordée, et la première photo faisait tomber l'application. Elle
+    //     fonctionnait si le gérant avait scanné un code-barres auparavant, l'écran de scan
+    //     demandant l'autorisation correctement : d'où un plantage qui semblait aléatoire.
+    //
+    //  2. `TakePicturePreview()` fait transiter l'image par le résultat d'activité. Certains
+    //     appareils y renvoient la photo en pleine résolution, ce qui dépasse la limite de
+    //     transaction Binder (TransactionTooLargeException, arrêt immédiat). Accessoirement, ce
+    //     contrat ne rend normalement qu'une vignette : les photos produits étaient donc de très
+    //     mauvaise qualité. `TakePicture(uri)` écrit dans notre propre fichier — rien ne transite,
+    //     et l'image est nette avant d'être réduite par PhotoStore.
+    // ------------------------------------------------------------------------------------------
+    val autorisationCamera = com.google.accompanist.permissions.rememberPermissionState(
+        android.Manifest.permission.CAMERA
+    )
+    var fichierPhotoEnCours by remember { mutableStateOf<File?>(null) }
+
     val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap ->
-        if (bitmap != null) {
-            val localPath = saveBitmapToLocalFile(context, bitmap)
-            if (localPath != null) {
-                imageUrl = "file://$localPath"
-            }
+        contract = ActivityResultContracts.TakePicture()
+    ) { reussi ->
+        val fichier = fichierPhotoEnCours
+        fichierPhotoEnCours = null
+        if (reussi && fichier != null && fichier.exists() && fichier.length() > 0) {
+            com.example.util.PhotoStore.reduireApresCapture(fichier)
+            imageUrl = com.example.util.PhotoStore.reference(fichier)
+        } else {
+            // Photo annulée ou vide : on ne laisse pas un fichier de 0 octet derrière nous, il
+            // finirait dans l'archive de sauvegarde et s'afficherait comme une image cassée.
+            fichier?.delete()
+        }
+    }
+
+    /** Prépare le fichier de destination puis lance l'appareil photo. */
+    fun lancerAppareilPhoto() {
+        try {
+            val fichier = com.example.util.PhotoStore.nouveauFichier(context)
+            fichierPhotoEnCours = fichier
+            cameraLauncher.launch(com.example.util.PhotoStore.uriPartageable(context, fichier))
+        } catch (e: Exception) {
+            // Dernier filet : aucun appareil photo, fournisseur mal configuré, constructeur exotique.
+            // Mieux vaut un bouton sans effet qu'une application qui se ferme en pleine saisie.
+            fichierPhotoEnCours?.delete()
+            fichierPhotoEnCours = null
+            e.printStackTrace()
         }
     }
 
@@ -129,9 +178,9 @@ fun AddProductScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            val localPath = saveUriToLocalFile(context, uri)
-            if (localPath != null) {
-                imageUrl = "file://$localPath"
+            val fichier = com.example.util.PhotoStore.enregistrerDepuisUri(context, uri)
+            if (fichier != null) {
+                imageUrl = com.example.util.PhotoStore.reference(fichier)
             }
         }
     }
@@ -704,7 +753,7 @@ fun AddProductScreen(
                         value = prixAchatUniteBaseStr,
                         onValueChange = {
                             prixAchatUniteBaseStr = it
-                            prixAchatError = it.isNotEmpty() && (it.toDoubleOrNull() == null || it.toDouble() < 0.0)
+                            prixAchatError = it.isNotEmpty() && (it.enDecimal() == null || it.toDouble() < 0.0)
                         },
                         label = { Text(
                             when(activeLang) {
@@ -725,7 +774,7 @@ fun AddProductScreen(
                         value = priceStr,
                         onValueChange = {
                             priceStr = it
-                            priceError = it.toDoubleOrNull() == null || it.toDouble() <= 0
+                            priceError = it.enDecimal() == null || it.toDouble() <= 0
                         },
                         label = { Text(t("unit_price")) },
                         prefix = { Text("Ar ") },
@@ -742,7 +791,7 @@ fun AddProductScreen(
                         value = wholesalePriceStr,
                         onValueChange = {
                             wholesalePriceStr = it
-                            wholesalePriceError = it.isNotEmpty() && (it.toDoubleOrNull() == null || it.toDouble() < 0)
+                            wholesalePriceError = it.isNotEmpty() && (it.enDecimal() == null || it.toDouble() < 0)
                         },
                         label = { Text(
                             when (activeLang) {
@@ -766,9 +815,9 @@ fun AddProductScreen(
                         value = stockStr,
                         onValueChange = {
                             stockStr = it
-                            stockError = it.toDoubleOrNull() == null || it.toDouble() < 0
+                            stockError = it.enDecimal() == null || it.toDouble() < 0
                             // Auto sync integer field
-                            it.toDoubleOrNull()?.let { d ->
+                            it.enDecimal()?.let { d ->
                                 stockQuantityStr = d.toInt().toString()
                             }
                         },
@@ -787,7 +836,7 @@ fun AddProductScreen(
                         value = stockQuantityStr,
                         onValueChange = {
                             stockQuantityStr = it
-                            stockQuantityError = it.toIntOrNull() == null || it.toInt() < 0
+                            stockQuantityError = it.enEntier() == null || it.toInt() < 0
                         },
                         label = { Text(
                             when (activeLang) {
@@ -809,7 +858,7 @@ fun AddProductScreen(
                         value = stockMaxStr,
                         onValueChange = {
                             stockMaxStr = it
-                            stockMaxError = it.isNotEmpty() && (it.toDoubleOrNull() == null || it.toDouble() < 0.0)
+                            stockMaxError = it.isNotEmpty() && (it.enDecimal() == null || it.toDouble() < 0.0)
                         },
                         label = { Text(
                             when(activeLang) {
@@ -845,7 +894,7 @@ fun AddProductScreen(
                         value = lowStockThresholdStr,
                         onValueChange = {
                             lowStockThresholdStr = it
-                            thresholdError = it.toDoubleOrNull() == null || it.toDouble() < 0
+                            thresholdError = it.enDecimal() == null || it.toDouble() < 0
                         },
                         label = { Text("Low Stock Alert Seuil (Alerte)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -1047,7 +1096,7 @@ fun AddProductScreen(
                             value = tauxTaxeStr,
                             onValueChange = {
                                 tauxTaxeStr = it
-                                tauxTaxeError = it.toDoubleOrNull() == null || it.toDouble() < 0.0
+                                tauxTaxeError = it.enDecimal() == null || it.toDouble() < 0.0
                             },
                             label = { Text(
                                 when(activeLang) {
@@ -1082,7 +1131,16 @@ fun AddProductScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Button(
-                            onClick = { cameraLauncher.launch() },
+                            onClick = {
+                                // L'autorisation est demandée AVANT le lancement : sans elle,
+                                // Android refuse ACTION_IMAGE_CAPTURE par une SecurityException
+                                // qui arrête l'application (voir le bloc cameraLauncher).
+                                if (autorisationCamera.status.isGranted) {
+                                    lancerAppareilPhoto()
+                                } else {
+                                    autorisationCamera.launchPermissionRequest()
+                                }
+                            },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(8.dp)
                         ) {
@@ -1252,27 +1310,27 @@ fun AddProductScreen(
                 Button(
                     onClick = {
                         val finalName = name.trim()
-                        val finalPrice = priceStr.toDoubleOrNull() ?: 0.0
-                        val finalStock = stockStr.toDoubleOrNull() ?: 0.0
-                        val finalThreshold = lowStockThresholdStr.toDoubleOrNull() ?: 5.0
+                        val finalPrice = priceStr.enDecimal() ?: 0.0
+                        val finalStock = stockStr.enDecimal() ?: 0.0
+                        val finalThreshold = lowStockThresholdStr.enDecimal() ?: 5.0
                         val finalCategory = if (selectedCategory == "Hafa") customCategory.trim().ifEmpty { "Hafa" } else selectedCategory
 
                         nameError = finalName.isEmpty()
                         priceError = finalPrice <= 0.0
-                        stockError = stockStr.toDoubleOrNull() == null || finalStock < 0.0
-                        thresholdError = lowStockThresholdStr.toDoubleOrNull() == null || finalThreshold < 0.0
+                        stockError = stockStr.enDecimal() == null || finalStock < 0.0
+                        thresholdError = lowStockThresholdStr.enDecimal() == null || finalThreshold < 0.0
 
-                        val finalStockQuantity = stockQuantityStr.toIntOrNull() ?: 0
-                        stockQuantityError = stockQuantityStr.toIntOrNull() == null || finalStockQuantity < 0
+                        val finalStockQuantity = stockQuantityStr.enEntier() ?: 0
+                        stockQuantityError = stockQuantityStr.enEntier() == null || finalStockQuantity < 0
 
-                        val finalWholesalePrice = wholesalePriceStr.toDoubleOrNull()
-                        val finalPrixAchatUniteBase = prixAchatUniteBaseStr.toDoubleOrNull() ?: 0.0
-                        val finalStockMax = stockMaxStr.toDoubleOrNull()
-                        val finalTauxTaxe = tauxTaxeStr.toDoubleOrNull() ?: 0.0
+                        val finalWholesalePrice = wholesalePriceStr.enDecimal()
+                        val finalPrixAchatUniteBase = prixAchatUniteBaseStr.enDecimal() ?: 0.0
+                        val finalStockMax = stockMaxStr.enDecimal()
+                        val finalTauxTaxe = tauxTaxeStr.enDecimal() ?: 0.0
 
-                        prixAchatError = prixAchatUniteBaseStr.isNotEmpty() && (prixAchatUniteBaseStr.toDoubleOrNull() == null || prixAchatUniteBaseStr.toDouble() < 0.0)
-                        stockMaxError = stockMaxStr.isNotEmpty() && (stockMaxStr.toDoubleOrNull() == null || stockMaxStr.toDouble() < 0.0)
-                        tauxTaxeError = taxable && (tauxTaxeStr.toDoubleOrNull() == null || tauxTaxeStr.toDouble() < 0.0)
+                        prixAchatError = prixAchatUniteBaseStr.isNotEmpty() && (prixAchatUniteBaseStr.enDecimal() == null || prixAchatUniteBaseStr.toDouble() < 0.0)
+                        stockMaxError = stockMaxStr.isNotEmpty() && (stockMaxStr.enDecimal() == null || stockMaxStr.toDouble() < 0.0)
+                        tauxTaxeError = taxable && (tauxTaxeStr.enDecimal() == null || tauxTaxeStr.toDouble() < 0.0)
 
                         if (!nameError && !priceError && !stockError && !thresholdError && !stockQuantityError && !prixAchatError && !stockMaxError && !tauxTaxeError) {
                             val saved = Product(
@@ -1911,51 +1969,10 @@ fun AddProductScreen(
     }
 }
 
-// Product photos are kept small on purpose: this also lets them be embedded as base64 inside
-// the JSON backups (local safety backup + Firebase) so they survive a data wipe or new device,
-// without needing any paid image storage (see ImageBackupUtil).
-private const val MAX_PRODUCT_IMAGE_DIMENSION = 1024
-
-private fun downscaleBitmapIfNeeded(bitmap: Bitmap, maxDimension: Int = MAX_PRODUCT_IMAGE_DIMENSION): Bitmap {
-    val width = bitmap.width
-    val height = bitmap.height
-    if (width <= maxDimension && height <= maxDimension) return bitmap
-    val ratio = minOf(maxDimension.toFloat() / width, maxDimension.toFloat() / height)
-    val newWidth = (width * ratio).toInt().coerceAtLeast(1)
-    val newHeight = (height * ratio).toInt().coerceAtLeast(1)
-    return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
-}
-
-fun saveBitmapToLocalFile(context: android.content.Context, bitmap: Bitmap): String? {
-    return try {
-        val resized = downscaleBitmapIfNeeded(bitmap)
-        val fileName = "product_img_${System.currentTimeMillis()}.jpg"
-        val file = File(context.filesDir, fileName)
-        FileOutputStream(file).use { out ->
-            resized.compress(Bitmap.CompressFormat.JPEG, 82, out)
-        }
-        file.absolutePath
-    } catch (e: Exception) {
-        e.printStackTrace()
-        null
-    }
-}
-
-fun saveUriToLocalFile(context: android.content.Context, uri: Uri): String? {
-    return try {
-        val bitmap = context.contentResolver.openInputStream(uri)?.use { input ->
-            android.graphics.BitmapFactory.decodeStream(input)
-        } ?: return null
-        val resized = downscaleBitmapIfNeeded(bitmap)
-        val fileName = "product_img_${System.currentTimeMillis()}.jpg"
-        val file = File(context.filesDir, fileName)
-        FileOutputStream(file).use { out ->
-            resized.compress(Bitmap.CompressFormat.JPEG, 82, out)
-        }
-        file.absolutePath
-    } catch (e: Exception) {
-        e.printStackTrace()
-        null
-    }
-}
+// L'enregistrement des photos vit désormais dans util/PhotoStore : un seul endroit sait où sont
+// rangées les photos et comment retrouver celle d'un produit, ce qui est la condition pour les
+// joindre à une archive de sauvegarde et les rebrancher après une restauration.
+//
+// Les fonctions saveBitmapToLocalFile/saveUriToLocalFile qui vivaient ici écrivaient en vrac à la
+// racine de filesDir ; elles sont remplacées par PhotoStore.enregistrer/enregistrerDepuisUri.
 

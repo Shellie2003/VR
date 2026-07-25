@@ -160,6 +160,47 @@ fun SettingsScreen(
     var showSnackbar by remember { mutableStateOf(false) }
     var snackbarMessage by remember { mutableStateOf("") }
 
+    /**
+     * Fabrique l'archive (données + photos), la dépose dans Téléchargements quand c'est possible,
+     * puis ouvre le partage. Le message final distingue les deux cas : une copie durable a bien
+     * été écrite, ou seul le partage a eu lieu. Annoncer la première quand c'est la seconde
+     * reviendrait à promettre au gérant une sauvegarde qui ne survivrait pas à sa désinstallation.
+     */
+    fun partagerSauvegarde() {
+        coroutineScope.launch {
+            val (archive, deposee) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val fichier = BackupHelper.creerArchivePartageable(context)
+                val ok = fichier != null && BackupHelper.deposerDansTelechargements(context, fichier)
+                fichier to ok
+            }
+            snackbarMessage = when {
+                archive == null -> when (activeLang) {
+                    "mg" -> "Hadisoana: Tsy misy backup hita ao amin'ny finday."
+                    "fr" -> "Échec : Aucun fichier de sauvegarde trouvé."
+                    else -> "Failed: No backup file found on this device."
+                }
+                deposee -> when (activeLang) {
+                    "mg" -> "Voatahiry ao amin'ny ${BackupHelper.cheminPublicLisible()} koa ny backup (misy ny sary)."
+                    "fr" -> "Sauvegarde (photos incluses) également copiée dans ${BackupHelper.cheminPublicLisible()}."
+                    else -> "Backup (photos included) also saved to ${BackupHelper.cheminPublicLisible()}."
+                }
+                else -> when (activeLang) {
+                    "mg" -> "Nozaraina ny backup (misy ny sary). Tsy voatahiry ao amin'ny ${BackupHelper.cheminPublicLisible()}: tehirizo ny rakitra."
+                    "fr" -> "Sauvegarde (photos incluses) partagée. Copie dans ${BackupHelper.cheminPublicLisible()} impossible : enregistrez le fichier vous-même."
+                    else -> "Backup (photos included) shared. Could not copy to ${BackupHelper.cheminPublicLisible()}: save the file yourself."
+                }
+            }
+            showSnackbar = true
+            if (archive != null) ExportUtil.shareFile(context, archive, BackupHelper.MIME_ARCHIVE)
+        }
+    }
+
+    // Android 9 et antérieur uniquement : le dépôt dans Téléchargements réclame une autorisation.
+    // Quel que soit le verdict on partage — seule la copie durable en dépend.
+    val demandeStockageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { _ -> partagerSauvegarde() }
+
     // Import a backup file picked from anywhere (WhatsApp download, Bluetooth, SD card, USB...)
     // — no Firebase project or email required, just a file someone can send you.
     val importBackupLauncher = rememberLauncherForActivityResult(
@@ -167,12 +208,11 @@ fun SettingsScreen(
     ) { uri ->
         if (uri != null) {
             coroutineScope.launch {
+                // Accepte les deux formats : l'archive .zip de cette version (données + photos,
+                // extraites au passage dans le dossier photos) et le .json nu des versions
+                // précédentes — une sauvegarde d'il y a six mois doit rester restaurable.
                 val jsonText = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    try {
-                        context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-                    } catch (e: Exception) {
-                        null
-                    }
+                    com.example.util.ArchiveUtil.lireSauvegarde(context, uri)
                 }
                 if (jsonText.isNullOrBlank()) {
                     snackbarMessage = when (activeLang) {
@@ -1404,16 +1444,17 @@ fun SettingsScreen(
                         // Share backup file button (WhatsApp, Bluetooth, SD card, USB...)
                         OutlinedButton(
                             onClick = {
-                                val file = BackupHelper.getShareableBackupFile(context)
-                                if (file != null) {
-                                    ExportUtil.shareFile(context, file, "application/json")
+                                // Sur Android 9 et antérieur, le dépôt dans Téléchargements exige
+                                // une autorisation : on la demande ici, au moment où le geste a du
+                                // sens pour le gérant. Le partage lui-même n'en a jamais besoin, et
+                                // a donc lieu quel que soit le verdict — c'est le message final qui
+                                // dit la vérité sur ce qui a réellement été enregistré.
+                                if (BackupHelper.autorisationStockageRequise(context)) {
+                                    demandeStockageLauncher.launch(
+                                        android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                                    )
                                 } else {
-                                    snackbarMessage = when (activeLang) {
-                                        "mg" -> "Hadisoana: Tsy misy backup hita ao amin'ny finday."
-                                        "fr" -> "Échec : Aucun fichier de sauvegarde trouvé."
-                                        else -> "Failed: No backup file found on this device."
-                                    }
-                                    showSnackbar = true
+                                    partagerSauvegarde()
                                 }
                             },
                             modifier = Modifier.weight(1f).height(40.dp).testTag("share_backup_button"),

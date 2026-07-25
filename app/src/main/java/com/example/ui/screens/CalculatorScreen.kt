@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import com.example.util.enDecimal
+import com.example.util.enEntier
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -69,7 +71,7 @@ fun CalculatorScreen(
 
     // State for Cash Received (Espèces reçues)
     var amountReceivedStr by remember { mutableStateOf("") }
-    val amountReceived = amountReceivedStr.toDoubleOrNull() ?: 0.0
+    val amountReceived = amountReceivedStr.enDecimal() ?: 0.0
 
     // Search query for product picker inside checkout
     var pickerSearchQuery by remember { mutableStateOf("") }
@@ -78,8 +80,8 @@ fun CalculatorScreen(
     var miscUnitPriceStr by remember { mutableStateOf("") }
     var miscQtyStr by remember { mutableStateOf("1") }
 
-    val miscPrice = miscUnitPriceStr.toDoubleOrNull() ?: 0.0
-    val miscQty = miscQtyStr.toDoubleOrNull() ?: 1.0
+    val miscPrice = miscUnitPriceStr.enDecimal() ?: 0.0
+    val miscQty = miscQtyStr.enDecimal() ?: 1.0
     val miscProductTotal = miscPrice * miscQty
 
     // Change / Missing calculations
@@ -116,8 +118,8 @@ fun CalculatorScreen(
         selectedPaymentMode = "ESPECES"
     }
 
-    val calcPrice = calcPriceStr.toDoubleOrNull() ?: 0.0
-    val calcQty = calcQtyStr.toDoubleOrNull() ?: 0.0
+    val calcPrice = calcPriceStr.enDecimal() ?: 0.0
+    val calcQty = calcQtyStr.enDecimal() ?: 0.0
     val calcTotal = calcPrice * calcQty
 
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
@@ -477,7 +479,7 @@ fun CalculatorScreen(
                                     items(notes) { note ->
                                         OutlinedButton(
                                             onClick = {
-                                                val cur = amountReceivedStr.toDoubleOrNull() ?: 0.0
+                                                val cur = amountReceivedStr.enDecimal() ?: 0.0
                                                 amountReceivedStr = (cur + note).toInt().toString()
                                             },
                                             modifier = Modifier.height(24.dp),
@@ -1086,7 +1088,7 @@ fun CalculatorScreen(
                             items(notes) { note ->
                                 OutlinedButton(
                                     onClick = {
-                                        val cur = amountReceivedStr.toDoubleOrNull() ?: 0.0
+                                        val cur = amountReceivedStr.enDecimal() ?: 0.0
                                         amountReceivedStr = (cur + note).toInt().toString()
                                     },
                                     modifier = Modifier.height(24.dp),
@@ -1611,7 +1613,7 @@ fun CalculatorScreen(
                             items(notes) { note ->
                                 Button(
                                     onClick = {
-                                        val cur = amountReceivedStr.toDoubleOrNull() ?: 0.0
+                                        val cur = amountReceivedStr.enDecimal() ?: 0.0
                                         amountReceivedStr = (cur + note).toInt().toString()
                                     },
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
@@ -2877,7 +2879,7 @@ fun CalculatorScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val newQty = editingQuantityStr.replace(',', '.').toDoubleOrNull()
+                        val newQty = editingQuantityStr.enDecimal()
                         if (newQty != null && newQty > 0) {
                             if (newQty > item.maxStock) {
                                 val warnText = when (activeLang) {

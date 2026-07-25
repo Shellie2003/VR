@@ -8,6 +8,17 @@ import coil.memory.MemoryCache
 import coil.request.CachePolicy
 
 class MyApplication : Application(), ImageLoaderFactory {
+
+    /**
+     * Le filet anti-plantage s'installe ici, au tout premier instant du processus : posé plus tard
+     * (dans l'Activity, par exemple), il laisserait sans surveillance précisément la phase de
+     * démarrage, où une base corrompue ou une migration ratée se manifestent.
+     */
+    override fun onCreate() {
+        super.onCreate()
+        com.example.util.CrashReporter.installer(this)
+    }
+
     override fun newImageLoader(): ImageLoader {
         return ImageLoader.Builder(this)
             .memoryCache {

@@ -1,0 +1,117 @@
+name: Vérification de compilation
+
+# Ce workflow n'est PAS une fabrique d'APK : il ne construit aucun paquet installable et ne
+# téléverse aucun artefact. Il ne sert qu'à répondre à une seule question avant fusion — « le code
+# compile-t-il, et les tests passent-ils ? » — parce que l'environnement de développement ne
+# dispose pas du SDK Android et ne peut donc pas y répondre.
+#
+# `build_apk.yml` (APK de debug) reste désactivé, et `release.yml` reste seul responsable des
+# paquets distribuables : celui-ci ne les remplace ni ne les déclenche.
+
+on:
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+# Une nouvelle poussée sur une PR annule la vérification en cours : seul le dernier état compte,
+# et laisser tourner les précédentes ne ferait que consommer des minutes.
+concurrency:
+  group: verification-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verifier:
+    name: Compilation et tests unitaires
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v4
+
+      # Java 21 et non 17 : Robolectric refuse de créer son bac à sable pour l'API 36 sous Java 17
+      # — « Android SDK 36 requires Java 21 (have Java 17) ». C'est ce qui faisait échouer les cinq
+      # tests Robolectric à l'amorçage, dont Migration20To21Test, le garde-fou qui vérifie qu'une
+      # mise à jour n'efface pas les données d'une boutique. Le projet cible Java 11 à la
+      # compilation ; seule la machine qui exécute Gradle monte de version.
+      - name: JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+          cache: 'gradle'
+
+      # Les deux signingConfigs retombent sur ${rootDir}/debug.keystore quand les secrets ne sont
+      # pas fournis. Aucune signature n'a lieu ici — rien n'est empaqueté — mais Gradle évalue la
+      # configuration, et un fichier absent ferait échouer la vérification pour un motif étranger
+      # au code. Ce keystore est jetable et ne sort jamais de la machine de CI.
+      - name: Keystore jetable
+        run: |
+          keytool -genkeypair -v -keystore debug.keystore \
+            -storepass android -keypass android -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Environnements locaux
+        run: |
+          if [ -f .env.example ]; then cp .env.example .env; fi
+          touch local.properties
+
+      - name: Droit d'exécution sur gradlew
+        run: chmod +x gradlew
+
+      # Deux étapes distinctes, volontairement : lorsqu'une seule commande enchaînait compilation
+      # et tests, un échec des tests rendait la case rouge sans qu'on sache si le code compilait.
+      # Séparées, la liste des étapes répond à elle seule à la question.
+
+      # Compile la variante réellement distribuée : code Kotlin, fusion du manifeste et ressources,
+      # sans produire le moindre paquet.
+      - name: Compilation (variante release)
+        run: ./gradlew compileReleaseKotlin --no-daemon
+
+      # Dont Migration20To21Test, qui rejoue la migration de schéma sur une base peuplée : casser
+      # la préservation des données à la mise à jour doit échouer ici, pas chez un client.
+      - name: Tests unitaires
+        run: ./gradlew testDebugUnitTest --no-daemon
+
+      # Gradle ne dit que « des tests ont échoué ». La première version de cette étape déversait
+      # 4 000 caractères de XML par fichier : illisible, et surtout la ligne qui compte se
+      # retrouvait hors de portée quand on consulte la fin du journal. Un résumé d'une ligne par
+      # classe, plus le message de chaque échec, tient en quelques lignes et se lit d'un coup.
+      #
+      # `always()` et non `failure()` : savoir que 9 tests sur 14 passent a autant de valeur que
+      # savoir lesquels échouent — c'est ce qui permet de distinguer une régression d'une dette
+      # déjà connue.
+      - name: Résumé des tests
+        if: always()
+        run: |
+          python3 - <<'PYTHON'
+          import glob, xml.etree.ElementTree as ET
+          total = echecs = 0
+          fichiers = sorted(glob.glob('app/build/test-results/testDebugUnitTest/*.xml'))
+          if not fichiers:
+              print("Aucun résultat de test : la tâche n'est pas allée jusque-là.")
+          for chemin in fichiers:
+              try:
+                  racine = ET.parse(chemin).getroot()
+              except Exception as e:
+                  print(f"?      {chemin} illisible : {e}")
+                  continue
+              n = int(racine.get('tests') or 0)
+              e = int(racine.get('failures') or 0) + int(racine.get('errors') or 0)
+              total += n; echecs += e
+              print(f"{'ECHEC' if e else 'ok':6} {racine.get('name')}  ({n} test(s), {e} échec(s))")
+              for cas in racine.iter('testcase'):
+                  for pb in list(cas.findall('failure')) + list(cas.findall('error')):
+                      msg = ' '.join((pb.get('message') or pb.get('type') or '').split())[:220]
+                      print(f"         -> {cas.get('name')} : {msg}")
+          print(f"TOTAL {total} test(s), {echecs} échec(s)")
+          PYTHON
+
+      # Les rapports ne sont conservés qu'en cas d'échec : c'est le seul moment où on les lit.
+      - name: Rapports de tests (si échec)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapports-tests
+          path: app/build/reports/tests/
+          retention-days: 7

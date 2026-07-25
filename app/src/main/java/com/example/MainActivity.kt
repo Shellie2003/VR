@@ -184,6 +184,106 @@ fun MainLifecycleContainer() {
 
     val t = { key: String -> LanguageManager.translate(key, activeLang) }
 
+    // Filet anti-plantage : si l'application s'est arrêtée seule la fois précédente, un rapport
+    // attend. On le propose une seule fois — et après le splash, pour ne pas accueillir le gérant
+    // par un message d'erreur avant même que l'application soit ouverte.
+    var rapportPlantage by remember { mutableStateOf<java.io.File?>(null) }
+    var plantageDejaVerifie by remember { mutableStateOf(false) }
+    LaunchedEffect(isSplashVisible) {
+        if (!isSplashVisible && !plantageDejaVerifie) {
+            plantageDejaVerifie = true
+            rapportPlantage = com.example.util.CrashReporter.rapportEnAttente(context)
+        }
+    }
+
+    rapportPlantage?.let { rapport ->
+        val fermer = {
+            com.example.util.CrashReporter.effacerRapports(context)
+            rapportPlantage = null
+        }
+        AlertDialog(
+            onDismissRequest = fermer,
+            title = {
+                Text(
+                    text = when (activeLang) {
+                        "mg" -> "Nijanona ho azy ny application"
+                        "fr" -> "L'application s'est arrêtée"
+                        else -> "The app stopped unexpectedly"
+                    },
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = when (activeLang) {
+                        "mg" -> "Voatahiry ny angonao. Misy tatitra kely momba izay nitranga: alefaso amin'ny mpamatsy mba ho voavaha ilay olana."
+                        "fr" -> "Vos données ont été sauvegardées. Un petit rapport décrit ce qui s'est passé : envoyez-le au fournisseur pour que le problème soit corrigé."
+                        else -> "Your data was saved. A short report describes what happened: send it to the vendor so the issue can be fixed."
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    com.example.util.CrashReporter.partager(context, rapport)
+                    fermer()
+                }) {
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Alefaso ny tatitra"
+                            "fr" -> "Envoyer le rapport"
+                            else -> "Send report"
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = fermer) {
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Tsia misaotra"
+                            "fr" -> "Non merci"
+                            else -> "No thanks"
+                        }
+                    )
+                }
+            }
+        )
+    }
+
+    // Échec d'une écriture de fond (vente, stock, trosa…). Une boîte plutôt qu'un message furtif :
+    // le vendeur doit constater que l'opération n'a pas abouti, sinon il continue en croyant sa
+    // vente enregistrée et ne découvre le trou qu'au comptage du soir.
+    val erreurOperation by viewModel.erreurOperation.collectAsState()
+    erreurOperation?.let { message ->
+        AlertDialog(
+            onDismissRequest = { viewModel.consommerErreurOperation() },
+            title = {
+                Text(
+                    text = when (activeLang) {
+                        "mg" -> "Tsy vita ilay asa"
+                        "fr" -> "Opération non aboutie"
+                        else -> "Operation did not complete"
+                    },
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = { Text(text = message) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.consommerErreurOperation() }) {
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Azoko"
+                            "fr" -> "J'ai compris"
+                            else -> "Understood"
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        )
+    }
+
     val isDark = when (themeMode) {
         "dark" -> true
         "light" -> false

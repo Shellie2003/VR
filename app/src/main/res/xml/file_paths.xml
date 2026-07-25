@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+        `files-path` est indispensable depuis que l'appareil photo écrit directement dans notre
+        fichier : sans lui, FileProvider.getUriForFile() sur un fichier de filesDir lève
+        IllegalArgumentException et l'application s'arrête au moment de prendre la photo.
+        Il sert aussi au partage de l'archive de sauvegarde (voir ArchiveUtil / BackupHelper).
+    -->
+    <files-path name="internal_files" path="." />
     <external-files-path name="external_files" path="." />
     <external-path name="external_storage" path="." />
 </paths>

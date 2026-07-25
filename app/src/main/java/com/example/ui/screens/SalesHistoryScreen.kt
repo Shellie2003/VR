@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import com.example.util.enDecimal
+import com.example.util.enEntier
 import android.app.DatePickerDialog
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -860,7 +862,7 @@ fun SalesHistoryScreen(
                                 OutlinedTextField(
                                     value = returnQtyMap[idx] ?: "0",
                                     onValueChange = { v ->
-                                        val d = v.toDoubleOrNull()
+                                        val d = v.enDecimal()
                                         if (v.isEmpty() || (d != null && d >= 0.0)) {
                                             returnQtyMap[idx] = v
                                         }
@@ -895,7 +897,7 @@ fun SalesHistoryScreen(
                         val returnedItems = sale.items.mapIndexedNotNull { idx, item ->
                             val alreadyReturned = alreadyReturnedItems.filter { it.productId == item.productId }.sumOf { it.quantity }
                             val maxReturnable = (item.quantity - alreadyReturned).coerceAtLeast(0.0)
-                            val requested = (returnQtyMap[idx]?.toDoubleOrNull() ?: 0.0).coerceIn(0.0, maxReturnable)
+                            val requested = (returnQtyMap[idx]?.enDecimal() ?: 0.0).coerceIn(0.0, maxReturnable)
                             if (requested > 0.0) item.copy(quantity = requested) else null
                         }
                         if (returnedItems.isNotEmpty()) {

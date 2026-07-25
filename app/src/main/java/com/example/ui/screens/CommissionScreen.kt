@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import com.example.util.enDecimal
+import com.example.util.enEntier
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -510,10 +512,10 @@ fun CommissionScreen(
                     }
 
                     // Profit Calculations Section (Auto-Calculated) - Defaults to 0.0 robustly
-                    val qVal = quantityStr.toDoubleOrNull() ?: 0.0
-                    val itemsVal = itemsPerCartonStr.toDoubleOrNull() ?: 0.0
-                    val totalCostVal = totalCostPriceStr.toDoubleOrNull() ?: 0.0
-                    val sellPriceVal = unitSellingPriceStr.toDoubleOrNull() ?: 0.0
+                    val qVal = quantityStr.enDecimal() ?: 0.0
+                    val itemsVal = itemsPerCartonStr.enDecimal() ?: 0.0
+                    val totalCostVal = totalCostPriceStr.enDecimal() ?: 0.0
+                    val sellPriceVal = unitSellingPriceStr.enDecimal() ?: 0.0
 
                     val totalUnits = qVal * itemsVal
                     val costPerCarton = if (qVal > 0.0) totalCostVal / qVal else 0.0

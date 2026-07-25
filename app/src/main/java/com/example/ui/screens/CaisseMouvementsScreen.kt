@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import com.example.util.enDecimal
+import com.example.util.enEntier
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -351,7 +353,7 @@ fun CaisseMouvementsScreen(
                         value = amountStr,
                         onValueChange = {
                             amountStr = it
-                            amountError = it.toDoubleOrNull() == null || (it.toDoubleOrNull() ?: 0.0) <= 0.0
+                            amountError = it.enDecimal() == null || (it.enDecimal() ?: 0.0) <= 0.0
                         },
                         label = { Text(amountLabel) },
                         prefix = { Text("Ar ") },
@@ -394,7 +396,7 @@ fun CaisseMouvementsScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val amt = amountStr.toDoubleOrNull() ?: 0.0
+                        val amt = amountStr.enDecimal() ?: 0.0
                         val motifClean = motif.trim()
                         amountError = amt <= 0.0
                         motifError = motifClean.isEmpty()
@@ -436,7 +438,7 @@ fun CaisseMouvementsScreen(
             "fr" -> "Fond de caisse de départ (Ar)"
             else -> "Starting cash float (Ar)"
         }
-        val openAmountErr = openAmountStr.toDoubleOrNull() == null || (openAmountStr.toDoubleOrNull() ?: -1.0) < 0.0
+        val openAmountErr = openAmountStr.enDecimal() == null || (openAmountStr.enDecimal() ?: -1.0) < 0.0
         AlertDialog(
             onDismissRequest = { showOpenSessionDialog = false },
             title = { Text(openTitle, fontWeight = FontWeight.Black) },
@@ -454,7 +456,7 @@ fun CaisseMouvementsScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val amt = openAmountStr.toDoubleOrNull() ?: 0.0
+                        val amt = openAmountStr.enDecimal() ?: 0.0
                         if (amt >= 0.0) {
                             viewModel.openCaisseSession(amt)
                             showOpenSessionDialog = false
@@ -484,7 +486,7 @@ fun CaisseMouvementsScreen(
             "fr" -> "Montant compté en caisse (Ar)"
             else -> "Counted cash amount (Ar)"
         }
-        val closeAmountErr = closeAmountStr.toDoubleOrNull() == null || (closeAmountStr.toDoubleOrNull() ?: -1.0) < 0.0
+        val closeAmountErr = closeAmountStr.enDecimal() == null || (closeAmountStr.enDecimal() ?: -1.0) < 0.0
         AlertDialog(
             onDismissRequest = { showCloseSessionDialog = false },
             title = { Text(closeTitle, fontWeight = FontWeight.Black) },
@@ -513,7 +515,7 @@ fun CaisseMouvementsScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val amt = closeAmountStr.toDoubleOrNull() ?: 0.0
+                        val amt = closeAmountStr.enDecimal() ?: 0.0
                         if (amt >= 0.0) {
                             viewModel.closeCaisseSession(session, amt, closeNote.trim())
                             showCloseSessionDialog = false
