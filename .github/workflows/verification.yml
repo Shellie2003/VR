@@ -54,14 +54,33 @@ jobs:
       - name: Droit d'exécution sur gradlew
         run: chmod +x gradlew
 
-      # testDebugUnitTest : exécute les tests unitaires, dont Migration20To21Test qui rejoue la
-      # migration de schéma sur une base peuplée — casser la préservation des données à la mise à
-      # jour doit échouer ici, pas chez un client.
-      #
-      # compileReleaseKotlin : compile la variante réellement distribuée. C'est ce qui valide le
-      # code Kotlin, la fusion du manifeste et les ressources sans produire le moindre paquet.
-      - name: Tests unitaires et compilation
-        run: ./gradlew testDebugUnitTest compileReleaseKotlin --no-daemon --stacktrace
+      # Deux étapes distinctes, volontairement : lorsqu'une seule commande enchaînait compilation
+      # et tests, un échec des tests rendait la case rouge sans qu'on sache si le code compilait.
+      # Séparées, la liste des étapes répond à elle seule à la question.
+
+      # Compile la variante réellement distribuée : code Kotlin, fusion du manifeste et ressources,
+      # sans produire le moindre paquet.
+      - name: Compilation (variante release)
+        run: ./gradlew compileReleaseKotlin --no-daemon
+
+      # Dont Migration20To21Test, qui rejoue la migration de schéma sur une base peuplée : casser
+      # la préservation des données à la mise à jour doit échouer ici, pas chez un client.
+      - name: Tests unitaires
+        run: ./gradlew testDebugUnitTest --no-daemon
+
+      # Le message d'échec de Gradle ne dit que « des tests ont échoué » ; la cause réelle est dans
+      # les XML de résultats. L'afficher ici évite d'avoir à télécharger l'artefact pour diagnostiquer.
+      - name: Détail des tests en échec
+        if: failure()
+        run: |
+          for fichier in app/build/test-results/testDebugUnitTest/*.xml; do
+            [ -f "$fichier" ] || continue
+            if grep -q "<failure\|<error" "$fichier"; then
+              echo "════════ $(basename "$fichier") ════════"
+              head -c 4000 "$fichier"
+              echo
+            fi
+          done
 
       # Les rapports ne sont conservés qu'en cas d'échec : c'est le seul moment où on les lit.
       - name: Rapports de tests (si échec)

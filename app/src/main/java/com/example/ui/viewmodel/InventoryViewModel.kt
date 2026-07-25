@@ -897,6 +897,11 @@ class InventoryViewModel(
 
     // Seeding products on empty state with Dispatchers.IO to prevent main-thread block
     init {
+        // Branche la sauvegarde d'urgence sur le filet anti-plantage. Sans ce crochet, le filet ne
+        // ferait que constater les dégâts ; avec lui, une exception fatale n'emporte plus les
+        // mutations dont l'écriture disque était encore en attente.
+        com.example.util.CrashReporter.actionUrgence = { sauvegardeUrgenceSync() }
+
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
             repository.hasProducts().take(1).collect { hasProducts ->
                 val hasBackupFile = com.example.util.BackupHelper.hasBackup(context)
@@ -2811,6 +2816,28 @@ class InventoryViewModel(
      * être tuée juste après (mise en arrière-plan, fermeture) et qu'attendre reviendrait à perdre
      * les dernières minutes de ventes.
      */
+    /**
+     * Écriture SYNCHRONE de la sauvegarde locale, réservée au filet anti-plantage.
+     *
+     * [flushBackupsNow] lance une coroutine : dans un gestionnaire d'exception fatale, le processus
+     * meurt avant qu'elle ne démarre — elle ne sauverait rien. Ici tout s'exécute sur le fil
+     * appelant.
+     *
+     * Volontairement **sans envoi cloud** : une requête HTTP dans un processus condamné n'aboutit
+     * pas, et l'attendre retarderait la fermeture au point de transformer un plantage en « ne
+     * répond pas ». La sauvegarde locale suffit — elle est relue au démarrage suivant.
+     */
+    fun sauvegardeUrgenceSync() {
+        try {
+            localBackupJob?.cancel()
+            val dbJson = getFullDatabaseJsonSync(includeImages = false)
+            com.example.util.BackupHelper.saveBackup(context, dbJson)
+        } catch (e: Throwable) {
+            // Un plantage pendant la sauvegarde d'urgence ne doit pas masquer le plantage d'origine.
+            android.util.Log.e("InventoryViewModel", "Sauvegarde d'urgence échouée", e)
+        }
+    }
+
     fun flushBackupsNow() {
         localBackupJob?.cancel()
         cloudBackupJob?.cancel()
@@ -2944,6 +2971,9 @@ class InventoryViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        // Le crochet est statique : le laisser pointer vers un ViewModel mort ferait travailler
+        // une instance dont le scope est déjà annulé.
+        com.example.util.CrashReporter.actionUrgence = null
         com.example.util.NetworkMonitor.stopObserving(context, networkCallback)
         android.util.Log.d("InventoryViewModel", "InventoryViewModel onCleared - viewModelScope automatically cancelled")
     }
