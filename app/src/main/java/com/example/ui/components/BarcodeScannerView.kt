@@ -4,6 +4,8 @@
 
 package com.example.ui.components
 
+import com.example.util.enDecimal
+import com.example.util.enEntier
 import android.Manifest
 import android.content.Context
 import android.media.AudioManager
@@ -975,7 +977,7 @@ fun BarcodeScannerView(
             confirmButton = {
                 Button(
                     onClick = {
-                        val newQty = editingQuantityStr.replace(',', '.').toDoubleOrNull()
+                        val newQty = editingQuantityStr.enDecimal()
                         if (newQty != null && newQty > 0) {
                             if (newQty > item.maxStock) {
                                 val warnText = when (language) {

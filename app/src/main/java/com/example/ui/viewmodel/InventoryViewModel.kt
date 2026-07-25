@@ -1,5 +1,7 @@
 package com.example.ui.viewmodel
 
+import com.example.util.enDecimal
+import com.example.util.enEntier
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -1833,7 +1835,7 @@ class InventoryViewModel(
     }
 
     fun reserveStockSync(productId: String, quantity: Double): Boolean {
-        val id = productId.toIntOrNull() ?: return false
+        val id = productId.enEntier() ?: return false
         val product = kotlinx.coroutines.runBlocking { repository.getProductById(id) } ?: return false
         return product.stock >= quantity
     }
@@ -1880,7 +1882,7 @@ class InventoryViewModel(
     }
 
     fun updateStockSync(productId: String, newQuantity: Double) {
-        val id = productId.toIntOrNull() ?: return
+        val id = productId.enEntier() ?: return
         lancerProtege("la mise à jour du stock") {
             val product = repository.getProductById(id)
             if (product != null) {

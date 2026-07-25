@@ -4,6 +4,8 @@
 
 package com.example.ui.screens
 
+import com.example.util.enDecimal
+import com.example.util.enEntier
 import com.google.accompanist.permissions.isGranted
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -751,7 +753,7 @@ fun AddProductScreen(
                         value = prixAchatUniteBaseStr,
                         onValueChange = {
                             prixAchatUniteBaseStr = it
-                            prixAchatError = it.isNotEmpty() && (it.toDoubleOrNull() == null || it.toDouble() < 0.0)
+                            prixAchatError = it.isNotEmpty() && (it.enDecimal() == null || it.toDouble() < 0.0)
                         },
                         label = { Text(
                             when(activeLang) {
@@ -772,7 +774,7 @@ fun AddProductScreen(
                         value = priceStr,
                         onValueChange = {
                             priceStr = it
-                            priceError = it.toDoubleOrNull() == null || it.toDouble() <= 0
+                            priceError = it.enDecimal() == null || it.toDouble() <= 0
                         },
                         label = { Text(t("unit_price")) },
                         prefix = { Text("Ar ") },
@@ -789,7 +791,7 @@ fun AddProductScreen(
                         value = wholesalePriceStr,
                         onValueChange = {
                             wholesalePriceStr = it
-                            wholesalePriceError = it.isNotEmpty() && (it.toDoubleOrNull() == null || it.toDouble() < 0)
+                            wholesalePriceError = it.isNotEmpty() && (it.enDecimal() == null || it.toDouble() < 0)
                         },
                         label = { Text(
                             when (activeLang) {
@@ -813,9 +815,9 @@ fun AddProductScreen(
                         value = stockStr,
                         onValueChange = {
                             stockStr = it
-                            stockError = it.toDoubleOrNull() == null || it.toDouble() < 0
+                            stockError = it.enDecimal() == null || it.toDouble() < 0
                             // Auto sync integer field
-                            it.toDoubleOrNull()?.let { d ->
+                            it.enDecimal()?.let { d ->
                                 stockQuantityStr = d.toInt().toString()
                             }
                         },
@@ -834,7 +836,7 @@ fun AddProductScreen(
                         value = stockQuantityStr,
                         onValueChange = {
                             stockQuantityStr = it
-                            stockQuantityError = it.toIntOrNull() == null || it.toInt() < 0
+                            stockQuantityError = it.enEntier() == null || it.toInt() < 0
                         },
                         label = { Text(
                             when (activeLang) {
@@ -856,7 +858,7 @@ fun AddProductScreen(
                         value = stockMaxStr,
                         onValueChange = {
                             stockMaxStr = it
-                            stockMaxError = it.isNotEmpty() && (it.toDoubleOrNull() == null || it.toDouble() < 0.0)
+                            stockMaxError = it.isNotEmpty() && (it.enDecimal() == null || it.toDouble() < 0.0)
                         },
                         label = { Text(
                             when(activeLang) {
@@ -892,7 +894,7 @@ fun AddProductScreen(
                         value = lowStockThresholdStr,
                         onValueChange = {
                             lowStockThresholdStr = it
-                            thresholdError = it.toDoubleOrNull() == null || it.toDouble() < 0
+                            thresholdError = it.enDecimal() == null || it.toDouble() < 0
                         },
                         label = { Text("Low Stock Alert Seuil (Alerte)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -1094,7 +1096,7 @@ fun AddProductScreen(
                             value = tauxTaxeStr,
                             onValueChange = {
                                 tauxTaxeStr = it
-                                tauxTaxeError = it.toDoubleOrNull() == null || it.toDouble() < 0.0
+                                tauxTaxeError = it.enDecimal() == null || it.toDouble() < 0.0
                             },
                             label = { Text(
                                 when(activeLang) {
@@ -1308,27 +1310,27 @@ fun AddProductScreen(
                 Button(
                     onClick = {
                         val finalName = name.trim()
-                        val finalPrice = priceStr.toDoubleOrNull() ?: 0.0
-                        val finalStock = stockStr.toDoubleOrNull() ?: 0.0
-                        val finalThreshold = lowStockThresholdStr.toDoubleOrNull() ?: 5.0
+                        val finalPrice = priceStr.enDecimal() ?: 0.0
+                        val finalStock = stockStr.enDecimal() ?: 0.0
+                        val finalThreshold = lowStockThresholdStr.enDecimal() ?: 5.0
                         val finalCategory = if (selectedCategory == "Hafa") customCategory.trim().ifEmpty { "Hafa" } else selectedCategory
 
                         nameError = finalName.isEmpty()
                         priceError = finalPrice <= 0.0
-                        stockError = stockStr.toDoubleOrNull() == null || finalStock < 0.0
-                        thresholdError = lowStockThresholdStr.toDoubleOrNull() == null || finalThreshold < 0.0
+                        stockError = stockStr.enDecimal() == null || finalStock < 0.0
+                        thresholdError = lowStockThresholdStr.enDecimal() == null || finalThreshold < 0.0
 
-                        val finalStockQuantity = stockQuantityStr.toIntOrNull() ?: 0
-                        stockQuantityError = stockQuantityStr.toIntOrNull() == null || finalStockQuantity < 0
+                        val finalStockQuantity = stockQuantityStr.enEntier() ?: 0
+                        stockQuantityError = stockQuantityStr.enEntier() == null || finalStockQuantity < 0
 
-                        val finalWholesalePrice = wholesalePriceStr.toDoubleOrNull()
-                        val finalPrixAchatUniteBase = prixAchatUniteBaseStr.toDoubleOrNull() ?: 0.0
-                        val finalStockMax = stockMaxStr.toDoubleOrNull()
-                        val finalTauxTaxe = tauxTaxeStr.toDoubleOrNull() ?: 0.0
+                        val finalWholesalePrice = wholesalePriceStr.enDecimal()
+                        val finalPrixAchatUniteBase = prixAchatUniteBaseStr.enDecimal() ?: 0.0
+                        val finalStockMax = stockMaxStr.enDecimal()
+                        val finalTauxTaxe = tauxTaxeStr.enDecimal() ?: 0.0
 
-                        prixAchatError = prixAchatUniteBaseStr.isNotEmpty() && (prixAchatUniteBaseStr.toDoubleOrNull() == null || prixAchatUniteBaseStr.toDouble() < 0.0)
-                        stockMaxError = stockMaxStr.isNotEmpty() && (stockMaxStr.toDoubleOrNull() == null || stockMaxStr.toDouble() < 0.0)
-                        tauxTaxeError = taxable && (tauxTaxeStr.toDoubleOrNull() == null || tauxTaxeStr.toDouble() < 0.0)
+                        prixAchatError = prixAchatUniteBaseStr.isNotEmpty() && (prixAchatUniteBaseStr.enDecimal() == null || prixAchatUniteBaseStr.toDouble() < 0.0)
+                        stockMaxError = stockMaxStr.isNotEmpty() && (stockMaxStr.enDecimal() == null || stockMaxStr.toDouble() < 0.0)
+                        tauxTaxeError = taxable && (tauxTaxeStr.enDecimal() == null || tauxTaxeStr.toDouble() < 0.0)
 
                         if (!nameError && !priceError && !stockError && !thresholdError && !stockQuantityError && !prixAchatError && !stockMaxError && !tauxTaxeError) {
                             val saved = Product(
