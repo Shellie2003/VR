@@ -24,6 +24,9 @@ import com.example.data.model.Vendeur
 import com.example.data.model.Retour
 import com.example.data.model.DeletedRecord
 import com.example.data.model.AuditLog
+import com.example.data.model.Etagere
+import com.example.data.model.NiveauEtagere
+import com.example.data.model.ProduitNiveau
 import androidx.room.migration.Migration
 
 @Database(
@@ -45,9 +48,12 @@ import androidx.room.migration.Migration
         Vendeur::class,
         Retour::class,
         DeletedRecord::class,
-        AuditLog::class
+        AuditLog::class,
+        Etagere::class,
+        NiveauEtagere::class,
+        ProduitNiveau::class
     ],
-    version = 21,
+    version = 22,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -62,6 +68,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun retourDao(): RetourDao
     abstract fun deletedRecordDao(): DeletedRecordDao
     abstract fun auditLogDao(): AuditLogDao
+    abstract fun etagereDao(): EtagereDao
 
     abstract fun produitDao(): ProduitDao
     abstract fun uniteProduitDao(): UniteProduitDao
@@ -112,6 +119,52 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v21 -> v22 : plan d'étagères interactif (écran Paramètres > Étagère). Tables neuves
+         * uniquement, aucune colonne existante touchée — la seule chose à risque serait de rater
+         * un nom de table, d'où [EtagereMigrationTest] qui rejoue cette migration sur une base
+         * réelle avant de faire confiance à ces `CREATE TABLE`. */
+        val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS etageres (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        nom TEXT NOT NULL,
+                        position INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_etageres_position ON etageres (position)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS niveaux_etagere (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        etagereId INTEGER NOT NULL,
+                        position INTEGER NOT NULL,
+                        nom TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_niveaux_etagere_etagereId ON niveaux_etagere (etagereId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_niveaux_etagere_etagereId_position ON niveaux_etagere (etagereId, position)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS produits_niveau (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        niveauId INTEGER NOT NULL,
+                        produitId INTEGER NOT NULL,
+                        ordre INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_produits_niveau_niveauId ON produits_niveau (niveauId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_produits_niveau_produitId ON produits_niveau (produitId)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_produits_niveau_niveauId_produitId ON produits_niveau (niveauId, produitId)")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -142,7 +195,7 @@ abstract class AppDatabase : RoomDatabase() {
                         db.execSQL("INSERT INTO unites_produit (id, produitId, nomUnite, facteurVersBase, prixVente, prixAchat, codeBarre, estUniteBase, estUniteVenteDefaut, ordre, actif) VALUES (4, 4, 'Pièce', 1.0, 1000.0, 850.0, '3250541505351', 1, 1, 0, 1)")
                     }
                 })
-                .addMigrations(MIGRATION_20_21)
+                .addMigrations(MIGRATION_20_21, MIGRATION_21_22)
                 // F4 — Filet de sécurité volontairement restreint.
                 //
                 // Avant : `fallbackToDestructiveMigration(true)`, c'est-à-dire « en cas de doute,

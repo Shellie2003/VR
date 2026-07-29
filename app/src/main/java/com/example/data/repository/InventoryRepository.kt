@@ -25,7 +25,8 @@ class InventoryRepository(
     val vendeurDao: VendeurDao,
     val retourDao: RetourDao,
     val deletedRecordDao: DeletedRecordDao,
-    val auditLogDao: AuditLogDao
+    val auditLogDao: AuditLogDao,
+    val etagereDao: EtagereDao
 ) {
     val allProducts: Flow<List<Product>> = productDao.getAllProducts().flowOn(kotlinx.coroutines.Dispatchers.IO)
     val allSales: Flow<List<Sale>> = saleDao.getAllSales().flowOn(kotlinx.coroutines.Dispatchers.IO)
@@ -506,4 +507,57 @@ class InventoryRepository(
     suspend fun deleteDebt(debt: Debt) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         debtDao.deleteDebt(debt)
     }
+
+    // ------------------------------------------------------------------------------------------
+    // Plan d'étagères : rayons interactifs, écran Paramètres > Étagère.
+    // ------------------------------------------------------------------------------------------
+
+    val allEtageres: Flow<List<com.example.data.model.Etagere>> =
+        etagereDao.getAllEtageres().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    val allNiveauxEtagere: Flow<List<com.example.data.model.NiveauEtagere>> =
+        etagereDao.getAllNiveaux().flowOn(kotlinx.coroutines.Dispatchers.IO)
+    val allProduitsNiveau: Flow<List<com.example.data.model.ProduitNiveau>> =
+        etagereDao.getAllProduitsNiveau().flowOn(kotlinx.coroutines.Dispatchers.IO)
+
+    suspend fun insertEtagere(etagere: com.example.data.model.Etagere): Long =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { etagereDao.insertEtagere(etagere) }
+
+    suspend fun updateEtagere(etagere: com.example.data.model.Etagere) =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { etagereDao.updateEtagere(etagere) }
+
+    /** Supprime l'étagère et cascade manuellement ses niveaux puis les produits qui y étaient rangés. */
+    suspend fun deleteEtagere(etagereId: Long) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        etagereDao.deleteProduitsNiveauByEtagere(etagereId)
+        etagereDao.deleteNiveauxByEtagere(etagereId)
+        etagereDao.deleteEtagereById(etagereId)
+    }
+
+    suspend fun insertNiveau(niveau: com.example.data.model.NiveauEtagere): Long =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { etagereDao.insertNiveau(niveau) }
+
+    suspend fun updateNiveau(niveau: com.example.data.model.NiveauEtagere) =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { etagereDao.updateNiveau(niveau) }
+
+    /** Supprime le niveau et les produits qui y étaient rangés. */
+    suspend fun deleteNiveau(niveauId: Long) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        etagereDao.deleteProduitsNiveauByNiveau(niveauId)
+        etagereDao.deleteNiveauById(niveauId)
+    }
+
+    suspend fun ajouterProduitAuNiveau(niveauId: Long, produitId: Int) =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            etagereDao.insertProduitNiveau(com.example.data.model.ProduitNiveau(niveauId = niveauId, produitId = produitId))
+        }
+
+    suspend fun retirerProduitDuNiveau(lienId: Long) =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { etagereDao.deleteProduitNiveauById(lienId) }
+
+    suspend fun findEtagereByNaturalKey(nom: String, position: Int) =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { etagereDao.findEtagereByNaturalKey(nom, position) }
+
+    suspend fun findNiveauByNaturalKey(etagereId: Long, position: Int) =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { etagereDao.findNiveauByNaturalKey(etagereId, position) }
+
+    suspend fun findProduitNiveau(niveauId: Long, produitId: Int) =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { etagereDao.findProduitNiveau(niveauId, produitId) }
 }

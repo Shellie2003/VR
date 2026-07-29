@@ -49,7 +49,8 @@ fun SettingsScreen(
     onNavigateToDashboard: () -> Unit,
     onNavigateToPeremption: () -> Unit,
     onNavigateToEpicerie: () -> Unit,
-    onNavigateToSecurite: () -> Unit
+    onNavigateToSecurite: () -> Unit,
+    onNavigateToEtagere: () -> Unit
 ) {
     val context = LocalContext.current
     // Tablet/large-screen layout: cap the settings column's width and center it instead of
@@ -1129,6 +1130,77 @@ fun SettingsScreen(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = null,
                         tint = Color(0xFFD32F2F),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            // CARTE VERS LE PLAN D'ÉTAGÈRES (rayons interactifs, cliquer une case pour voir les
+            // produits qui y sont rangés)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .clickable { onNavigateToEtagere() }
+                    .testTag("settings_etagere_button"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = themeColor.copy(alpha = 0.08f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, themeColor.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(themeColor),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.GridView,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Fandrindrana ny efitrano fivarotana"
+                                    "fr" -> "Plan d'étagères"
+                                    else -> "Shelf plan"
+                                },
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Rayons sy efitra, tsindrio hijery ny entana ao anatiny"
+                                    "fr" -> "Rayons et cases, tapez pour voir les produits rangés"
+                                    else -> "Shelves and slots, tap to see what's stored there"
+                                },
+                                fontSize = 11.sp,
+                                color = secondaryTextColor
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = themeColor,
                         modifier = Modifier.size(24.dp)
                     )
                 }

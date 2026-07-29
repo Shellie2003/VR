@@ -81,7 +81,10 @@ object SyncSerializer {
         vendeursJson: String = "[]",
         retoursJson: String = "[]",
         lotsJson: String = "[]",
-        deletedRecordsJson: String = "[]"
+        deletedRecordsJson: String = "[]",
+        etageresJson: String = "[]",
+        niveauxEtagereJson: String = "[]",
+        produitsNiveauJson: String = "[]"
     ): String {
         val root = JSONObject()
         root.put("products", JSONArray(productsJson))
@@ -94,6 +97,13 @@ object SyncSerializer {
         root.put("retours", JSONArray(retoursJson))
         root.put("lots", JSONArray(lotsJson))
         root.put("deletedRecords", JSONArray(deletedRecordsJson))
+        // Plan d'étagères : champs additionnels en fin de liste avec valeur par défaut "[]", pour
+        // qu'une ancienne version de l'app (avant cette fonctionnalité) reste capable de lire une
+        // sauvegarde récente (elle ignore simplement ces trois clés) et qu'une sauvegarde ancienne
+        // reste lisible par la nouvelle version (voir deserializeFullSync ci-dessous).
+        root.put("etageres", JSONArray(etageresJson))
+        root.put("niveauxEtagere", JSONArray(niveauxEtagereJson))
+        root.put("produitsNiveau", JSONArray(produitsNiveauJson))
         return root.toString()
     }
 
@@ -110,6 +120,9 @@ object SyncSerializer {
         result["retours"] = root.optJSONArray("retours")?.toString() ?: "[]"
         result["deletedRecords"] = root.optJSONArray("deletedRecords")?.toString() ?: "[]"
         result["lots"] = root.optJSONArray("lots")?.toString() ?: "[]"
+        result["etageres"] = root.optJSONArray("etageres")?.toString() ?: "[]"
+        result["niveauxEtagere"] = root.optJSONArray("niveauxEtagere")?.toString() ?: "[]"
+        result["produitsNiveau"] = root.optJSONArray("produitsNiveau")?.toString() ?: "[]"
         return result
     }
 }

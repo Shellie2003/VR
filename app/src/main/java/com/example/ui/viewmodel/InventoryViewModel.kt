@@ -19,6 +19,9 @@ import com.example.data.model.Retour
 import com.example.data.model.LotProduit
 import com.example.data.model.DeletedRecord
 import com.example.data.model.AuditLog
+import com.example.data.model.Etagere
+import com.example.data.model.NiveauEtagere
+import com.example.data.model.ProduitNiveau
 import com.example.data.repository.InventoryRepository
 import com.example.util.AppPreferences
 import com.example.util.FormatUtil
@@ -1843,6 +1846,121 @@ class InventoryViewModel(
         }
     }
 
+    // ------------------------------------------------------------------------------------------
+    // Plan d'étagères interactif (écran Paramètres > Étagère)
+    // ------------------------------------------------------------------------------------------
+
+    /** Un niveau (case cliquable) avec les produits qui y sont rangés, déjà résolus. */
+    data class NiveauAvecProduits(
+        val niveau: NiveauEtagere,
+        val liens: List<ProduitNiveau>,
+        val produits: List<Product>
+    )
+
+    data class EtagereAvecNiveaux(
+        val etagere: Etagere,
+        val niveaux: List<NiveauAvecProduits>
+    )
+
+    /**
+     * Reconstruit l'arbre étagères -> niveaux -> produits à chaque changement de l'une des
+     * quatre sources. Regroupement en `groupBy` (une seule passe par liste, O(n)) plutôt qu'un
+     * `filter` imbriqué (qui serait O(n×m)) : un plan de plusieurs dizaines d'étagères avec de
+     * nombreux produits par case reste recalculé en quelques millisecondes, et ce recalcul ne
+     * tourne de toute façon que pendant que l'écran Étagère est effectivement affiché
+     * (`SharingStarted.WhileSubscribed`), jamais en tâche de fond pendant l'encaissement.
+     */
+    val planEtagere: StateFlow<List<EtagereAvecNiveaux>> = combine(
+        repository.allEtageres,
+        repository.allNiveauxEtagere,
+        repository.allProduitsNiveau,
+        allProducts
+    ) { etageres, niveaux, liens, produits ->
+        val produitsParId = produits.associateBy { it.id }
+        val niveauxParEtagere = niveaux.groupBy { it.etagereId }
+        val liensParNiveau = liens.groupBy { it.niveauId }
+
+        etageres.sortedBy { it.position }.map { etagere ->
+            val niveauxDeEtagere = niveauxParEtagere[etagere.id].orEmpty().sortedBy { it.position }
+            EtagereAvecNiveaux(
+                etagere = etagere,
+                niveaux = niveauxDeEtagere.map { niveau ->
+                    val liensDuNiveau = liensParNiveau[niveau.id].orEmpty().sortedBy { it.ordre }
+                    NiveauAvecProduits(
+                        niveau = niveau,
+                        liens = liensDuNiveau,
+                        produits = liensDuNiveau.mapNotNull { produitsParId[it.produitId] }
+                    )
+                }
+            )
+        }
+    }
+        .flowOn(kotlinx.coroutines.Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Ajoute une étagère à gauche ou à droite des étagères existantes. */
+    fun ajouterEtagere(cote: com.example.util.EtagereLayout.Cote) {
+        lancerProtege("l'ajout d'une étagère") {
+            val etageres = repository.allEtageres.first()
+            val position = com.example.util.EtagereLayout.nouvellePosition(etageres.map { it.position }, cote)
+            repository.insertEtagere(Etagere(nom = "Étagère ${etageres.size + 1}", position = position))
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    fun renommerEtagere(etagere: Etagere, nouveauNom: String) {
+        if (nouveauNom.isBlank()) return
+        lancerProtege("le renommage de l'étagère") {
+            repository.updateEtagere(etagere.copy(nom = nouveauNom.trim()))
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    fun supprimerEtagere(etagere: Etagere) {
+        lancerProtege("la suppression de l'étagère") {
+            repository.deleteEtagere(etagere.id)
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    /** Ajoute un niveau (rayon) en haut ou en bas des niveaux existants d'une étagère donnée. */
+    fun ajouterNiveau(etagereId: Long, cote: com.example.util.EtagereLayout.Cote) {
+        lancerProtege("l'ajout d'un niveau d'étagère") {
+            val niveauxDeCetteEtagere = repository.allNiveauxEtagere.first().filter { it.etagereId == etagereId }
+            val position = com.example.util.EtagereLayout.nouvellePosition(niveauxDeCetteEtagere.map { it.position }, cote)
+            repository.insertNiveau(NiveauEtagere(etagereId = etagereId, position = position))
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    fun renommerNiveau(niveau: NiveauEtagere, nouveauNom: String) {
+        lancerProtege("le renommage du niveau d'étagère") {
+            repository.updateNiveau(niveau.copy(nom = nouveauNom.trim()))
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    fun supprimerNiveau(niveau: NiveauEtagere) {
+        lancerProtege("la suppression du niveau d'étagère") {
+            repository.deleteNiveau(niveau.id)
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    fun ajouterProduitAuNiveau(niveauId: Long, produitId: Int) {
+        lancerProtege("le rangement d'un produit sur l'étagère") {
+            repository.ajouterProduitAuNiveau(niveauId, produitId)
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    fun retirerProduitDuNiveau(lien: ProduitNiveau) {
+        lancerProtege("le retrait d'un produit de l'étagère") {
+            repository.retirerProduitDuNiveau(lien.id)
+            triggerLocalSafetyBackup()
+        }
+    }
+
     // MULTI-TERMINAL SYNCHRONIZATION BRIDGE METHODS
     val syncLogs = MutableStateFlow<List<String>>(emptyList())
 
@@ -2082,6 +2200,9 @@ class InventoryViewModel(
                 val retours = repository.allRetours.first()
                 val lots = repository.allLots.first()
                 val tombstones = repository.allTombstones.first()
+                val etageres = repository.allEtageres.first()
+                val niveauxEtagere = repository.allNiveauxEtagere.first()
+                val produitsNiveau = repository.allProduitsNiveau.first()
                 val excluded = excludedProductIds.value
 
                 val productsArr = org.json.JSONArray()
@@ -2269,6 +2390,47 @@ class InventoryViewModel(
                     deletedRecordsArr.put(dObj)
                 }
 
+                // Plan d'étagères : les niveaux et produits référencent leur étagère/niveau par
+                // clé naturelle (nom+position), jamais par id brut — le même principe que les
+                // lots de péremption un peu plus haut. L'id local d'une étagère peut différer
+                // d'un appareil à l'autre (auto-généré), la clé naturelle si.
+                val etageresArr = org.json.JSONArray()
+                etageres.forEach { etagere ->
+                    val eObj = org.json.JSONObject()
+                    eObj.put("nom", etagere.nom)
+                    eObj.put("position", etagere.position)
+                    etageresArr.put(eObj)
+                }
+
+                val etageresParId = etageres.associateBy { it.id }
+                val niveauxEtagereArr = org.json.JSONArray()
+                niveauxEtagere.forEach { niveau ->
+                    val etagereParente = etageresParId[niveau.etagereId] ?: return@forEach
+                    val nObj = org.json.JSONObject()
+                    nObj.put("etagereNom", etagereParente.nom)
+                    nObj.put("etagerePosition", etagereParente.position)
+                    nObj.put("position", niveau.position)
+                    nObj.put("nom", niveau.nom)
+                    niveauxEtagereArr.put(nObj)
+                }
+
+                val niveauxParId = niveauxEtagere.associateBy { it.id }
+                val produitsNiveauArr = org.json.JSONArray()
+                produitsNiveau.forEach { lien ->
+                    val niveauParent = niveauxParId[lien.niveauId] ?: return@forEach
+                    val etagereParente = etageresParId[niveauParent.etagereId] ?: return@forEach
+                    val produit = products.find { it.id == lien.produitId } ?: return@forEach
+                    val pObj = org.json.JSONObject()
+                    pObj.put("etagereNom", etagereParente.nom)
+                    pObj.put("etagerePosition", etagereParente.position)
+                    pObj.put("niveauPosition", niveauParent.position)
+                    pObj.put("produitBarcode", produit.barcode)
+                    pObj.put("produitSku", produit.sku)
+                    pObj.put("produitNom", produit.name)
+                    pObj.put("ordre", lien.ordre)
+                    produitsNiveauArr.put(pObj)
+                }
+
                 com.example.sync.SyncSerializer.serializeFullSync(
                     productsArr.toString(),
                     salesArr.toString(),
@@ -2279,7 +2441,10 @@ class InventoryViewModel(
                     vendeursArr.toString(),
                     retoursArr.toString(),
                     lotsArr.toString(),
-                    deletedRecordsArr.toString()
+                    deletedRecordsArr.toString(),
+                    etageresArr.toString(),
+                    niveauxEtagereArr.toString(),
+                    produitsNiveauArr.toString()
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -2302,6 +2467,9 @@ class InventoryViewModel(
                 val retoursStr = resultsMap["retours"] ?: "[]"
                 val lotsStr = resultsMap["lots"] ?: "[]"
                 val deletedRecordsStr = resultsMap["deletedRecords"] ?: "[]"
+                val etageresStr = resultsMap["etageres"] ?: "[]"
+                val niveauxEtagereStr = resultsMap["niveauxEtagere"] ?: "[]"
+                val produitsNiveauStr = resultsMap["produitsNiveau"] ?: "[]"
 
                 // Read the CURRENT database state directly from the repository rather than the
                 // allX StateFlows: those use SharingStarted.WhileSubscribed(5000) and only start
@@ -2321,6 +2489,9 @@ class InventoryViewModel(
                 val currentRetours = repository.allRetours.first()
                 val currentLots = repository.allLots.first()
                 val currentTombstones = repository.allTombstones.first()
+                val currentEtageres = repository.allEtageres.first()
+                val currentNiveauxEtagere = repository.allNiveauxEtagere.first()
+                val currentProduitsNiveau = repository.allProduitsNiveau.first()
 
                 // 0. Parse & Merge Deletion Tombstones — must run before every other entity merge
                 // below, so a record deleted on another device (or in an older backup we're now
@@ -2830,6 +3001,86 @@ class InventoryViewModel(
                 }
                 if (newLotsCount > 0) {
                     addSyncLog("Mise à jour lots de péremption: $newLotsCount enregistrés")
+                }
+
+                // 10. Parse & Merge Plan d'étagères — additif uniquement (pas de tombstones pour
+                // cette entité) : une étagère est un outil de rangement, pas un historique
+                // financier, et un plan de magasin n'a pas vocation à se faire éditer en même
+                // temps depuis deux appareils. Chaque niveau (case) est résolu par la clé
+                // naturelle de son étagère (nom+position), chaque produit par code-barres/SKU/nom
+                // — jamais par id brut, qui peut différer d'un appareil à l'autre.
+                val etageresLocalesParCle = currentEtageres.associateBy { "${it.nom}|${it.position}" }.toMutableMap()
+                val etageresJsonArr = org.json.JSONArray(etageresStr)
+                var newEtageresCount = 0
+                for (i in 0 until etageresJsonArr.length()) {
+                    val obj = etageresJsonArr.getJSONObject(i)
+                    val nom = obj.optString("nom", "")
+                    val position = obj.optInt("position", 0)
+                    val cle = "$nom|$position"
+                    if (nom.isNotBlank() && !etageresLocalesParCle.containsKey(cle)) {
+                        val nouvelId = repository.insertEtagere(Etagere(nom = nom, position = position))
+                        etageresLocalesParCle[cle] = Etagere(id = nouvelId, nom = nom, position = position)
+                        newEtageresCount++
+                    }
+                }
+                if (newEtageresCount > 0) {
+                    addSyncLog("Mise à jour plan d'étagères: $newEtageresCount étagère(s) enregistrée(s)")
+                }
+
+                val niveauxLocauxParCle = currentNiveauxEtagere
+                    .mapNotNull { niveau ->
+                        val etagereParente = currentEtageres.find { it.id == niveau.etagereId } ?: return@mapNotNull null
+                        "${etagereParente.nom}|${etagereParente.position}|${niveau.position}" to niveau
+                    }
+                    .toMap()
+                    .toMutableMap()
+                val niveauxJsonArr = org.json.JSONArray(niveauxEtagereStr)
+                var newNiveauxCount = 0
+                for (i in 0 until niveauxJsonArr.length()) {
+                    val obj = niveauxJsonArr.getJSONObject(i)
+                    val etagereNom = obj.optString("etagereNom", "")
+                    val etagerePosition = obj.optInt("etagerePosition", 0)
+                    val position = obj.optInt("position", 0)
+                    val etagereLocale = etageresLocalesParCle["$etagereNom|$etagerePosition"] ?: continue
+                    val cleNiveau = "$etagereNom|$etagerePosition|$position"
+                    if (!niveauxLocauxParCle.containsKey(cleNiveau)) {
+                        val nouvelId = repository.insertNiveau(
+                            NiveauEtagere(etagereId = etagereLocale.id, position = position, nom = obj.optString("nom", ""))
+                        )
+                        niveauxLocauxParCle[cleNiveau] = NiveauEtagere(id = nouvelId, etagereId = etagereLocale.id, position = position)
+                        newNiveauxCount++
+                    }
+                }
+                if (newNiveauxCount > 0) {
+                    addSyncLog("Mise à jour plan d'étagères: $newNiveauxCount niveau(x) enregistré(s)")
+                }
+
+                val liensJsonArr = org.json.JSONArray(produitsNiveauStr)
+                var newLiensCount = 0
+                for (i in 0 until liensJsonArr.length()) {
+                    val obj = liensJsonArr.getJSONObject(i)
+                    val etagereNom = obj.optString("etagereNom", "")
+                    val etagerePosition = obj.optInt("etagerePosition", 0)
+                    val niveauPosition = obj.optInt("niveauPosition", 0)
+                    val niveauLocal = niveauxLocauxParCle["$etagereNom|$etagerePosition|$niveauPosition"] ?: continue
+
+                    val barcode = obj.optString("produitBarcode", "")
+                    val sku = obj.optString("produitSku", "")
+                    val nomProduit = obj.optString("produitNom", "")
+                    val produitLocal = (if (barcode.isNotEmpty()) repository.getProductByBarcode(barcode) else null)
+                        ?: (if (sku.isNotEmpty()) currentProducts.find { it.sku.equals(sku, ignoreCase = true) } else null)
+                        ?: (if (nomProduit.isNotEmpty()) repository.getProductByName(nomProduit) else null)
+                        ?: continue
+
+                    val dejaLie = currentProduitsNiveau.any { it.niveauId == niveauLocal.id && it.produitId == produitLocal.id } ||
+                        repository.findProduitNiveau(niveauLocal.id, produitLocal.id) != null
+                    if (!dejaLie) {
+                        repository.ajouterProduitAuNiveau(niveauLocal.id, produitLocal.id)
+                        newLiensCount++
+                    }
+                }
+                if (newLiensCount > 0) {
+                    addSyncLog("Mise à jour plan d'étagères: $newLiensCount produit(s) rangé(s)")
                 }
 
                 addSyncLog("Nahomby ny fampitoviana ny tahiry rehetra!")

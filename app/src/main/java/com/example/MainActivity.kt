@@ -68,7 +68,8 @@ enum class ScreenTab {
     Dashboard, // Reports & dashboard: revenue chart, top products
     Peremption, // C.4: expiry lots management and alerts
     Epicerie, // Fiche d'identité de l'épicerie (nom, logo, coordonnées) utilisée dans les PDF
-    Securite // Alertes anti-triche et journal d'audit (réservé au gérant)
+    Securite, // Alertes anti-triche et journal d'audit (réservé au gérant)
+    Etagere // Plan d'étagères interactif (rayons, cases, produits rangés)
 }
 
 class MainActivity : ComponentActivity() {
@@ -106,7 +107,8 @@ fun MainLifecycleContainer() {
             database.vendeurDao(),
             database.retourDao(),
             database.deletedRecordDao(),
-            database.auditLogDao()
+            database.auditLogDao(),
+            database.etagereDao()
         )
     }
     
@@ -714,7 +716,7 @@ fun MainAppLayout(
             )
 
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements && currentTab != ScreenTab.Dashboard && currentTab != ScreenTab.Peremption && currentTab != ScreenTab.Epicerie && currentTab != ScreenTab.Securite) {
+                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements && currentTab != ScreenTab.Dashboard && currentTab != ScreenTab.Peremption && currentTab != ScreenTab.Epicerie && currentTab != ScreenTab.Securite && currentTab != ScreenTab.Etagere) {
                     TopAppBarSection(
                         viewModel = viewModel,
                         onNavigateToSettings = navigateToSettings,
@@ -775,7 +777,8 @@ fun MainAppLayout(
                             onNavigateToDashboard = { currentTab = ScreenTab.Dashboard },
                             onNavigateToPeremption = { currentTab = ScreenTab.Peremption },
                             onNavigateToEpicerie = { currentTab = ScreenTab.Epicerie },
-                            onNavigateToSecurite = { currentTab = ScreenTab.Securite }
+                            onNavigateToSecurite = { currentTab = ScreenTab.Securite },
+                            onNavigateToEtagere = { currentTab = ScreenTab.Etagere }
                         )
                         ScreenTab.Commission -> CommissionScreen(
                             viewModel = viewModel,
@@ -809,6 +812,10 @@ fun MainAppLayout(
                             viewModel = viewModel,
                             onNavigateBack = { currentTab = ScreenTab.Parametres }
                         )
+                        ScreenTab.Etagere -> EtagereScreen(
+                            viewModel = viewModel,
+                            onNavigateBack = { currentTab = ScreenTab.Parametres }
+                        )
                     }
                 }
             }
@@ -817,7 +824,7 @@ fun MainAppLayout(
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {
-                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements && currentTab != ScreenTab.Dashboard && currentTab != ScreenTab.Peremption && currentTab != ScreenTab.Epicerie && currentTab != ScreenTab.Securite) {
+                if (currentTab != ScreenTab.Fandraisana && currentTab != ScreenTab.Historique && currentTab != ScreenTab.Parametres && currentTab != ScreenTab.BarcodeList && currentTab != ScreenTab.Synchronisation && currentTab != ScreenTab.CaisseMouvements && currentTab != ScreenTab.Dashboard && currentTab != ScreenTab.Peremption && currentTab != ScreenTab.Epicerie && currentTab != ScreenTab.Securite && currentTab != ScreenTab.Etagere) {
                     TopAppBarSection(
                         viewModel = viewModel,
                         onNavigateToSettings = navigateToSettings,
@@ -902,7 +909,8 @@ fun MainAppLayout(
                         onNavigateToDashboard = { currentTab = ScreenTab.Dashboard },
                         onNavigateToPeremption = { currentTab = ScreenTab.Peremption },
                         onNavigateToEpicerie = { currentTab = ScreenTab.Epicerie },
-                        onNavigateToSecurite = { currentTab = ScreenTab.Securite }
+                        onNavigateToSecurite = { currentTab = ScreenTab.Securite },
+                        onNavigateToEtagere = { currentTab = ScreenTab.Etagere }
                     )
                     ScreenTab.Commission -> CommissionScreen(
                         viewModel = viewModel,
@@ -933,6 +941,10 @@ fun MainAppLayout(
                         onNavigateBack = { currentTab = ScreenTab.Parametres }
                     )
                     ScreenTab.Securite -> SecuriteScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { currentTab = ScreenTab.Parametres }
+                    )
+                    ScreenTab.Etagere -> EtagereScreen(
                         viewModel = viewModel,
                         onNavigateBack = { currentTab = ScreenTab.Parametres }
                     )
