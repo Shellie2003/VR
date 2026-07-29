@@ -57,6 +57,9 @@ fun DebtsScreen(
     // Dialog trigger states
     var showAddDebtDialog by remember { mutableStateOf(false) }
     var selectedDebtForRepay by remember { mutableStateOf<Debt?>(null) }
+    // Remboursement groupé : un client solde plusieurs trosa à la fois avec une somme unique,
+    // répartie automatiquement (voir DebtAllocation) plutôt que dette par dette.
+    var groupForRepay by remember { mutableStateOf<DebtorGroup?>(null) }
     var debtToDelete by remember { mutableStateOf<Debt?>(null) }
 
     // Multi-selection state (checkbox mode for bulk delete)
@@ -263,6 +266,7 @@ fun DebtsScreen(
                                 }
                             },
                             onRepay = { selectedDebtForRepay = it },
+                            onRepayGroup = { groupForRepay = group },
                             onDelete = { debtToDelete = it }
                         )
                     }
@@ -496,6 +500,20 @@ fun DebtsScreen(
                     Text(t("cancel_btn"))
                 }
             }
+        )
+    }
+
+    // Remboursement groupé : un montant unique, réparti automatiquement entre les trosa du
+    // débiteur (voir InventoryViewModel.repayDebtorGroup / util.DebtAllocation).
+    groupForRepay?.let { group ->
+        GroupRepayDialog(
+            group = group,
+            activeLang = activeLang,
+            onConfirm = { montant ->
+                viewModel.repayDebtorGroup(group.debts, montant)
+                groupForRepay = null
+            },
+            onDismiss = { groupForRepay = null }
         )
     }
 
@@ -802,6 +820,7 @@ fun DebtorGroupCard(
     selectedDebtIds: Set<Int>,
     onToggleSelect: (Int) -> Unit,
     onRepay: (Debt) -> Unit,
+    onRepayGroup: () -> Unit,
     onDelete: (Debt) -> Unit
 ) {
     val t = { key: String -> LanguageManager.translate(key, activeLang) }
@@ -909,6 +928,38 @@ fun DebtorGroupCard(
                         imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+
+            // Remboursement groupé : accessible sans avoir à déplier le détail, puisque c'est
+            // justement le geste qu'on veut simplifier — un client qui règle un montant couvrant
+            // plusieurs sections à la fois n'a pas besoin de les rembourser une par une.
+            if (!group.isFullyPaid && !isSelectionMode) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = onRepayGroup,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(38.dp)
+                        .testTag("repay_group_${group.displayName.trim().lowercase()}"),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Icon(Icons.Default.Payment, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Handoa vola miditra amin'ny trosa rehetra"
+                            "fr" -> "Régler un montant sur l'ensemble"
+                            else -> "Pay an amount across all debts"
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
@@ -1137,4 +1188,178 @@ private fun DebtDetailAmountRow(
             color = valueColor
         )
     }
+}
+
+/**
+ * Remboursement groupé : le client règle un montant unique qui couvre plusieurs trosa distincts
+ * du même débiteur. Le montant est réparti automatiquement — dette au solde le plus élevé soldée
+ * en priorité, reliquat reporté sur la suivante (voir [com.example.util.DebtAllocation]) — pour
+ * éviter au gérant de calculer la répartition dette par dette au comptoir.
+ *
+ * L'aperçu affiché ici (quelle section se solde, ce qu'il reste) utilise EXACTEMENT le même calcul
+ * que celui appliqué à la confirmation : le gérant voit donc précisément l'effet du montant qu'il
+ * s'apprête à valider, sans surprise après coup.
+ */
+@Composable
+fun GroupRepayDialog(
+    group: DebtorGroup,
+    activeLang: String,
+    onConfirm: (Double) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var montantStr by remember { mutableStateOf("") }
+    var erreur by remember { mutableStateOf(false) }
+
+    val montant = montantStr.enDecimal() ?: 0.0
+    val plan = remember(montant, group) {
+        com.example.util.DebtAllocation.calculer(group.debts, montant)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = when (activeLang) {
+                    "mg" -> "Fandoavana miditra amin'ny trosa maro"
+                    "fr" -> "Remboursement groupé"
+                    else -> "Grouped repayment"
+                },
+                fontWeight = FontWeight.Black
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "${LanguageManager.translate("debtor_name", activeLang)} : ${group.displayName}",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = when (activeLang) {
+                        "mg" -> "Trosa ${group.debts.size} miaraka, mitotaly ${FormatUtil.formatPrice(group.totalBalance)} Ar"
+                        "fr" -> "${group.debts.size} trosa cumulés, pour un total de ${FormatUtil.formatPrice(group.totalBalance)} Ar"
+                        else -> "${group.debts.size} combined debts, totalling ${FormatUtil.formatPrice(group.totalBalance)} Ar"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+
+                OutlinedTextField(
+                    value = montantStr,
+                    onValueChange = {
+                        montantStr = it
+                        erreur = it.enDecimal() == null || (it.enDecimal() ?: 0.0) <= 0.0
+                    },
+                    label = {
+                        Text(
+                            when (activeLang) {
+                                "mg" -> "Vola raisina (Ar)"
+                                "fr" -> "Montant reçu (Ar)"
+                                else -> "Amount received (Ar)"
+                            }
+                        )
+                    },
+                    prefix = { Text("Ar ") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = erreur,
+                    supportingText = { if (erreur) Text("Sora-bola diso", color = MaterialTheme.colorScheme.error) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Aperçu de la répartition : construit avec le MÊME calcul que celui qui sera
+                // réellement appliqué à la confirmation.
+                if (plan.lignes.isNotEmpty()) {
+                    HorizontalDivider()
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Ho zaraina toy izao ny vola:"
+                            "fr" -> "Répartition automatique :"
+                            else -> "Automatic breakdown:"
+                        },
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        plan.lignes.forEach { ligne ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "${FormatUtil.formatPrice(ligne.soldeAvant)} Ar → ${FormatUtil.formatPrice(ligne.soldeApres)} Ar",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    if (ligne.estSoldee) {
+                                        Text(
+                                            text = when (activeLang) {
+                                                "mg" -> "Voaloa tanteraka"
+                                                "fr" -> "Soldée"
+                                                else -> "Settled"
+                                            },
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = Color(0xFF2E7D32)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = "-${FormatUtil.formatPrice(ligne.montantApplique)} Ar",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                    if (plan.montantNonAffecte > 0.0) {
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Mihoatra ny trosa rehetra ny vola: ${FormatUtil.formatPrice(plan.montantNonAffecte)} Ar tsy voakasika."
+                                "fr" -> "Le montant dépasse la dette totale : ${FormatUtil.formatPrice(plan.montantNonAffecte)} Ar ne seront pas affectés."
+                                else -> "Amount exceeds the total debt: ${FormatUtil.formatPrice(plan.montantNonAffecte)} Ar will not be applied."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFEF6C00)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val valDouble = montantStr.enDecimal() ?: 0.0
+                    erreur = valDouble <= 0.0
+                    if (!erreur) {
+                        onConfirm(valDouble)
+                    }
+                },
+                enabled = plan.lignes.isNotEmpty()
+            ) {
+                Text(LanguageManager.translate("repay_btn", activeLang), fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(LanguageManager.translate("cancel_btn", activeLang))
+            }
+        }
+    )
 }

@@ -1793,6 +1793,25 @@ class InventoryViewModel(
         }
     }
 
+    /**
+     * Remboursement groupé : le client rembourse un montant qui couvre plusieurs trosa à la fois
+     * (même débiteur, dettes distinctes accumulées à des dates différentes). Plutôt que d'obliger
+     * le gérant à répartir la somme à la main entre chaque section, l'affectation est calculée par
+     * [com.example.util.DebtAllocation] (dette au solde le plus élevé soldée en priorité, reliquat
+     * reporté sur la suivante) et appliquée en une seule fois.
+     */
+    fun repayDebtorGroup(debts: List<Debt>, totalPayment: Double) {
+        val plan = com.example.util.DebtAllocation.calculer(debts, totalPayment)
+        if (plan.lignes.isEmpty()) return
+        lancerProtege("le remboursement groupé du trosa") {
+            plan.lignes.forEach { ligne ->
+                repository.updateDebt(ligne.debt.copy(balance = ligne.soldeApres, isPaid = ligne.estSoldee))
+            }
+            com.example.sync.SyncManager.triggerDatabaseSync()
+            triggerLocalSafetyBackup()
+        }
+    }
+
     fun deleteDebt(debt: Debt): Boolean {
         val cible = "Trosa ${debt.debtorName} (${FormatUtil.formatPrice(debt.balance)} Ar)"
         if (!peutSupprimerHistorique()) {
