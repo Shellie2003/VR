@@ -13,6 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -382,12 +384,21 @@ fun ActivationScreen(viewModel: InventoryViewModel, t: (String) -> String) {
     val licenceMessage by viewModel.licenceMessage.collectAsState()
     val activeLang by viewModel.language.collectAsState()
 
+    // Cet écran a grossi au fil des ajouts (ID + code appareil + numéro de licence + bouton de
+    // vérification + message + aide) sans jamais gagner de défilement : sur un écran modeste, ou
+    // dès que le clavier apparaît pour saisir un champ, le contenu dépassait la hauteur
+    // disponible et le bouton d'activation — en bas de la Column — se retrouvait rétréci ou
+    // poussé hors champ. `imePadding()` réduit la hauteur disponible du clavier ; le
+    // `verticalScroll` sur la Column interne (pas sur ce Box) laisse le cas normal centré tel
+    // quel — la Column ne prend que sa hauteur de contenu tant qu'elle tient à l'écran — et ne
+    // s'étend au défilement que lorsque le contenu dépasse réellement l'espace disponible.
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
-            .navigationBarsPadding(),
+            .navigationBarsPadding()
+            .imePadding(),
         contentAlignment = Alignment.Center
     ) {
         Card(
@@ -397,7 +408,9 @@ fun ActivationScreen(viewModel: InventoryViewModel, t: (String) -> String) {
             shape = RoundedCornerShape(24.dp)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {

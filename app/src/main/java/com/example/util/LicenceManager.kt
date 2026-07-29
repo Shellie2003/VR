@@ -135,7 +135,33 @@ object LicenceManager {
                 // fournisseur la remplira à leur prochain contact.
                 val appareils = json.optJSONObject("appareils")
                 val listeRenseignee = appareils != null && appareils.length() > 0
-                val appareilAutorise = appareils?.has(deviceId.trim().lowercase()) == true
+
+                // Comparaison TOLÉRANTE, pas une égalité stricte de clé.
+                //
+                // Le code appareil est affiché au client sous la forme "A3F2-9B10-C44D-E5F6"
+                // (majuscules, tirets) — c'est ce qu'il lit et transmet tel quel. Le fournisseur,
+                // en le recopiant dans la console Firebase, a un réflexe naturel : coller
+                // exactement ce qu'il a reçu, tirets et majuscules compris, plutôt que d'appliquer
+                // mentalement la conversion documentée dans le guide. Avec une comparaison stricte
+                // (`appareils.has(deviceId)`), cette faute de frappe la plus probable du monde
+                // refusait purement et simplement un client qui avait pourtant tout fait "correct"
+                // de son point de vue. On normalise donc les deux côtés (minuscules, on ne garde
+                // que les caractères hexadécimaux) avant de comparer.
+                val deviceIdNormalise = normaliserCodeAppareil(deviceId)
+                var appareilAutorise = false
+                if (appareils != null) {
+                    val cles = appareils.keys()
+                    while (cles.hasNext()) {
+                        // JSONObject#keys() renvoie Iterator<String> sur Android comme dans
+                        // l'implémentation JVM utilisée par les tests Robolectric ; le cast
+                        // couvre les deux sans dépendre d'un typage générique précis.
+                        val cle = cles.next() as String
+                        if (normaliserCodeAppareil(cle) == deviceIdNormalise) {
+                            appareilAutorise = true
+                            break
+                        }
+                    }
+                }
 
                 val etat = when {
                     !actif -> ETAT_SUSPENDUE
@@ -149,6 +175,16 @@ object LicenceManager {
             Result.failure(e)
         }
     }
+
+    /**
+     * Ramène un code appareil à sa forme comparable : minuscules, uniquement les caractères
+     * hexadécimaux. Que la source soit le code brut ([DeviceIdentity.rawId], déjà propre) ou une
+     * clé saisie à la main dans la console Firebase (avec tirets, espaces ou majuscules, comme le
+     * client le lit sur son écran), les deux convergent vers la même chaîne — la comparaison ne
+     * dépend donc plus d'une transcription manuelle parfaite.
+     */
+    private fun normaliserCodeAppareil(code: String): String =
+        code.lowercase().filter { it in "0123456789abcdef" }
 
     /**
      * Décide, sans réseau, si l'app doit rester déverrouillée : la dernière vérification en ligne
