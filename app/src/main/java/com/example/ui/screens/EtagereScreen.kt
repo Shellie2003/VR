@@ -1,12 +1,14 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -28,6 +30,7 @@ import com.example.data.model.Etagere
 import com.example.data.model.Product
 import com.example.data.model.ProduitNiveau
 import com.example.ui.viewmodel.InventoryViewModel
+import com.example.util.EtagereColors
 import com.example.util.EtagereLayout
 import com.example.util.FormatUtil
 
@@ -124,7 +127,8 @@ fun EtagereScreen(
                         onClickNiveau = { niveauSelectionneId = it.niveau.id },
                         onAjouterNiveau = { cote -> viewModel.ajouterNiveau(etagereAvecNiveaux.etagere.id, cote) },
                         onRenommer = { etagereARenommer = etagereAvecNiveaux.etagere },
-                        onSupprimer = { etagereASupprimer = etagereAvecNiveaux.etagere }
+                        onSupprimer = { etagereASupprimer = etagereAvecNiveaux.etagere },
+                        onChangerCouleur = { couleur -> viewModel.changerCouleurEtagere(etagereAvecNiveaux.etagere, couleur) }
                     )
                 }
 
@@ -143,11 +147,14 @@ fun EtagereScreen(
         NiveauDetailDialog(
             etagere = etagere,
             niveauAvecProduits = niveauAvecProduits,
+            plan = plan,
             activeLang = activeLang,
             allProducts = viewModel.allProducts.collectAsState().value,
             onRenommerNiveau = { nom -> viewModel.renommerNiveau(niveauAvecProduits.niveau, nom) },
+            onChangerCouleur = { couleur -> viewModel.changerCouleurNiveau(niveauAvecProduits.niveau, couleur) },
             onAjouterProduit = { produitId -> viewModel.ajouterProduitAuNiveau(niveauAvecProduits.niveau.id, produitId) },
             onRetirerProduit = { lien -> viewModel.retirerProduitDuNiveau(lien) },
+            onDeplacerProduit = { produitId, niveauCibleId -> viewModel.ajouterProduitAuNiveau(niveauCibleId, produitId) },
             onSupprimerNiveau = {
                 viewModel.supprimerNiveau(niveauAvecProduits.niveau)
                 niveauSelectionneId = null
@@ -315,9 +322,14 @@ private fun ColonneEtagere(
     onClickNiveau: (InventoryViewModel.NiveauAvecProduits) -> Unit,
     onAjouterNiveau: (EtagereLayout.Cote) -> Unit,
     onRenommer: () -> Unit,
-    onSupprimer: () -> Unit
+    onSupprimer: () -> Unit,
+    onChangerCouleur: (String?) -> Unit
 ) {
     var menuOuvert by remember { mutableStateOf(false) }
+    var choixCouleurOuvert by remember { mutableStateOf(false) }
+    val couleurEtagere = remember(etagereAvecNiveaux.etagere.couleur) {
+        EtagereColors.normaliser(etagereAvecNiveaux.etagere.couleur)?.let { parseHexColorOrNull(it) }
+    }
     // Niveau de plus grande position affiché en haut : "ajouter en haut" (FIN) empile visuellement
     // au sommet de l'étagère, exactement comme on poserait une planche supplémentaire en haut.
     val niveauxAffiches = remember(etagereAvecNiveaux) { etagereAvecNiveaux.niveaux.sortedByDescending { it.niveau.position } }
@@ -332,7 +344,7 @@ private fun ColonneEtagere(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+                .background(couleurEtagere?.copy(alpha = 0.18f) ?: MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
                 .clickable { onRenommer() }
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -354,6 +366,11 @@ private fun ColonneEtagere(
                     DropdownMenuItem(
                         text = { Text(when (activeLang) { "mg" -> "Hanova anarana"; "fr" -> "Renommer"; else -> "Rename" }) },
                         onClick = { menuOuvert = false; onRenommer() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(when (activeLang) { "mg" -> "Loko"; "fr" -> "Couleur"; else -> "Color" }) },
+                        leadingIcon = { Icon(Icons.Default.Palette, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        onClick = { menuOuvert = false; choixCouleurOuvert = true }
                     )
                     DropdownMenuItem(
                         text = {
@@ -412,6 +429,15 @@ private fun ColonneEtagere(
             )
         }
     }
+
+    if (choixCouleurOuvert) {
+        ColorPickerDialog(
+            activeLang = activeLang,
+            couleurActuelle = etagereAvecNiveaux.etagere.couleur,
+            onChoisir = { couleur -> onChangerCouleur(couleur); choixCouleurOuvert = false },
+            onDismiss = { choixCouleurOuvert = false }
+        )
+    }
 }
 
 @Composable
@@ -429,6 +455,9 @@ private fun CelluleNiveau(
             else -> "Level $numeroAffiche"
         }
     }
+    val couleurNiveau = remember(niveauAvecProduits.niveau.couleur) {
+        EtagereColors.normaliser(niveauAvecProduits.niveau.couleur)?.let { parseHexColorOrNull(it) }
+    }
 
     Card(
         modifier = Modifier
@@ -438,8 +467,9 @@ private fun CelluleNiveau(
             .testTag("niveau_${niveauAvecProduits.niveau.id}"),
         shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (estVide) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-            else MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+            containerColor = couleurNiveau?.copy(alpha = if (estVide) 0.20f else 0.28f)
+                ?: if (estVide) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                else MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
         )
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -535,6 +565,78 @@ private fun RenommerDialog(
 }
 
 /**
+ * Conversion défensive d'un hex déjà normalisé par [EtagereColors.normaliser] vers une `Color`
+ * Compose. `normaliser` garantit un format `#RRGGBB` valide, donc `parseColor` ne devrait jamais
+ * lever — le `try/catch` reste une protection de dernier recours plutôt qu'un chemin attendu :
+ * une donnée corrompue (sync partielle, ancienne version) ne doit jamais faire planter l'écran.
+ */
+private fun parseHexColorOrNull(hexNormalise: String): Color? = try {
+    Color(android.graphics.Color.parseColor(hexNormalise))
+} catch (e: IllegalArgumentException) {
+    null
+}
+
+/** Sélecteur de couleur pour une étagère ou une case : une palette fixe plutôt qu'une vraie roue
+ * chromatique, largement suffisante pour distinguer visuellement des rayons et bien plus légère
+ * à l'écran. */
+@Composable
+private fun ColorPickerDialog(
+    activeLang: String,
+    couleurActuelle: String?,
+    onChoisir: (String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val couleurNormalisee = EtagereColors.normaliser(couleurActuelle)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = when (activeLang) { "mg" -> "Mifidiana loko"; "fr" -> "Choisir une couleur"; else -> "Choose a color" },
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                EtagereColors.PALETTE.chunked(6).forEach { ligne ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ligne.forEach { hex ->
+                            val couleur = parseHexColorOrNull(hex) ?: Color.Gray
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(couleur)
+                                    .border(
+                                        width = if (couleurNormalisee == hex) 3.dp else 0.dp,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        shape = CircleShape
+                                    )
+                                    .clickable { onChoisir(hex) }
+                                    .testTag("couleur_$hex")
+                            )
+                        }
+                    }
+                }
+                TextButton(onClick = { onChoisir(null) }) {
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Tsy misy loko (default)"
+                            "fr" -> "Aucune couleur (par défaut)"
+                            else -> "No color (default)"
+                        }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = when (activeLang) { "mg" -> "Vita"; "fr" -> "Fermer"; else -> "Close" })
+            }
+        }
+    )
+}
+
+/**
  * Détail d'une case (niveau) : renommage, liste des produits rangés avec retrait individuel, et
  * recherche pour en ajouter un nouveau. Le catalogue étant de taille modeste dans une épicerie
  * (quelques centaines de références au plus), le filtrage se fait en mémoire sur la liste déjà
@@ -544,17 +646,43 @@ private fun RenommerDialog(
 private fun NiveauDetailDialog(
     etagere: Etagere,
     niveauAvecProduits: InventoryViewModel.NiveauAvecProduits,
+    plan: List<InventoryViewModel.EtagereAvecNiveaux>,
     activeLang: String,
     allProducts: List<Product>,
     onRenommerNiveau: (String) -> Unit,
+    onChangerCouleur: (String?) -> Unit,
     onAjouterProduit: (Int) -> Unit,
     onRetirerProduit: (ProduitNiveau) -> Unit,
+    onDeplacerProduit: (produitId: Int, niveauCibleId: Long) -> Unit,
     onSupprimerNiveau: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var nomInput by remember(niveauAvecProduits.niveau.id) { mutableStateOf(niveauAvecProduits.niveau.nom) }
     var rechercheProduit by remember { mutableStateOf("") }
     var confirmerSuppression by remember { mutableStateOf(false) }
+    var choixCouleurOuvert by remember { mutableStateOf(false) }
+    var produitADeplacer by remember { mutableStateOf<Product?>(null) }
+
+    // Retrait optimiste : le tap sur "x" retire la ligne de l'affichage immédiatement, sans
+    // attendre l'aller-retour base de données -> Flow -> recomposition. Sans ça, sur un appareil
+    // modeste ou sous charge, l'article reste visible une fraction de seconde de trop après le
+    // tap — déjà supprimé en base, mais encore affiché jusqu'à ce que la prochaine recomposition
+    // arrive, ce qui donnait l'impression que rien ne s'était passé avant la fermeture du dialogue.
+    var idsEnCoursDeRetrait by remember(niveauAvecProduits.niveau.id) { mutableStateOf(setOf<Long>()) }
+    val liensAffiches = remember(niveauAvecProduits, idsEnCoursDeRetrait) {
+        niveauAvecProduits.liens.filter { it.id !in idsEnCoursDeRetrait }
+    }
+
+    // Emplacement actuel (ailleurs que cette case) de chaque produit du catalogue, pour prévenir
+    // le gérant dans la recherche ci-dessous : cliquer un résultat déjà rangé ailleurs le DÉPLACE
+    // ici plutôt que de l'y dupliquer (voir EtagereLayout.diffEmplacementUnique) — cohérent avec
+    // le sélecteur de rayon de la fiche produit, qui n'affiche jamais qu'un seul emplacement.
+    val emplacementActuelParProduit = remember(plan, niveauAvecProduits.niveau.id) {
+        plan.flatMap { e -> e.niveaux.map { n -> e.etagere to n } }
+            .filter { (_, n) -> n.niveau.id != niveauAvecProduits.niveau.id }
+            .flatMap { (etagereAutre, n) -> n.liens.map { it.produitId to (etagereAutre to n.niveau) } }
+            .toMap()
+    }
 
     val idsDejaPresents = remember(niveauAvecProduits) { niveauAvecProduits.liens.map { it.produitId }.toSet() }
     val resultatsRecherche = remember(allProducts, rechercheProduit, idsDejaPresents) {
@@ -570,15 +698,29 @@ private fun NiveauDetailDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Column {
-                Text(etagere.nom, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-                Text(
-                    text = when (activeLang) {
-                        "mg" -> "Antsipirian'ny rayon"
-                        "fr" -> "Détail du rayon"
-                        else -> "Shelf level detail"
-                    },
-                    fontWeight = FontWeight.Bold
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    Text(etagere.nom, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Antsipirian'ny rayon"
+                            "fr" -> "Détail du rayon"
+                            else -> "Shelf level detail"
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                val couleurNiveau = remember(niveauAvecProduits.niveau.couleur) {
+                    EtagereColors.normaliser(niveauAvecProduits.niveau.couleur)?.let { parseHexColorOrNull(it) }
+                }
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(couleurNiveau ?: MaterialTheme.colorScheme.surfaceVariant)
+                        .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = CircleShape)
+                        .clickable { choixCouleurOuvert = true }
+                        .testTag("niveau_couleur_button")
                 )
             }
         },
@@ -617,16 +759,16 @@ private fun NiveauDetailDialog(
 
                 Text(
                     text = when (activeLang) {
-                        "mg" -> "Entana ao anatiny (${niveauAvecProduits.produits.size})"
-                        "fr" -> "Produits rangés ici (${niveauAvecProduits.produits.size})"
-                        else -> "Products stored here (${niveauAvecProduits.produits.size})"
+                        "mg" -> "Entana ao anatiny (${liensAffiches.size})"
+                        "fr" -> "Produits rangés ici (${liensAffiches.size})"
+                        else -> "Products stored here (${liensAffiches.size})"
                     },
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
 
-                if (niveauAvecProduits.produits.isEmpty()) {
+                if (liensAffiches.isEmpty()) {
                     Text(
                         text = when (activeLang) {
                             "mg" -> "Tsy misy entana voarakitra eto."
@@ -638,7 +780,7 @@ private fun NiveauDetailDialog(
                     )
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        niveauAvecProduits.liens.forEach { lien ->
+                        liensAffiches.forEach { lien ->
                             val produit = niveauAvecProduits.produits.find { it.id == lien.produitId } ?: return@forEach
                             Row(
                                 modifier = Modifier
@@ -657,7 +799,19 @@ private fun NiveauDetailDialog(
                                         color = MaterialTheme.colorScheme.outline
                                     )
                                 }
-                                IconButton(onClick = { onRetirerProduit(lien) }, modifier = Modifier.size(28.dp)) {
+                                IconButton(
+                                    onClick = { produitADeplacer = produit },
+                                    modifier = Modifier.size(28.dp).testTag("deplacer_produit_${produit.id}")
+                                ) {
+                                    Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                }
+                                IconButton(
+                                    onClick = {
+                                        idsEnCoursDeRetrait = idsEnCoursDeRetrait + lien.id
+                                        onRetirerProduit(lien)
+                                    },
+                                    modifier = Modifier.size(28.dp).testTag("retirer_produit_${produit.id}")
+                                ) {
                                     Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
                                 }
                             }
@@ -685,6 +839,7 @@ private fun NiveauDetailDialog(
                 )
 
                 resultatsRecherche.forEach { produit ->
+                    val emplacementAilleurs = emplacementActuelParProduit[produit.id]
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -697,7 +852,21 @@ private fun NiveauDetailDialog(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(produit.name, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(produit.name, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (emplacementAilleurs != null) {
+                                val (etagereAutre, niveauAutre) = emplacementAilleurs
+                                Text(
+                                    text = when (activeLang) {
+                                        "mg" -> "Ho afindra avy any: ${etagereAutre.nom}"
+                                        "fr" -> "Sera déplacé depuis : ${etagereAutre.nom}${if (niveauAutre.nom.isNotBlank()) " > ${niveauAutre.nom}" else ""}"
+                                        else -> "Will be moved from: ${etagereAutre.nom}"
+                                    },
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                        }
                         Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                     }
                 }
@@ -784,6 +953,29 @@ private fun NiveauDetailDialog(
                     Text(when (activeLang) { "mg" -> "Aoka"; "fr" -> "Annuler"; else -> "Cancel" })
                 }
             }
+        )
+    }
+
+    if (choixCouleurOuvert) {
+        ColorPickerDialog(
+            activeLang = activeLang,
+            couleurActuelle = niveauAvecProduits.niveau.couleur,
+            onChoisir = { couleur -> onChangerCouleur(couleur); choixCouleurOuvert = false },
+            onDismiss = { choixCouleurOuvert = false }
+        )
+    }
+
+    produitADeplacer?.let { produit ->
+        EmplacementPickerDialog(
+            plan = plan,
+            niveauChoisiId = niveauAvecProduits.niveau.id,
+            activeLang = activeLang,
+            autoriserAucun = false,
+            onChoisir = { niveauCibleId ->
+                niveauCibleId?.let { onDeplacerProduit(produit.id, it) }
+                produitADeplacer = null
+            },
+            onDismiss = { produitADeplacer = null }
         )
     }
 }

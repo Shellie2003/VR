@@ -1997,9 +1997,19 @@ class InventoryViewModel(
         }
     }
 
+    /**
+     * Range un produit dans un niveau — que ce soit un ajout depuis la recherche de l'écran
+     * Étagère ou un déplacement explicite. Dans les deux cas, [com.example.util.EtagereLayout.diffEmplacementUnique]
+     * retire d'abord tout autre emplacement existant du produit : il ne peut jamais se retrouver
+     * dans deux cases à la fois, ce qui garantit que l'emplacement vu ici et celui affiché dans le
+     * sélecteur de rayon de la fiche produit restent toujours le même.
+     */
     fun ajouterProduitAuNiveau(niveauId: Long, produitId: Int) {
         lancerProtege("le rangement d'un produit sur l'étagère") {
-            repository.ajouterProduitAuNiveau(niveauId, produitId)
+            val liensExistants = repository.allProduitsNiveau.first().filter { it.produitId == produitId }
+            val diff = com.example.util.EtagereLayout.diffEmplacementUnique(liensExistants, niveauId)
+            diff.liensASupprimer.forEach { repository.retirerProduitDuNiveau(it) }
+            diff.niveauAAjouter?.let { repository.ajouterProduitAuNiveau(it, produitId) }
             triggerLocalSafetyBackup()
         }
     }
@@ -2007,6 +2017,20 @@ class InventoryViewModel(
     fun retirerProduitDuNiveau(lien: ProduitNiveau) {
         lancerProtege("le retrait d'un produit de l'étagère") {
             repository.retirerProduitDuNiveau(lien.id)
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    fun changerCouleurEtagere(etagere: Etagere, couleur: String?) {
+        lancerProtege("le changement de couleur de l'étagère") {
+            repository.updateEtagere(etagere.copy(couleur = com.example.util.EtagereColors.normaliser(couleur)))
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    fun changerCouleurNiveau(niveau: NiveauEtagere, couleur: String?) {
+        lancerProtege("le changement de couleur du rayon") {
+            repository.updateNiveau(niveau.copy(couleur = com.example.util.EtagereColors.normaliser(couleur)))
             triggerLocalSafetyBackup()
         }
     }
@@ -2449,6 +2473,7 @@ class InventoryViewModel(
                     val eObj = org.json.JSONObject()
                     eObj.put("nom", etagere.nom)
                     eObj.put("position", etagere.position)
+                    eObj.put("couleur", etagere.couleur ?: "")
                     etageresArr.put(eObj)
                 }
 
@@ -2461,6 +2486,7 @@ class InventoryViewModel(
                     nObj.put("etagerePosition", etagereParente.position)
                     nObj.put("position", niveau.position)
                     nObj.put("nom", niveau.nom)
+                    nObj.put("couleur", niveau.couleur ?: "")
                     niveauxEtagereArr.put(nObj)
                 }
 
@@ -3066,10 +3092,11 @@ class InventoryViewModel(
                     val obj = etageresJsonArr.getJSONObject(i)
                     val nom = obj.optString("nom", "")
                     val position = obj.optInt("position", 0)
+                    val couleur = com.example.util.EtagereColors.normaliser(obj.optString("couleur", ""))
                     val cle = "$nom|$position"
                     if (nom.isNotBlank() && !etageresLocalesParCle.containsKey(cle)) {
-                        val nouvelId = repository.insertEtagere(Etagere(nom = nom, position = position))
-                        etageresLocalesParCle[cle] = Etagere(id = nouvelId, nom = nom, position = position)
+                        val nouvelId = repository.insertEtagere(Etagere(nom = nom, position = position, couleur = couleur))
+                        etageresLocalesParCle[cle] = Etagere(id = nouvelId, nom = nom, position = position, couleur = couleur)
                         newEtageresCount++
                     }
                 }
@@ -3094,8 +3121,9 @@ class InventoryViewModel(
                     val etagereLocale = etageresLocalesParCle["$etagereNom|$etagerePosition"] ?: continue
                     val cleNiveau = "$etagereNom|$etagerePosition|$position"
                     if (!niveauxLocauxParCle.containsKey(cleNiveau)) {
+                        val couleurNiveau = com.example.util.EtagereColors.normaliser(obj.optString("couleur", ""))
                         val nouvelId = repository.insertNiveau(
-                            NiveauEtagere(etagereId = etagereLocale.id, position = position, nom = obj.optString("nom", ""))
+                            NiveauEtagere(etagereId = etagereLocale.id, position = position, nom = obj.optString("nom", ""), couleur = couleurNiveau)
                         )
                         niveauxLocauxParCle[cleNiveau] = NiveauEtagere(id = nouvelId, etagereId = etagereLocale.id, position = position)
                         newNiveauxCount++

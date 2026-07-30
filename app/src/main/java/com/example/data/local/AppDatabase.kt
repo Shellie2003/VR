@@ -53,7 +53,7 @@ import androidx.room.migration.Migration
         NiveauEtagere::class,
         ProduitNiveau::class
     ],
-    version = 22,
+    version = 23,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -165,6 +165,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v22 -> v23 : couleur (hex `#RRGGBB`) optionnelle sur une étagère ou une case, pour aider
+         * visuellement le gérant à s'y retrouver. Colonnes nullables ajoutées à des tables
+         * existantes — aucune ligne existante n'est modifiée, `couleur` reste NULL pour elles
+         * (« pas de couleur »), exactement leur état actuel. */
+        val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE etageres ADD COLUMN couleur TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE niveaux_etagere ADD COLUMN couleur TEXT DEFAULT NULL")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -195,7 +206,7 @@ abstract class AppDatabase : RoomDatabase() {
                         db.execSQL("INSERT INTO unites_produit (id, produitId, nomUnite, facteurVersBase, prixVente, prixAchat, codeBarre, estUniteBase, estUniteVenteDefaut, ordre, actif) VALUES (4, 4, 'Pièce', 1.0, 1000.0, 850.0, '3250541505351', 1, 1, 0, 1)")
                     }
                 })
-                .addMigrations(MIGRATION_20_21, MIGRATION_21_22)
+                .addMigrations(MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)
                 // F4 — Filet de sécurité volontairement restreint.
                 //
                 // Avant : `fallbackToDestructiveMigration(true)`, c'est-à-dire « en cas de doute,

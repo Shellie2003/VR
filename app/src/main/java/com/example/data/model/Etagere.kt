@@ -14,7 +14,9 @@ import androidx.room.PrimaryKey
 data class Etagere(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val nom: String,
-    val position: Int
+    val position: Int,
+    /** Hex `#RRGGBB` normalisé par [com.example.util.EtagereColors.normaliser], ou null (pas de couleur). */
+    val couleur: String? = null
 )
 
 /**
@@ -30,14 +32,19 @@ data class NiveauEtagere(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val etagereId: Long,
     val position: Int,
-    val nom: String = ""
+    val nom: String = "",
+    /** Hex `#RRGGBB` normalisé par [com.example.util.EtagereColors.normaliser], ou null (pas de couleur). */
+    val couleur: String? = null
 )
 
 /**
- * Un produit rangé dans un niveau précis. Relation many-to-many délibérée : une case contient
- * couramment plusieurs références (plusieurs marques de savon sur le même rayon), et un même
- * produit peut apparaître dans plus d'un niveau (tête de gondole en promotion + emplacement
- * habituel).
+ * Un produit rangé dans un niveau précis. La table reste techniquement many-to-many (une case
+ * contient couramment plusieurs références), mais côté produit un seul lien est maintenu à la
+ * fois : ranger un produit ailleurs (recherche depuis une autre case, sélecteur de rayon de la
+ * fiche produit, ou déplacement explicite) retire toujours l'ancien lien en même temps qu'il
+ * ajoute le nouveau — voir [com.example.util.EtagereLayout.diffEmplacementUnique]. Ainsi
+ * l'emplacement affiché dans la fiche produit et celui vu depuis l'écran Étagère ne peuvent
+ * jamais diverger.
  */
 @Entity(
     tableName = "produits_niveau",

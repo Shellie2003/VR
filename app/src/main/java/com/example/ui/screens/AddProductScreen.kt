@@ -2035,7 +2035,7 @@ fun AddProductScreen(
     }
 
     if (showRayonPicker) {
-        RayonPickerDialog(
+        EmplacementPickerDialog(
             plan = viewModel.planEtagere.collectAsState().value,
             niveauChoisiId = niveauChoisiId,
             activeLang = activeLang,
@@ -2043,134 +2043,6 @@ fun AddProductScreen(
             onDismiss = { showRayonPicker = false }
         )
     }
-}
-
-/**
- * Sélecteur d'emplacement en rayon, ouvert depuis la fiche produit. Regroupe les niveaux par
- * étagère (voir Paramètres > Plan d'étagères) avec une option « Aucun emplacement » en tête pour
- * effacer le choix. Si aucune étagère n'existe encore, un message renvoie vers l'écran qui permet
- * d'en créer plutôt que d'afficher une liste vide sans explication.
- */
-@Composable
-private fun RayonPickerDialog(
-    plan: List<InventoryViewModel.EtagereAvecNiveaux>,
-    niveauChoisiId: Long?,
-    activeLang: String,
-    onChoisir: (Long?) -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = when (activeLang) {
-                    "mg" -> "Misafidiana toerana amin'ny étagère"
-                    "fr" -> "Choisir un emplacement"
-                    else -> "Choose a location"
-                },
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            if (plan.isEmpty()) {
-                Text(
-                    text = when (activeLang) {
-                        "mg" -> "Mbola tsy misy étagère voarindra. Mankanesa any amin'ny Paramètres > Plan d'étagères mba hamorona."
-                        "fr" -> "Aucune étagère n'a encore été créée. Rendez-vous dans Paramètres > Plan d'étagères pour en créer une."
-                        else -> "No shelf has been created yet. Go to Settings > Shelf plan to create one."
-                    },
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 420.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onChoisir(null) }
-                            .padding(vertical = 10.dp, horizontal = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        RadioButton(selected = niveauChoisiId == null, onClick = { onChoisir(null) })
-                        Text(
-                            text = when (activeLang) {
-                                "mg" -> "Tsy misy toerana"
-                                "fr" -> "Aucun emplacement"
-                                else -> "No location"
-                            },
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    HorizontalDivider()
-                    plan.forEach { etagereAvecNiveaux ->
-                        Text(
-                            text = etagereAvecNiveaux.etagere.nom,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 8.dp, start = 8.dp, bottom = 2.dp)
-                        )
-                        if (etagereAvecNiveaux.niveaux.isEmpty()) {
-                            Text(
-                                text = when (activeLang) {
-                                    "mg" -> "Tsy mbola misy rayon"
-                                    "fr" -> "Aucun rayon pour l'instant"
-                                    else -> "No shelf level yet"
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.padding(start = 16.dp)
-                            )
-                        } else {
-                            etagereAvecNiveaux.niveaux.sortedByDescending { it.niveau.position }.forEachIndexed { index, niveauAvecProduits ->
-                                val nomNiveau = niveauAvecProduits.niveau.nom.ifBlank {
-                                    val numero = etagereAvecNiveaux.niveaux.size - index
-                                    when (activeLang) {
-                                        "mg" -> "Rayon $numero"
-                                        "fr" -> "Niveau $numero"
-                                        else -> "Level $numero"
-                                    }
-                                }
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable { onChoisir(niveauAvecProduits.niveau.id) }
-                                        .padding(vertical = 8.dp, horizontal = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    RadioButton(
-                                        selected = niveauChoisiId == niveauAvecProduits.niveau.id,
-                                        onClick = { onChoisir(niveauAvecProduits.niveau.id) }
-                                    )
-                                    Text(nomNiveau, style = MaterialTheme.typography.bodyMedium)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(
-                    text = when (activeLang) {
-                        "mg" -> "Vita"
-                        "fr" -> "Fermer"
-                        else -> "Close"
-                    }
-                )
-            }
-        }
-    )
 }
 
 // L'enregistrement des photos vit désormais dans util/PhotoStore : un seul endroit sait où sont
