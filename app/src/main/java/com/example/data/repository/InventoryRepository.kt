@@ -216,7 +216,7 @@ class InventoryRepository(
             note = "Enregistré depuis le modèle Product"
         )
         mouvementStockDao.insertMouvement(mvt)
-        generatedId.toInt()
+        return generatedId.toInt()
     }
 
     suspend fun updateProduct(product: Product) {
