@@ -53,7 +53,7 @@ import androidx.compose.foundation.shape.CircleShape
 fun AddProductScreen(
     viewModel: InventoryViewModel,
     editingProduct: Product?,
-    onSaveProduct: (Product) -> Unit,
+    onSaveProduct: (Product, niveauChoisiId: Long?) -> Unit,
     onCancel: () -> Unit
 ) {
     val activeLang by viewModel.language.collectAsState()
@@ -84,6 +84,15 @@ fun AddProductScreen(
     var lowStockThresholdStr by remember(editingProduct) { mutableStateOf(editingProduct?.lowStockThreshold?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "5") }
     var stockMaxStr by remember(editingProduct) { mutableStateOf(editingProduct?.stockMax?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "") }
     var emplacement by remember(editingProduct) { mutableStateOf(editingProduct?.emplacement ?: "") }
+    // Emplacement en rayon (plan d'étagères interactif) : distinct du champ texte libre
+    // ci-dessus, qui reste disponible pour les commerces qui n'utilisent pas le plan. Pré-rempli
+    // avec l'emplacement actuel du produit s'il en a un (lu une seule fois à l'ouverture de la
+    // fiche, pas de manière réactive : un changement du plan pendant l'édition ne doit pas faire
+    // sauter la sélection en cours sous les yeux du gérant).
+    var niveauChoisiId by remember(editingProduct) {
+        mutableStateOf(editingProduct?.let { viewModel.niveauActuelDuProduit(it.id) })
+    }
+    var showRayonPicker by remember { mutableStateOf(false) }
     var prixAchatUniteBaseStr by remember(editingProduct) { mutableStateOf(editingProduct?.prixAchatUniteBase?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "") }
     var wholesalePriceStr by remember(editingProduct) { mutableStateOf(editingProduct?.wholesalePrice?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "") }
 
@@ -889,6 +898,63 @@ fun AddProductScreen(
                         shape = RoundedCornerShape(12.dp)
                     )
 
+                    // Rayon picker : emplacement dans le plan d'étagères interactif, distinct du
+                    // champ texte libre ci-dessus. Lecture seule + tap, comme le sélecteur de
+                    // fournisseur juste au-dessus : un dialogue plutôt qu'un menu déroulant, pour
+                    // pouvoir regrouper les niveaux sous leur étagère.
+                    val planPourPicker by viewModel.planEtagere.collectAsState()
+                    val etagereEtNiveauChoisis = remember(planPourPicker, niveauChoisiId) {
+                        niveauChoisiId?.let { id ->
+                            planPourPicker.firstNotNullOfOrNull { e ->
+                                e.niveaux.find { it.niveau.id == id }?.let { n -> e.etagere to n }
+                            }
+                        }
+                    }
+                    val libelleRayonChoisi = etagereEtNiveauChoisis?.let { (etagere, niveau) ->
+                        val nomNiveau = niveau.niveau.nom.ifBlank {
+                            when (activeLang) { "mg" -> "Rayon"; "fr" -> "Niveau"; else -> "Level" }
+                        }
+                        "${etagere.nom} • $nomNiveau"
+                    } ?: when (activeLang) {
+                        "mg" -> "Tsy misy voafidy"
+                        "fr" -> "Aucun emplacement choisi"
+                        else -> "No location chosen"
+                    }
+                    // Une Card cliquable plutôt qu'un OutlinedTextField : un champ readOnly avec
+                    // un simple `.clickable` risquerait de voir son tap intercepté par la gestion
+                    // tactile interne du TextField (focus, curseur) avant d'atteindre notre
+                    // gestionnaire — le reste de cet écran utilise toujours ExposedDropdownMenuBox
+                    // pour ce cas de figure ; ici, avec un regroupement par étagère à afficher, un
+                    // dialogue est plus adapté qu'un menu déroulant, donc une simple Card évite
+                    // l'ambiguïté plutôt que de forcer un TextField à faire autre chose que saisir
+                    // du texte.
+                    OutlinedCard(
+                        onClick = { showRayonPicker = true },
+                        modifier = Modifier.fillMaxWidth().testTag("rayon_picker_field"),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(Icons.Default.GridView, contentDescription = null, tint = MaterialTheme.colorScheme.outline)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = when (activeLang) {
+                                        "mg" -> "Toerana amin'ny étagère (raha misy)"
+                                        "fr" -> "Emplacement dans le plan d'étagères"
+                                        else -> "Location in the shelf plan"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                                Text(libelleRayonChoisi, style = MaterialTheme.typography.bodyMedium)
+                            }
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.outline)
+                        }
+                    }
+
                     // Low Stock Threshold Input (Double)
                     OutlinedTextField(
                         value = lowStockThresholdStr,
@@ -1358,7 +1424,7 @@ fun AddProductScreen(
                                 tauxTaxe = finalTauxTaxe,
                                 prixAchatUniteBase = finalPrixAchatUniteBase
                             )
-                            onSaveProduct(saved)
+                            onSaveProduct(saved, niveauChoisiId)
                         }
                     },
                     modifier = Modifier
@@ -1967,6 +2033,144 @@ fun AddProductScreen(
             }
         }
     }
+
+    if (showRayonPicker) {
+        RayonPickerDialog(
+            plan = viewModel.planEtagere.collectAsState().value,
+            niveauChoisiId = niveauChoisiId,
+            activeLang = activeLang,
+            onChoisir = { id -> niveauChoisiId = id; showRayonPicker = false },
+            onDismiss = { showRayonPicker = false }
+        )
+    }
+}
+
+/**
+ * Sélecteur d'emplacement en rayon, ouvert depuis la fiche produit. Regroupe les niveaux par
+ * étagère (voir Paramètres > Plan d'étagères) avec une option « Aucun emplacement » en tête pour
+ * effacer le choix. Si aucune étagère n'existe encore, un message renvoie vers l'écran qui permet
+ * d'en créer plutôt que d'afficher une liste vide sans explication.
+ */
+@Composable
+private fun RayonPickerDialog(
+    plan: List<InventoryViewModel.EtagereAvecNiveaux>,
+    niveauChoisiId: Long?,
+    activeLang: String,
+    onChoisir: (Long?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = when (activeLang) {
+                    "mg" -> "Misafidiana toerana amin'ny étagère"
+                    "fr" -> "Choisir un emplacement"
+                    else -> "Choose a location"
+                },
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            if (plan.isEmpty()) {
+                Text(
+                    text = when (activeLang) {
+                        "mg" -> "Mbola tsy misy étagère voarindra. Mankanesa any amin'ny Paramètres > Plan d'étagères mba hamorona."
+                        "fr" -> "Aucune étagère n'a encore été créée. Rendez-vous dans Paramètres > Plan d'étagères pour en créer une."
+                        else -> "No shelf has been created yet. Go to Settings > Shelf plan to create one."
+                    },
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onChoisir(null) }
+                            .padding(vertical = 10.dp, horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        RadioButton(selected = niveauChoisiId == null, onClick = { onChoisir(null) })
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Tsy misy toerana"
+                                "fr" -> "Aucun emplacement"
+                                else -> "No location"
+                            },
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    HorizontalDivider()
+                    plan.forEach { etagereAvecNiveaux ->
+                        Text(
+                            text = etagereAvecNiveaux.etagere.nom,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 8.dp, start = 8.dp, bottom = 2.dp)
+                        )
+                        if (etagereAvecNiveaux.niveaux.isEmpty()) {
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Tsy mbola misy rayon"
+                                    "fr" -> "Aucun rayon pour l'instant"
+                                    else -> "No shelf level yet"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.padding(start = 16.dp)
+                            )
+                        } else {
+                            etagereAvecNiveaux.niveaux.sortedByDescending { it.niveau.position }.forEachIndexed { index, niveauAvecProduits ->
+                                val nomNiveau = niveauAvecProduits.niveau.nom.ifBlank {
+                                    val numero = etagereAvecNiveaux.niveaux.size - index
+                                    when (activeLang) {
+                                        "mg" -> "Rayon $numero"
+                                        "fr" -> "Niveau $numero"
+                                        else -> "Level $numero"
+                                    }
+                                }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { onChoisir(niveauAvecProduits.niveau.id) }
+                                        .padding(vertical = 8.dp, horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    RadioButton(
+                                        selected = niveauChoisiId == niveauAvecProduits.niveau.id,
+                                        onClick = { onChoisir(niveauAvecProduits.niveau.id) }
+                                    )
+                                    Text(nomNiveau, style = MaterialTheme.typography.bodyMedium)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = when (activeLang) {
+                        "mg" -> "Vita"
+                        "fr" -> "Fermer"
+                        else -> "Close"
+                    }
+                )
+            }
+        }
+    )
 }
 
 // L'enregistrement des photos vit désormais dans util/PhotoStore : un seul endroit sait où sont

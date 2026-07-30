@@ -1681,6 +1681,52 @@ class InventoryViewModel(
         }
     }
 
+    /**
+     * Variante utilisée par la fiche produit quand un emplacement en rayon a été choisi via le
+     * sélecteur (« Rayon picker »). Fait tout dans la même coroutine, dans cet ordre précis :
+     * enregistrer le produit d'abord (pour connaître son id définitif — un produit tout juste créé
+     * n'en a pas encore), puis appliquer le diff d'emplacement (voir
+     * [com.example.util.EtagereLayout.diffEmplacementUnique]).
+     *
+     * `niveauChoisiId` n'est vérifié qu'au moment d'écrire : si ce niveau a été supprimé entre
+     * l'ouverture de la fiche produit et l'enregistrement (un autre poste a modifié le plan
+     * d'étagères entre-temps), on l'ignore silencieusement plutôt que de planter ou de créer une
+     * référence pointant dans le vide — le produit est simplement enregistré sans emplacement.
+     */
+    fun saveProductAvecEmplacement(product: Product, niveauChoisiId: Long?) {
+        lancerProtege("l'enregistrement du produit") {
+            val produitId = if (product.id == 0) {
+                repository.insertProduct(product)
+            } else {
+                repository.updateProduct(product)
+                product.id
+            }
+            if (product.isLowStock) {
+                NotificationHelper.showLowStockNotification(context, product.copy(id = produitId))
+            }
+
+            val niveauExisteEncore = niveauChoisiId == null ||
+                repository.allNiveauxEtagere.first().any { it.id == niveauChoisiId }
+            val niveauValide = if (niveauExisteEncore) niveauChoisiId else null
+
+            val liensExistants = repository.allProduitsNiveau.first().filter { it.produitId == produitId }
+            val diff = com.example.util.EtagereLayout.diffEmplacementUnique(liensExistants, niveauValide)
+            diff.liensASupprimer.forEach { repository.retirerProduitDuNiveau(it) }
+            diff.niveauAAjouter?.let { repository.ajouterProduitAuNiveau(it, produitId) }
+
+            com.example.sync.SyncManager.triggerDatabaseSync()
+            triggerLocalSafetyBackup()
+        }
+    }
+
+    /** Emplacement actuel d'un produit (le premier trouvé s'il en a plusieurs), pour pré-remplir
+     * le sélecteur de rayon à l'ouverture de la fiche produit en mode édition. */
+    fun niveauActuelDuProduit(produitId: Int): Long? =
+        planEtagere.value
+            .flatMap { it.niveaux }
+            .firstOrNull { niveau -> niveau.liens.any { it.produitId == produitId } }
+            ?.niveau?.id
+
     fun deleteProduct(product: Product): Boolean {
         if (com.example.sync.SyncManager.isConnected.value && !com.example.sync.SyncManager.isServer.value) {
             addSyncLog("Tsy mahazo mamafa entana ny Client (La suppression est réservée au Serveur)")
@@ -1705,6 +1751,10 @@ class InventoryViewModel(
         lancerProtege("la suppression du produit") {
             repository.deleteProduct(product)
             repository.recordDeletion("product", TombstoneKeys.product(product.barcode, product.sku, product.name))
+            // Room ne garantit PAS que cet id ne sera jamais réattribué (voir le commentaire sur
+            // EtagereDao.deleteProduitsNiveauByProduit) : sans ce nettoyage, un futur produit sans
+            // rapport pourrait hériter silencieusement de l'emplacement en rayon de celui-ci.
+            repository.deleteProduitsNiveauByProduit(product.id)
             removeFromCart("product_${product.id}")
             com.example.sync.SyncManager.triggerDatabaseSync()
             triggerLocalSafetyBackup()

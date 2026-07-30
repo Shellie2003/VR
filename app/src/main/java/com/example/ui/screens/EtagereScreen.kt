@@ -58,7 +58,25 @@ fun EtagereScreen(
     val activeLang by viewModel.language.collectAsState()
     val plan by viewModel.planEtagere.collectAsState()
 
-    var niveauSelectionne by remember { mutableStateOf<Pair<Etagere, InventoryViewModel.NiveauAvecProduits>?>(null) }
+    // On ne garde que l'ID du niveau ouvert, jamais un instantané de son contenu : la paire
+    // (étagère, niveau+produits) est recalculée à chaque changement de `plan`, ce qui a deux
+    // effets voulus à la fois — (1) ajouter/retirer un produit depuis le dialogue met sa liste à
+    // jour immédiatement au lieu de montrer un contenu figé au moment de l'ouverture ; (2) si le
+    // niveau disparaît pendant que le dialogue est ouvert (supprimé depuis un autre poste via la
+    // synchronisation multi-terminal, ou via « Supprimer ce rayon »), la recherche ne trouve plus
+    // rien et le dialogue se ferme tout seul plutôt que de continuer à agir sur un niveau fantôme.
+    var niveauSelectionneId by remember { mutableStateOf<Long?>(null) }
+    val niveauSelectionne = remember(plan, niveauSelectionneId) {
+        niveauSelectionneId?.let { id ->
+            plan.firstNotNullOfOrNull { etagereAvecNiveaux ->
+                etagereAvecNiveaux.niveaux.find { it.niveau.id == id }?.let { niveau -> etagereAvecNiveaux.etagere to niveau }
+            }
+        }
+    }
+    LaunchedEffect(niveauSelectionneId, niveauSelectionne) {
+        if (niveauSelectionneId != null && niveauSelectionne == null) niveauSelectionneId = null
+    }
+
     var etagereARenommer by remember { mutableStateOf<Etagere?>(null) }
     var etagereASupprimer by remember { mutableStateOf<Etagere?>(null) }
 
@@ -103,7 +121,7 @@ fun EtagereScreen(
                     ColonneEtagere(
                         etagereAvecNiveaux = etagereAvecNiveaux,
                         activeLang = activeLang,
-                        onClickNiveau = { niveauSelectionne = etagereAvecNiveaux.etagere to it },
+                        onClickNiveau = { niveauSelectionneId = it.niveau.id },
                         onAjouterNiveau = { cote -> viewModel.ajouterNiveau(etagereAvecNiveaux.etagere.id, cote) },
                         onRenommer = { etagereARenommer = etagereAvecNiveaux.etagere },
                         onSupprimer = { etagereASupprimer = etagereAvecNiveaux.etagere }
@@ -132,9 +150,9 @@ fun EtagereScreen(
             onRetirerProduit = { lien -> viewModel.retirerProduitDuNiveau(lien) },
             onSupprimerNiveau = {
                 viewModel.supprimerNiveau(niveauAvecProduits.niveau)
-                niveauSelectionne = null
+                niveauSelectionneId = null
             },
-            onDismiss = { niveauSelectionne = null }
+            onDismiss = { niveauSelectionneId = null }
         )
     }
 

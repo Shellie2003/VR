@@ -741,8 +741,8 @@ fun MainAppLayout(
                         ScreenTab.Manampy -> AddProductScreen(
                             viewModel = viewModel,
                             editingProduct = productToEdit,
-                            onSaveProduct = { product ->
-                                viewModel.saveProduct(product)
+                            onSaveProduct = { product, niveauId ->
+                                viewModel.saveProductAvecEmplacement(product, niveauId)
                                 productToEdit = null
                                 navigateToList()
                             },
@@ -873,8 +873,8 @@ fun MainAppLayout(
                     ScreenTab.Manampy -> AddProductScreen(
                         viewModel = viewModel,
                         editingProduct = productToEdit,
-                        onSaveProduct = { product ->
-                            viewModel.saveProduct(product)
+                        onSaveProduct = { product, niveauId ->
+                            viewModel.saveProductAvecEmplacement(product, niveauId)
                             productToEdit = null
                             navigateToList()
                         },

@@ -141,10 +141,12 @@ class InventoryRepository(
         productDao.getProductByName(name)
     }
 
-    suspend fun insertProduct(product: Product) {
+    /** Retourne l'id généré, pour les appelants qui doivent enchaîner une action sur ce produit
+     * (ex. l'assigner à un emplacement en rayon juste après sa création). */
+    suspend fun insertProduct(product: Product): Int {
         val generatedId = productDao.insertProduct(product)
         if (product.isTemplate) {
-            return
+            return generatedId.toInt()
         }
         val productWithId = product.copy(id = generatedId.toInt())
         // Sync to the new relational Produits table
@@ -214,6 +216,7 @@ class InventoryRepository(
             note = "Enregistré depuis le modèle Product"
         )
         mouvementStockDao.insertMouvement(mvt)
+        generatedId.toInt()
     }
 
     suspend fun updateProduct(product: Product) {
@@ -551,6 +554,10 @@ class InventoryRepository(
 
     suspend fun retirerProduitDuNiveau(lienId: Long) =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { etagereDao.deleteProduitNiveauById(lienId) }
+
+    /** À appeler à chaque suppression de produit — voir le commentaire sur la requête DAO. */
+    suspend fun deleteProduitsNiveauByProduit(produitId: Int) =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { etagereDao.deleteProduitsNiveauByProduit(produitId) }
 
     suspend fun findEtagereByNaturalKey(nom: String, position: Int) =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { etagereDao.findEtagereByNaturalKey(nom, position) }

@@ -56,6 +56,14 @@ interface EtagereDao {
     @Query("DELETE FROM produits_niveau WHERE niveauId IN (SELECT id FROM niveaux_etagere WHERE etagereId = :etagereId)")
     suspend fun deleteProduitsNiveauByEtagere(etagereId: Long)
 
+    // Room mappe @PrimaryKey(autoGenerate = true) sur un simple "INTEGER PRIMARY KEY", PAS sur
+    // "INTEGER PRIMARY KEY AUTOINCREMENT" : SQLite peut donc réutiliser l'id d'un produit supprimé
+    // pour le tout prochain produit inséré. Sans ce nettoyage, un nouveau produit sans aucun
+    // rapport pourrait hériter silencieusement de l'emplacement en rayon d'un produit supprimé —
+    // affiché comme "déjà rangé ici" alors qu'il n'a jamais été placé nulle part.
+    @Query("DELETE FROM produits_niveau WHERE produitId = :produitId")
+    suspend fun deleteProduitsNiveauByProduit(produitId: Int)
+
     @Query("SELECT * FROM etageres WHERE nom = :nom AND position = :position LIMIT 1")
     suspend fun findEtagereByNaturalKey(nom: String, position: Int): Etagere?
 
