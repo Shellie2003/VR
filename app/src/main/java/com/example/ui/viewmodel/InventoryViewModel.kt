@@ -1052,6 +1052,8 @@ class InventoryViewModel(
     val licenceEnVerification = MutableStateFlow(false)
     /** Message de résultat de la dernière vérification, affiché sur l'écran d'activation. */
     val licenceMessage = MutableStateFlow<String?>(null)
+    /** true si [licenceMessage] décrit un échec (à afficher en rouge plutôt qu'en vert). */
+    val licenceMessageEstErreur = MutableStateFlow(false)
 
     /** Code appareil lisible (dérivé d'ANDROID_ID), affiché sur l'écran d'activation. */
     val deviceCodeFormatted: String by lazy { com.example.util.DeviceIdentity.formatted(context) }
@@ -1072,51 +1074,76 @@ class InventoryViewModel(
     fun verifierLicenceEnLigne(numeroLicenceSaisi: String = "") {
         if (licenceEnVerification.value) return
         licenceEnVerification.value = true
+        licenceMessage.value = null
+        licenceMessageEstErreur.value = false
         val numero = numeroLicenceSaisi.trim()
             .ifBlank { appPreferences.licenceNumber.ifBlank { installationId } }
         viewModelScope.launch(coroutineExceptionHandler) {
-            val resultat = com.example.util.LicenceManager.verifierLicence(
-                numero, com.example.util.DeviceIdentity.rawId(context)
-            )
-            licenceEnVerification.value = false
-            resultat.fold(
-                onSuccess = { licence ->
-                    appPreferences.licenceState = licence.etat
-                    appPreferences.licenceExpiry = licence.expiration
-                    appPreferences.licenceLastCheck = System.currentTimeMillis()
-                    appPreferences.licenceShopLabel = licence.epicerie
-                    licenceState.value = licence.etat
-                    if (licence.estActive) {
-                        appPreferences.licenceNumber = numero
-                        appPreferences.isActivated = true
-                        isActivated.value = true
-                        // Le nom de la boutique tel qu'enregistré chez le fournisseur est annoncé
-                        // au déverrouillage : une licence utilisée ailleurs afficherait le nom du
-                        // voisin, ce qui rend l'arrangement gênant à assumer.
-                        val boutique = licence.epicerie.takeIf { it.isNotBlank() }?.let { " — $it" } ?: ""
-                        licenceMessage.value = when (language.value) {
-                            "mg" -> "Nekena ny fanalahidy$boutique. Misokatra ny application."
-                            "fr" -> "Licence validée$boutique. Application activée."
-                            else -> "Licence validated$boutique. App activated."
+            // Filet de dernier recours : LicenceManager.verifierLicence rattrape déjà tout ce qui
+            // peut aller mal côté réseau/JSON, mais un client verrouillé qui appuie sur ce bouton
+            // et ne voit RIEN se passer (ni activation, ni message d'erreur) n'a plus aucun moyen
+            // d'agir — il ne peut même pas savoir s'il doit réessayer ou contacter le fournisseur.
+            // Ce try/finally garantit qu'un message s'affiche et que le bouton redevient cliquable
+            // dans tous les cas, y compris une exception totalement inattendue (ex. lecture de
+            // l'ID appareil qui échoue sur un appareil atypique).
+            try {
+                val resultat = com.example.util.LicenceManager.verifierLicence(
+                    numero, com.example.util.DeviceIdentity.rawId(context)
+                )
+                resultat.fold(
+                    onSuccess = { licence ->
+                        appPreferences.licenceState = licence.etat
+                        appPreferences.licenceExpiry = licence.expiration
+                        appPreferences.licenceLastCheck = System.currentTimeMillis()
+                        appPreferences.licenceShopLabel = licence.epicerie
+                        licenceState.value = licence.etat
+                        if (licence.estActive) {
+                            appPreferences.licenceNumber = numero
+                            appPreferences.isActivated = true
+                            isActivated.value = true
+                            // Le nom de la boutique tel qu'enregistré chez le fournisseur est annoncé
+                            // au déverrouillage : une licence utilisée ailleurs afficherait le nom du
+                            // voisin, ce qui rend l'arrangement gênant à assumer.
+                            val boutique = licence.epicerie.takeIf { it.isNotBlank() }?.let { " — $it" } ?: ""
+                            licenceMessage.value = when (language.value) {
+                                "mg" -> "Nekena ny fanalahidy$boutique. Misokatra ny application."
+                                "fr" -> "Licence validée$boutique. Application activée."
+                                else -> "Licence validated$boutique. App activated."
+                            }
+                            licenceMessageEstErreur.value = false
+                        } else {
+                            // Licence absente, suspendue ou expirée : on reverrouille, même si
+                            // l'appareil avait été activé auparavant (impayé, fin d'abonnement).
+                            appPreferences.isActivated = false
+                            isActivated.value = false
+                            licenceMessage.value = messageLicenceRefusee(licence.etat)
+                            licenceMessageEstErreur.value = true
                         }
-                    } else {
-                        // Licence absente, suspendue ou expirée : on reverrouille, même si
-                        // l'appareil avait été activé auparavant (impayé, fin d'abonnement).
-                        appPreferences.isActivated = false
-                        isActivated.value = false
-                        licenceMessage.value = messageLicenceRefusee(licence.etat)
+                    },
+                    onFailure = {
+                        // Panne réseau : on ne verrouille jamais une épicerie qui travaille à cause
+                        // d'une coupure. On garde le dernier état connu tant que la tolérance court.
+                        licenceMessage.value = when (language.value) {
+                            "mg" -> "Tsy tafiditra amin'ny aterineto. Andramo indray rehefa misy fifandraisana."
+                            "fr" -> "Connexion impossible. Réessayez une fois connecté à Internet."
+                            else -> "Connection failed. Try again once online."
+                        }
+                        licenceMessageEstErreur.value = true
                     }
-                },
-                onFailure = {
-                    // Panne réseau : on ne verrouille jamais une épicerie qui travaille à cause
-                    // d'une coupure. On garde le dernier état connu tant que la tolérance court.
-                    licenceMessage.value = when (language.value) {
-                        "mg" -> "Tsy tafiditra amin'ny aterineto. Andramo indray rehefa misy fifandraisana."
-                        "fr" -> "Connexion impossible. Réessayez une fois connecté à Internet."
-                        else -> "Connection failed. Try again once online."
-                    }
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("InventoryViewModel", "Échec inattendu de la vérification de licence", e)
+                licenceMessageEstErreur.value = true
+                licenceMessage.value = when (language.value) {
+                    "mg" -> "Nisy olana tsy nampoizina. Andramo indray."
+                    "fr" -> "Une erreur inattendue est survenue. Réessayez."
+                    else -> "An unexpected error occurred. Try again."
                 }
-            )
+            } finally {
+                licenceEnVerification.value = false
+            }
         }
     }
 

@@ -384,6 +384,7 @@ fun ActivationScreen(viewModel: InventoryViewModel, t: (String) -> String) {
     // base Firebase, puis le client appuie ici. Le code à 6 chiffres reste le secours hors-ligne.
     val enVerification by viewModel.licenceEnVerification.collectAsState()
     val licenceMessage by viewModel.licenceMessage.collectAsState()
+    val licenceMessageEstErreur by viewModel.licenceMessageEstErreur.collectAsState()
     val activeLang by viewModel.language.collectAsState()
 
     // Cet écran a grossi au fil des ajouts (ID + code appareil + numéro de licence + bouton de
@@ -597,14 +598,46 @@ fun ActivationScreen(viewModel: InventoryViewModel, t: (String) -> String) {
                     )
                 }
 
+                // Un résultat de vérification qui se perd dans un petit texte gris est un résultat
+                // qu'un client pressé ou anxieux ne remarque pas — au point de croire qu'il ne
+                // s'est rien passé du tout. Une carte pleine couleur (vert/rouge), avec une icône,
+                // est nettement plus difficile à manquer, surtout après une attente de plusieurs
+                // secondes où l'écran est resté silencieux.
                 licenceMessage?.let { message ->
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    val couleurFond = if (licenceMessageEstErreur) {
+                        MaterialTheme.colorScheme.errorContainer
+                    } else {
+                        MaterialTheme.colorScheme.primaryContainer
+                    }
+                    val couleurTexte = if (licenceMessageEstErreur) {
+                        MaterialTheme.colorScheme.onErrorContainer
+                    } else {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(couleurFond)
+                            .padding(12.dp)
+                            .testTag("licence_message"),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (licenceMessageEstErreur) Icons.Default.ErrorOutline else Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = couleurTexte,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = couleurTexte,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
 
                 Text(
