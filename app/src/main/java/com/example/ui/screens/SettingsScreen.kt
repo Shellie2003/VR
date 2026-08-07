@@ -36,6 +36,38 @@ import com.example.util.FirebaseBackupManager
 import com.example.util.LanguageManager
 import kotlinx.coroutines.launch
 
+/**
+ * Message précis pour chaque issue d'une restauration cloud (voir
+ * [InventoryViewModel.restaurerDepuisCloud]) — un gérant hors-ligne ne doit jamais lire « aucune
+ * sauvegarde trouvée » (il croirait le code cassé), et une vraie faute de frappe ne doit jamais
+ * lire « pas de réseau » (il chercherait du Wi-Fi au lieu de corriger le code).
+ */
+private fun messageResultatRestauration(
+    resultat: InventoryViewModel.ResultatRestaurationCloud,
+    activeLang: String
+): String = when (resultat) {
+    InventoryViewModel.ResultatRestaurationCloud.SUCCES -> when (activeLang) {
+        "mg" -> "Tafita! Tafaverina ny angona. Karohina ny sary."
+        "fr" -> "Restauration réussie ! Recherche des photos en cours."
+        else -> "Restore successful! Fetching photos."
+    }
+    InventoryViewModel.ResultatRestaurationCloud.CODE_INVALIDE -> when (activeLang) {
+        "mg" -> "Diso ny kaody. Hamarino tsara ny litera sy isa."
+        "fr" -> "Code invalide. Vérifiez lettres et chiffres."
+        else -> "Invalid code. Check letters and digits."
+    }
+    InventoryViewModel.ResultatRestaurationCloud.HORS_LIGNE -> when (activeLang) {
+        "mg" -> "Tsy misy aterineto. Andramo indray rehefa misy fifandraisana."
+        "fr" -> "Pas de connexion internet. Réessayez une fois connecté."
+        else -> "No internet connection. Try again once online."
+    }
+    InventoryViewModel.ResultatRestaurationCloud.AUCUNE_SAUVEGARDE -> when (activeLang) {
+        "mg" -> "Tsy nisy backup hita tamin'io kaody io."
+        "fr" -> "Aucune sauvegarde trouvée pour ce code. Vérifiez qu'il a bien été copié depuis l'autre téléphone."
+        else -> "No backup found for this code. Check it was copied correctly from the other phone."
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -1838,30 +1870,11 @@ fun SettingsScreen(
                             onClick = {
                                 run {
                                     viewModel.updateFirebaseDatabaseUrl(firebaseDatabaseUrlInput.trim())
-                                    val urlEffective = FirebaseBackupManager.resolveDatabaseUrl(firebaseDatabaseUrlInput)
                                     isCloudRestoreLoading = true
                                     coroutineScope.launch {
-                                        val result = FirebaseBackupManager.downloadBackup(urlEffective, firebaseBackupToken)
+                                        val resultat = viewModel.restaurerDepuisCloud()
                                         isCloudRestoreLoading = false
-                                        result.onSuccess { json ->
-                                            viewModel.syncFullDatabaseSync(json)
-                                            // Les photos ne voyagent plus dans la sauvegarde :
-                                            // on les redemande à Open Food Facts par code-barres.
-                                            viewModel.rechercherPhotosManquantes()
-                                        }
-                                        snackbarMessage = if (result.isSuccess) {
-                                            when (activeLang) {
-                                                "mg" -> "Tafita! Tafaverina ny tahiry avy any amin'ny rahona."
-                                                "fr" -> "Restauration Cloud réussie ! Données récupérées."
-                                                else -> "Cloud restore successful! Data recovered."
-                                            }
-                                        } else {
-                                            when (activeLang) {
-                                                "mg" -> "Hadisoana: tsy misy backup hita any amin'ny rahona."
-                                                "fr" -> "Échec : aucune sauvegarde trouvée sur le Cloud."
-                                                else -> "Failed: no backup found on the Cloud."
-                                            }
-                                        }
+                                        snackbarMessage = messageResultatRestauration(resultat, activeLang)
                                         showSnackbar = true
                                     }
                                 }
@@ -1951,34 +1964,20 @@ fun SettingsScreen(
                     },
                     confirmButton = {
                         Button(onClick = {
-                            if (!viewModel.appliquerCodeRecuperation(recoveryCodeInput)) {
-                                recoveryCodeError = true
-                            } else {
-                                showRecoveryCodeDialog = false
-                                isCloudRestoreLoading = true
-                                coroutineScope.launch {
-                                    val urlEffective = FirebaseBackupManager.resolveDatabaseUrl(firebaseDatabaseUrlInput)
-                                    val result = FirebaseBackupManager.downloadBackup(urlEffective, viewModel.firebaseBackupToken)
-                                    isCloudRestoreLoading = false
-                                    result.onSuccess { json ->
-                                        viewModel.syncFullDatabaseSync(json)
-                                        // Les photos ne voyagent plus dans la sauvegarde : on les
-                                        // redemande à Open Food Facts pour les produits à code-barres.
-                                        viewModel.rechercherPhotosManquantes()
-                                    }
-                                    snackbarMessage = if (result.isSuccess) {
-                                        when (activeLang) {
-                                            "mg" -> "Tafita! Tafaverina ny angona. Karohina ny sary."
-                                            "fr" -> "Restauration réussie ! Recherche des photos en cours."
-                                            else -> "Restore successful! Fetching photos."
-                                        }
-                                    } else {
-                                        when (activeLang) {
-                                            "mg" -> "Tsy nisy backup hita tamin'io kaody io."
-                                            "fr" -> "Aucune sauvegarde trouvée pour ce code."
-                                            else -> "No backup found for this code."
-                                        }
-                                    }
+                            recoveryCodeError = false
+                            isCloudRestoreLoading = true
+                            viewModel.updateFirebaseDatabaseUrl(firebaseDatabaseUrlInput.trim())
+                            coroutineScope.launch {
+                                val resultat = viewModel.restaurerDepuisCloud(recoveryCodeInput)
+                                isCloudRestoreLoading = false
+                                if (resultat == InventoryViewModel.ResultatRestaurationCloud.CODE_INVALIDE) {
+                                    // Rien n'est modifié sur une saisie invalide (voir
+                                    // appliquerCodeRecuperation) : le dialogue reste ouvert avec
+                                    // l'erreur inline, exactement comme avant ce refactor.
+                                    recoveryCodeError = true
+                                } else {
+                                    showRecoveryCodeDialog = false
+                                    snackbarMessage = messageResultatRestauration(resultat, activeLang)
                                     showSnackbar = true
                                 }
                             }

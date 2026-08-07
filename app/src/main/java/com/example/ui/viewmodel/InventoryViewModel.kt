@@ -3306,6 +3306,45 @@ class InventoryViewModel(
         }
     }
 
+    /** Issue précise d'une tentative de restauration cloud — voir [restaurerDepuisCloud]. */
+    enum class ResultatRestaurationCloud { SUCCES, CODE_INVALIDE, HORS_LIGNE, AUCUNE_SAUVEGARDE }
+
+    /**
+     * Restaure les données depuis la sauvegarde Firebase, sur un nouveau téléphone ou pour
+     * rafraîchir l'appareil courant.
+     *
+     * [codeRecuperationSaisi] : renseigné quand le gérant rattache ce téléphone à la sauvegarde
+     * d'un AUTRE appareil (voir [appliquerCodeRecuperation]) ; laissé à null pour un simple
+     * rafraîchissement depuis le code déjà enregistré sur cet appareil.
+     *
+     * Distingue explicitement trois façons d'échouer, qu'un simple `Result<String>` fait
+     * paraître identiques (« Aucune sauvegarde trouvée ») alors que ce ne sont pas du tout la
+     * même situation pour le gérant : un code mal recopié se corrige immédiatement, une coupure
+     * réseau se résout en attendant, une absence réelle de sauvegarde suggère de vérifier que le
+     * premier appareil a bien eu l'occasion de sauvegarder au moins une fois. Sans cette
+     * distinction, un gérant hors-ligne voit « aucune sauvegarde trouvée pour ce code » alors que
+     * le code est parfaitement correct — de quoi le convaincre à tort que la fonctionnalité ne
+     * marche pas.
+     */
+    suspend fun restaurerDepuisCloud(codeRecuperationSaisi: String? = null): ResultatRestaurationCloud {
+        if (codeRecuperationSaisi != null && !appliquerCodeRecuperation(codeRecuperationSaisi)) {
+            return ResultatRestaurationCloud.CODE_INVALIDE
+        }
+        if (!com.example.util.NetworkMonitor.isOnline(context)) {
+            return ResultatRestaurationCloud.HORS_LIGNE
+        }
+        val dbUrl = com.example.util.FirebaseBackupManager.resolveDatabaseUrl(appPreferences.firebaseDatabaseUrl)
+        val result = com.example.util.FirebaseBackupManager.downloadBackup(dbUrl, firebaseBackupToken)
+        return result.fold(
+            onSuccess = { json ->
+                syncFullDatabaseSync(json)
+                rechercherPhotosManquantes()
+                ResultatRestaurationCloud.SUCCES
+            },
+            onFailure = { ResultatRestaurationCloud.AUCUNE_SAUVEGARDE }
+        )
+    }
+
     /** Nombre de photos retrouvées lors de la dernière passe, pour informer le gérant. */
     val photosRetrouvees = MutableStateFlow(0)
     val rechercheDePhotosEnCours = MutableStateFlow(false)
