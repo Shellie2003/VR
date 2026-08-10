@@ -89,10 +89,21 @@ class DeletionTombstoneTest {
         assertNotNull("Sanity check before deletion", stored)
         viewModel.deleteProduct(stored!!)
 
+        // deleteProduct() deletes the row THEN records the tombstone as two separate sequential
+        // suspend calls in the same coroutine — waiting only for the row to disappear can observe
+        // that gap and race ahead of the tombstone write, exactly the flakiness this regression
+        // test exists to catch a production version of. Wait for the tombstone itself — the key
+        // format (TombstoneKeys.product, private to InventoryViewModel.kt) is "barcode:<barcode>"
+        // whenever a barcode is set, which this product always has.
+        val tombstoneKey = "barcode:999888"
         repeat(30) {
-            if (repository.getProductByBarcode("999888") != null) delay(100)
+            if (repository.allTombstones.first().none { it.entityType == "product" && it.naturalKey == tombstoneKey }) delay(100)
         }
         assertNull("Product must be gone right after deletion", repository.getProductByBarcode("999888"))
+        assertTrue(
+            "Sanity check: the tombstone must be recorded before restoring the stale backup",
+            repository.allTombstones.first().any { it.entityType == "product" && it.naturalKey == tombstoneKey }
+        )
 
         // 3. Restore the stale backup (simulates an old local safety backup file surviving a
         // migration, a manual Firebase restore, or a peer device syncing in with outdated data).
@@ -131,8 +142,10 @@ class DeletionTombstoneTest {
         repositoryA.insertProduct(product)
         viewModelA.deleteProduct(repositoryA.getProductByBarcode("111222")!!)
 
+        // See the sibling test above: wait for the tombstone itself, not just for the row to
+        // disappear — deleteProduct() writes them as two separate sequential suspend calls.
         repeat(30) {
-            if (repositoryA.getProductByBarcode("111222") != null) delay(100)
+            if (repositoryA.allTombstones.first().none { it.entityType == "product" && it.naturalKey == "barcode:111222" }) delay(100)
         }
         val tombstoneJson = viewModelA.getFullDatabaseJsonSync()
         assertTrue(

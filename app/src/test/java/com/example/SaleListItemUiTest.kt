@@ -35,28 +35,33 @@ class SaleListItemUiTest {
         items = listOf(SoldItem(productId = 1, name = "Savon", quantity = 2.0, price = 2250.0))
     )
 
+    // Un seul setContent par test : createComposeRule() ne permet pas de le rappeler (même
+    // indirectement dans une boucle) au sein d'un même test, d'où deux tests distincts plutôt
+    // qu'une boucle sur [false, true].
     @Test
-    fun `carte visible et se deplie au clic, en clair comme en sombre`() {
-        listOf(false, true).forEach { darkTheme ->
-            var deleted = false
-            composeTestRule.setContent {
-                MyApplicationTheme(darkTheme = darkTheme) {
-                    SaleListItem(
-                        sale = sample,
-                        allProducts = listOf(
-                            Product(id = 1, name = "Savon", price = 2250.0, category = "Hygiène", stock = 10.0, unit = "Pièce")
-                        ),
-                        themeColor = Color(0xFF13503C),
-                        onDelete = { deleted = true }
-                    )
-                }
+    fun `carte visible et se deplie au clic en clair`() = verifieCarteVisibleEtDepliable(darkTheme = false)
+
+    @Test
+    fun `carte visible et se deplie au clic en sombre`() = verifieCarteVisibleEtDepliable(darkTheme = true)
+
+    private fun verifieCarteVisibleEtDepliable(darkTheme: Boolean) {
+        composeTestRule.setContent {
+            MyApplicationTheme(darkTheme = darkTheme) {
+                SaleListItem(
+                    sale = sample,
+                    allProducts = listOf(
+                        Product(id = 1, name = "Savon", price = 2250.0, category = "Hygiène", stock = 10.0, unit = "Pièce")
+                    ),
+                    themeColor = Color(0xFF13503C),
+                    onDelete = {}
+                )
             }
-
-            composeTestRule.onNodeWithTag("sale_card_42").assertIsDisplayed()
-
-            // Replié par défaut : le détail par article n'est affiché qu'après un clic.
-            composeTestRule.onNodeWithTag("sale_card_42").performClick()
         }
+
+        composeTestRule.onNodeWithTag("sale_card_42").assertIsDisplayed()
+
+        // Replié par défaut : le détail par article n'est affiché qu'après un clic.
+        composeTestRule.onNodeWithTag("sale_card_42").performClick()
     }
 
     @Test
