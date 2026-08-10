@@ -6,6 +6,24 @@ plugins {
   alias(libs.plugins.secrets)
 }
 
+// Le nombre de commits sur la branche sert de versionCode : il n'augmente jamais qu'entre deux
+// releases (chaque commit ne peut arriver qu'après le précédent), contrairement à un compteur
+// codé en dur qu'on oublie facilement d'incrémenter. Google Play — et le mécanisme de mise à jour
+// interne (voir UpdateManager) — refusent une "mise à jour" dont le versionCode n'est pas
+// STRICTEMENT supérieur à celui déjà installé.
+fun gitCommitCount(): Int = try {
+  val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+    .directory(rootDir)
+    .redirectErrorStream(true)
+    .start()
+  process.waitFor()
+  process.inputStream.bufferedReader().readText().trim().toIntOrNull() ?: 1
+} catch (e: Exception) {
+  1
+}
+
+val gitVersionCode = gitCommitCount()
+
 android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
@@ -14,8 +32,8 @@ android {
     applicationId = "com.ainadigit.varotra"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = gitVersionCode
+    versionName = "1.0.$gitVersionCode"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

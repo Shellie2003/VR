@@ -28,12 +28,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.BuildConfig
 import com.example.data.model.Vendeur
 import com.example.ui.viewmodel.InventoryViewModel
 import com.example.util.BackupHelper
 import com.example.util.ExportUtil
 import com.example.util.FirebaseBackupManager
+import com.example.util.InfoMiseAJour
 import com.example.util.LanguageManager
+import com.example.util.UpdateManager
 import kotlinx.coroutines.launch
 
 /**
@@ -2014,6 +2017,10 @@ fun SettingsScreen(
                 themeColor = themeColor
             )
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            UpdateCard(activeLang = activeLang, themeColor = themeColor)
+
             Spacer(modifier = Modifier.height(32.dp))
         }
 
@@ -2369,4 +2376,241 @@ private fun VendeurEditDialog(
             }
         }
     )
+}
+
+/**
+ * Mise à jour interne de l'app (voir [UpdateManager]) : vérifie le manifeste publié sur R2,
+ * télécharge l'APK avec une barre de progression, puis lance l'installateur système. Toujours à
+ * l'initiative de l'utilisateur — aucune vérification ni téléchargement automatique au démarrage,
+ * conformément au choix du gérant que les mises à jour restent facultatives.
+ *
+ * Utilise les tokens Material3 (`MaterialTheme.colorScheme.*`) plutôt que les couleurs codées en
+ * dur encore présentes ailleurs dans cet écran (voir AGENTS.md §57) : ce composant est neuf, pas
+ * de dette à reproduire.
+ */
+@Composable
+private fun UpdateCard(activeLang: String, themeColor: Color) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    var isChecking by remember { mutableStateOf(false) }
+    var updateInfo by remember { mutableStateOf<InfoMiseAJour?>(null) }
+    var isDownloading by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf(0f) }
+    var downloadedFile by remember { mutableStateOf<java.io.File?>(null) }
+    var bannerMessage by remember { mutableStateOf("") }
+    var bannerIsError by remember { mutableStateOf(false) }
+
+    val installSettingsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        // Retour depuis l'écran système "Autoriser cette source" : retenter l'installation si
+        // l'utilisateur vient de l'accorder, sinon ne rien faire (il a le fichier prêt, le bouton
+        // Installer reste disponible pour réessayer).
+        val fichier = downloadedFile
+        if (fichier != null && UpdateManager.autorisationInstallationAccordee(context)) {
+            UpdateManager.lancerInstallation(context, fichier)
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().testTag("update_card"),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(imageVector = Icons.Default.Download, contentDescription = null, tint = themeColor)
+                Text(
+                    text = when (activeLang) {
+                        "mg" -> "Fanavaozana ny app"
+                        "fr" -> "Mise à jour de l'application"
+                        else -> "App update"
+                    },
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Text(
+                text = when (activeLang) {
+                    "mg" -> "Version ankehitriny: ${BuildConfig.VERSION_NAME}"
+                    "fr" -> "Version actuelle : ${BuildConfig.VERSION_NAME}"
+                    else -> "Current version: ${BuildConfig.VERSION_NAME}"
+                },
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            if (bannerMessage.isNotEmpty()) {
+                val bg = if (bannerIsError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
+                val fg = if (bannerIsError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(bg, RoundedCornerShape(8.dp))
+                        .padding(10.dp)
+                        .testTag("update_message"),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = if (bannerIsError) Icons.Default.ErrorOutline else Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = fg,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(text = bannerMessage, fontSize = 12.sp, color = fg)
+                }
+            }
+
+            val infoDisponible = updateInfo
+            if (infoDisponible != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(themeColor.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Version vaovao: ${infoDisponible.versionName}"
+                            "fr" -> "Nouvelle version disponible : ${infoDisponible.versionName}"
+                            else -> "New version available: ${infoDisponible.versionName}"
+                        },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (infoDisponible.notesVersion.isNotBlank()) {
+                        Text(text = infoDisponible.notesVersion, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    if (isDownloading) {
+                        LinearProgressIndicator(
+                            progress = downloadProgress,
+                            modifier = Modifier.fillMaxWidth().testTag("update_progress"),
+                            color = themeColor
+                        )
+                    } else if (downloadedFile != null) {
+                        Button(
+                            onClick = {
+                                val fichier = downloadedFile ?: return@Button
+                                if (UpdateManager.autorisationInstallationAccordee(context)) {
+                                    UpdateManager.lancerInstallation(context, fichier)
+                                } else {
+                                    installSettingsLauncher.launch(UpdateManager.intentParametresAutorisationInstallation(context))
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("update_install_button"),
+                            colors = ButtonDefaults.buttonColors(containerColor = themeColor, contentColor = Color.White)
+                        ) {
+                            Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Ampidino"
+                                    "fr" -> "Installer"
+                                    else -> "Install"
+                                },
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                isDownloading = true
+                                downloadProgress = 0f
+                                coroutineScope.launch {
+                                    val resultat = UpdateManager.telechargerApk(context, infoDisponible) { progres ->
+                                        downloadProgress = progres
+                                    }
+                                    isDownloading = false
+                                    resultat.fold(
+                                        onSuccess = { fichier -> downloadedFile = fichier },
+                                        onFailure = {
+                                            bannerIsError = true
+                                            bannerMessage = when (activeLang) {
+                                                "mg" -> "Tsy voaray ny fanavaozana. Andramo indray."
+                                                "fr" -> "Échec du téléchargement de la mise à jour. Réessayez."
+                                                else -> "Failed to download the update. Try again."
+                                            }
+                                        }
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("update_download_button"),
+                            colors = ButtonDefaults.buttonColors(containerColor = themeColor, contentColor = Color.White)
+                        ) {
+                            Icon(imageVector = Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Alaina"
+                                    "fr" -> "Télécharger"
+                                    else -> "Download"
+                                },
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            } else {
+                OutlinedButton(
+                    onClick = {
+                        isChecking = true
+                        bannerMessage = ""
+                        coroutineScope.launch {
+                            val resultat = UpdateManager.verifierMiseAJourDisponible(BuildConfig.VERSION_CODE)
+                            isChecking = false
+                            resultat.fold(
+                                onSuccess = { info ->
+                                    if (info != null) {
+                                        updateInfo = info
+                                    } else {
+                                        bannerIsError = false
+                                        bannerMessage = when (activeLang) {
+                                            "mg" -> "Efa ny version farany no eo aminao."
+                                            "fr" -> "Vous avez déjà la dernière version."
+                                            else -> "You already have the latest version."
+                                        }
+                                    }
+                                },
+                                onFailure = {
+                                    bannerIsError = true
+                                    bannerMessage = when (activeLang) {
+                                        "mg" -> "Tsy afaka nanamarina raha misy fanavaozana (jereo ny internet)."
+                                        "fr" -> "Impossible de vérifier les mises à jour (vérifiez votre connexion internet)."
+                                        else -> "Could not check for updates (check your internet connection)."
+                                    }
+                                }
+                            )
+                        }
+                    },
+                    enabled = !isChecking,
+                    modifier = Modifier.fillMaxWidth().testTag("update_check_button"),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, themeColor),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = themeColor)
+                ) {
+                    if (isChecking) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = themeColor, strokeWidth = 2.dp)
+                    } else {
+                        Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Hijery raha misy fanavaozana"
+                                "fr" -> "Vérifier les mises à jour"
+                                else -> "Check for updates"
+                            },
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

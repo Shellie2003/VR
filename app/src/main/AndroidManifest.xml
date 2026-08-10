@@ -8,6 +8,12 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <!--
+        Nécessaire pour proposer l'installation de la mise à jour téléchargée (voir UpdateManager).
+        Ne dispense pas d'une autorisation explicite de l'utilisateur : sur Android 8+, elle doit
+        en plus être accordée par-app via Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!--
         Uniquement pour Android 9 et antérieur : le dépôt de l'archive de sauvegarde dans le
         dossier public Téléchargements y passe par un chemin direct, qui exige cette autorisation.
         À partir d'Android 10 (maxSdkVersion=28), MediaStore s'en charge sans rien demander — la

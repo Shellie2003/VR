@@ -14,6 +14,12 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          # Historique complet requis : versionCode dans app/build.gradle.kts est dérivé de
+          # `git rev-list --count HEAD`, qui renverrait toujours 1 sur un clone superficiel
+          # (profondeur par défaut = 1) et empêcherait toute mise à jour d'être acceptée par
+          # Android (le versionCode doit strictement augmenter d'une release à l'autre).
+          fetch-depth: 0
 
       - name: Regenerate Gradle Wrapper
         run: gradle wrapper
@@ -79,3 +85,58 @@ jobs:
         with:
           name: app-release-apk
           path: app/build/outputs/apk/release/varotra.apk
+
+      - name: Publier sur Cloudflare R2 (mise à jour interne de l'app)
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          # Facultatif : tant que ces 3 secrets ne sont pas configurés (Settings > Secrets and
+          # variables > Actions), cette étape ne publie rien et n'échoue pas la release — l'APK
+          # signé reste disponible en artefact ci-dessus comme avant.
+          if [ -z "$R2_ACCOUNT_ID" ] || [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ]; then
+            echo "Secrets R2 non configurés (R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY) : publication de la mise à jour ignorée."
+            exit 0
+          fi
+
+          APK_PATH="app/build/outputs/apk/release/varotra.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "APK introuvable à $APK_PATH, publication R2 ignorée."
+            exit 0
+          fi
+
+          if ! command -v aws >/dev/null 2>&1; then
+            pip install --quiet awscli
+          fi
+
+          # Même formule que gitVersionCode dans app/build.gradle.kts : le nombre de commits sur
+          # HEAD, garanti strictement croissant d'une release à l'autre (fetch-depth: 0 ci-dessus
+          # est indispensable, sinon ce serait toujours 1 sur ce clone superficiel par défaut).
+          VERSION_CODE=$(git rev-list --count HEAD)
+          VERSION_NAME="1.0.${VERSION_CODE}"
+          SHA256=$(sha256sum "$APK_PATH" | cut -d ' ' -f1)
+          APK_URL="https://pub-8562b104a83841e09966f730d5763b79.r2.dev/latest/varotra.apk"
+
+          printf '{"versionCode": %s, "versionName": "%s", "apkUrl": "%s", "sha256": "%s", "notesVersion": ""}' \
+            "$VERSION_CODE" "$VERSION_NAME" "$APK_URL" "$SHA256" > version.json
+
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          export AWS_DEFAULT_REGION="auto"
+          ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+          # no-store sur les deux objets : ils sont toujours réécrits au même chemin `latest/*` à
+          # chaque release, un cache en périphérie CDN servirait sinon un ancien APK ou un ancien
+          # manifeste après une nouvelle publication.
+          aws s3 cp "$APK_PATH" "s3://varotra/latest/varotra.apk" \
+            --endpoint-url "$ENDPOINT" \
+            --content-type "application/vnd.android.package-archive" \
+            --cache-control "no-store"
+
+          aws s3 cp version.json "s3://varotra/latest/version.json" \
+            --endpoint-url "$ENDPOINT" \
+            --content-type "application/json" \
+            --cache-control "no-store"
+
+          echo "Publié sur R2 : versionCode=${VERSION_CODE} versionName=${VERSION_NAME} sha256=${SHA256}"
