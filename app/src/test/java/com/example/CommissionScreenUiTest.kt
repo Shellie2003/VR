@@ -1,9 +1,13 @@
 package com.example
 
 import android.content.Context
-import androidx.compose.ui.test.assertExists
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.unit.dp
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.local.AppDatabase
@@ -89,17 +93,19 @@ class CommissionScreenUiTest {
     private fun verifieEcranVisible(darkTheme: Boolean) {
         composeTestRule.setContent {
             MyApplicationTheme(darkTheme = darkTheme) {
-                CommissionScreen(
-                    viewModel = buildViewModel(),
-                    onNavigateBack = {}
-                )
+                // Taille explicite : voir SettingsScreenUiTest — cet écran est en fillMaxSize() +
+                // défilement, et createComposeRule() sans Activity hôte ne garantit pas de
+                // dimensions de fenêtre réalistes sous Robolectric. Hauteur généreuse pour que le
+                // bouton de validation (assez bas dans le formulaire) tienne sans geste de défilement.
+                Box(modifier = Modifier.size(400.dp, 2400.dp)) {
+                    CommissionScreen(
+                        viewModel = buildViewModel(),
+                        onNavigateBack = {}
+                    )
+                }
             }
         }
 
-        // assertExists() plutôt qu'assertIsDisplayed() : voir SettingsScreenUiTest — un écran
-        // complet en fillMaxSize()/défilement peut échouer à la vérification stricte de bornes
-        // visibles sous Robolectric (fenêtre de test sans dimensions garanties), alors qu'exister
-        // dans l'arbre de sémantique suffit à prouver que le rendu n'a pas planté.
-        composeTestRule.onNodeWithTag("validate_commission_restock_button").assertExists()
+        composeTestRule.onNodeWithTag("validate_commission_restock_button").assertIsDisplayed()
     }
 }

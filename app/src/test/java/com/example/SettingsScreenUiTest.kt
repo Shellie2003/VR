@@ -1,9 +1,13 @@
 package com.example
 
 import android.content.Context
-import androidx.compose.ui.test.assertExists
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.unit.dp
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.local.AppDatabase
@@ -88,33 +92,34 @@ class SettingsScreenUiTest {
     private fun verifieEcranVisible(darkTheme: Boolean) {
         composeTestRule.setContent {
             MyApplicationTheme(darkTheme = darkTheme) {
-                SettingsScreen(
-                    viewModel = buildViewModel(),
-                    onNavigateToHistory = {},
-                    onNavigateToCommission = {},
-                    onNavigateToBarcodes = {},
-                    onNavigateToHome = {},
-                    onNavigateToSync = {},
-                    onNavigateToCaisseMouvements = {},
-                    onNavigateToDashboard = {},
-                    onNavigateToPeremption = {},
-                    onNavigateToEpicerie = {},
-                    onNavigateToSecurite = {},
-                    onNavigateToEtagere = {}
-                )
+                // Taille explicite : cet écran entier est en fillMaxSize() + défilement, et
+                // createComposeRule() sans Activity hôte ne garantit pas de dimensions de fenêtre
+                // réalistes sous Robolectric — sans ça, assertIsDisplayed() peut échouer sur un
+                // écran pourtant correctement composé (bornes racine nulles ou non déterministes).
+                // Hauteur généreuse pour que tout le contenu défilant tienne sans geste de défilement.
+                Box(modifier = Modifier.size(400.dp, 2400.dp)) {
+                    SettingsScreen(
+                        viewModel = buildViewModel(),
+                        onNavigateToHistory = {},
+                        onNavigateToCommission = {},
+                        onNavigateToBarcodes = {},
+                        onNavigateToHome = {},
+                        onNavigateToSync = {},
+                        onNavigateToCaisseMouvements = {},
+                        onNavigateToDashboard = {},
+                        onNavigateToPeremption = {},
+                        onNavigateToEpicerie = {},
+                        onNavigateToSecurite = {},
+                        onNavigateToEtagere = {}
+                    )
+                }
             }
         }
 
-        // assertExists() plutôt qu'assertIsDisplayed() : cet écran entier utilise fillMaxSize() +
-        // défilement, et la fenêtre de test par défaut sous Robolectric (sans Activity hôte) a des
-        // dimensions non garanties — assertIsDisplayed() (bornes réellement visibles à l'écran) peut
-        // donc échouer sur un écran complet correctement composé, alors qu'assertExists() (présent
-        // dans l'arbre de sémantique) suffit à vérifier que le rendu n'a pas planté et que l'élément
-        // y figure bien — exactement ce que ce test cherche à garantir.
-        composeTestRule.onNodeWithTag("settings_epicerie_button").assertExists()
+        composeTestRule.onNodeWithTag("settings_epicerie_button").assertIsDisplayed()
         // La carte de mise à jour interne (voir UpdateManager) : présente mais jamais cliquée ici,
         // un vrai clic ferait un appel réseau sortant vers R2 — indésirable et non déterministe
         // dans un test unitaire (même principe déjà suivi pour les boutons Firebase de cet écran).
-        composeTestRule.onNodeWithTag("update_check_button").assertExists()
+        composeTestRule.onNodeWithTag("update_check_button").assertIsDisplayed()
     }
 }
