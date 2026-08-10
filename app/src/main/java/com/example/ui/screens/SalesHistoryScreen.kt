@@ -59,7 +59,6 @@ fun SalesHistoryScreen(
     val allVentes by viewModel.allVentes.collectAsState()
     val activeLang by viewModel.language.collectAsState()
     val themeColor by viewModel.themeColor.collectAsState()
-    val isDark = MaterialTheme.colorScheme.background == Color(0xFF002114)
 
     val context = LocalContext.current
     val t = { key: String -> LanguageManager.translate(key, activeLang) }
@@ -220,7 +219,7 @@ fun SalesHistoryScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp)
     ) {
         // 1. Sliding Elegant Search Bar or Clean Header
@@ -268,7 +267,7 @@ fun SalesHistoryScreen(
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = themeColor,
-                        unfocusedBorderColor = if (isDark) Color(0xFF2C5E43) else Color(0xFFE2E8F0)
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                     ),
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
@@ -313,7 +312,7 @@ fun SalesHistoryScreen(
                         text = dateFormatted,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
@@ -336,7 +335,7 @@ fun SalesHistoryScreen(
                         Icon(
                             imageVector = Icons.Default.Search,
                             contentDescription = "Hitady",
-                            tint = if (isDark) Color.White else Color(0xFF1E293B),
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -360,7 +359,7 @@ fun SalesHistoryScreen(
                 .fillMaxWidth()
                 .padding(vertical = 4.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (isDark) Color(0xFF1B4332) else Color(0xFFF1F5F9))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
                 .padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -384,7 +383,7 @@ fun SalesHistoryScreen(
                         text = label,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isSelected) Color.White else (if (isDark) Color(0xFF94A3B8) else Color(0xFF475569))
+                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -404,7 +403,7 @@ fun SalesHistoryScreen(
                     .height(132.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (isDark) Color(0xFF1B4332) else Color(0xFFF8FAFC)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 ),
                 border = borderStroke()
             ) {
@@ -412,7 +411,7 @@ fun SalesHistoryScreen(
                     Icon(
                         imageVector = Icons.Default.Payments,
                         contentDescription = null,
-                        tint = Color(0xFF94A3B8).copy(alpha = 0.08f),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f),
                         modifier = Modifier
                             .size(72.dp)
                             .align(Alignment.BottomEnd)
@@ -466,7 +465,7 @@ fun SalesHistoryScreen(
                             },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF64748B)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         Text(
@@ -494,7 +493,7 @@ fun SalesHistoryScreen(
                                 text = "+12% omaly",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E293B)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -508,7 +507,7 @@ fun SalesHistoryScreen(
                     .height(132.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (isDark) Color(0xFF1B4332) else Color(0xFFF8FAFC)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 ),
                 border = borderStroke()
             ) {
@@ -516,7 +515,7 @@ fun SalesHistoryScreen(
                     Icon(
                         imageVector = if (activeTab == "sales") Icons.Default.ShoppingCart else Icons.Default.Inventory,
                         contentDescription = null,
-                        tint = Color(0xFF94A3B8).copy(alpha = 0.08f),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f),
                         modifier = Modifier
                             .size(72.dp)
                             .align(Alignment.BottomEnd)
@@ -545,7 +544,7 @@ fun SalesHistoryScreen(
                             },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF64748B)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         Text(
@@ -566,14 +565,14 @@ fun SalesHistoryScreen(
                             Icon(
                                 imageVector = Icons.Default.CalendarToday,
                                 contentDescription = null,
-                                tint = Color(0xFF64748B),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(12.dp)
                             )
                             Text(
                                 text = dateFormatted,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF475569),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -609,7 +608,7 @@ fun SalesHistoryScreen(
                 },
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E293B),
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 16.sp
                 )
             )
@@ -668,12 +667,12 @@ fun SalesHistoryScreen(
                             imageVector = Icons.Default.HistoryToggleOff,
                             contentDescription = null,
                             modifier = Modifier.size(56.dp),
-                            tint = Color(0xFFCBD5E1)
+                            tint = MaterialTheme.colorScheme.outlineVariant
                         )
                         Text(
                             text = t("no_sales_history"),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color(0xFF64748B),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
                         Button(
@@ -737,7 +736,7 @@ fun SalesHistoryScreen(
                             imageVector = Icons.Default.Inventory,
                             contentDescription = null,
                             modifier = Modifier.size(56.dp),
-                            tint = Color(0xFFCBD5E1)
+                            tint = MaterialTheme.colorScheme.outlineVariant
                         )
                         Text(
                             text = when (activeLang) {
@@ -746,7 +745,7 @@ fun SalesHistoryScreen(
                                 else -> "No restock history found."
                             },
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color(0xFF64748B),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -856,7 +855,7 @@ fun SalesHistoryScreen(
                                     Text(
                                         text = "${when (activeLang) { "mg" -> "Farany"; "fr" -> "Max"; else -> "Max" }}: ${FormatUtil.formatQty(maxReturnable, "")}",
                                         fontSize = 10.sp,
-                                        color = Color(0xFF64748B)
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                                 OutlinedTextField(
@@ -1095,7 +1094,7 @@ fun SaleListItem(
             .testTag("sale_card_${sale.id}"),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) themeColor.copy(alpha = 0.10f) else Color.White
+            containerColor = if (isSelected) themeColor.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surface
         ),
         border = borderStroke()
     ) {
@@ -1137,7 +1136,7 @@ fun SaleListItem(
                             text = titleText,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E293B),
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -1146,7 +1145,7 @@ fun SaleListItem(
                             text = subText,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
-                            color = Color(0xFF64748B)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -1159,7 +1158,7 @@ fun SaleListItem(
                         text = "Ar ${FormatUtil.formatPrice(sale.totalAmount)}",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Black,
-                        color = Color(0xFF1E293B)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     Box(
@@ -1180,14 +1179,14 @@ fun SaleListItem(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFFC62828).copy(alpha = 0.12f))
+                                .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f))
                                 .padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Text(
                                 text = if (returnedAmount >= sale.totalAmount) "Retourné" else "Retour partiel",
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Black,
-                                color = Color(0xFFC62828)
+                                color = MaterialTheme.colorScheme.error
                             )
                         }
                     }
@@ -1204,7 +1203,7 @@ fun SaleListItem(
                         .fillMaxWidth()
                         .padding(top = 12.dp)
                 ) {
-                    HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Row(
@@ -1216,14 +1215,14 @@ fun SaleListItem(
                             text = "Vokatra rehetra amin'ity varotra ity:",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF64748B)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         Row {
                             if (returnedAmount < sale.totalAmount) {
                                 IconButton(
                                     onClick = onReturn,
-                                    modifier = Modifier.size(24.dp).testTag("sale_return_button_${sale.id}")
+                                    modifier = Modifier.testTag("sale_return_button_${sale.id}")
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Undo,
@@ -1234,13 +1233,12 @@ fun SaleListItem(
                                 }
                             }
                             IconButton(
-                                onClick = onDelete,
-                                modifier = Modifier.size(24.dp)
+                                onClick = onDelete
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.DeleteOutline,
                                     contentDescription = "Fafana",
-                                    tint = Color(0xFFEF4444),
+                                    tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -1259,7 +1257,7 @@ fun SaleListItem(
                             Text(
                                 text = "${FormatUtil.formatQty(soldItem.quantity, "")} x ${soldItem.name}",
                                 fontSize = 13.sp,
-                                color = Color(0xFF334155),
+                                color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(0.7f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -1268,7 +1266,7 @@ fun SaleListItem(
                                 text = "Ar ${FormatUtil.formatPrice(soldItem.price * soldItem.quantity)}",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E293B),
+                                color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(0.3f),
                                 textAlign = TextAlign.End
                             )
@@ -1302,7 +1300,7 @@ fun RestockListItem(
             .testTag("restock_card_${restock.id}"),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) themeColor.copy(alpha = 0.10f) else Color.White
+            containerColor = if (isSelected) themeColor.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surface
         ),
         border = borderStroke()
     ) {
@@ -1344,7 +1342,7 @@ fun RestockListItem(
                             text = restock.productName,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E293B),
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -1353,7 +1351,7 @@ fun RestockListItem(
                             text = "${restock.cartonsQuantity.toInt()} baoritra x ${restock.itemsPerCarton.toInt()} • $timeFormatted",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
-                            color = Color(0xFF64748B)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -1366,20 +1364,20 @@ fun RestockListItem(
                         text = "Ar ${FormatUtil.formatPrice(restock.totalCostPrice)}",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Black,
-                        color = Color(0xFF1E293B)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFE2E8F0))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                             .padding(horizontal = 8.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = "TAFIDITRA",
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Black,
-                            color = Color(0xFF475569)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -1395,7 +1393,7 @@ fun RestockListItem(
                         .fillMaxWidth()
                         .padding(top = 12.dp)
                 ) {
-                    HorizontalDivider(color = Color(0xFFF1F5F9), thickness = 1.dp)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Row(
@@ -1407,17 +1405,16 @@ fun RestockListItem(
                             text = "Mombamomba ny fampidirana:",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF64748B)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         IconButton(
-                            onClick = onDelete,
-                            modifier = Modifier.size(24.dp)
+                            onClick = onDelete
                         ) {
                             Icon(
                                 imageVector = Icons.Default.DeleteOutline,
                                 contentDescription = "Fafana",
-                                tint = Color(0xFFEF4444),
+                                tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -1443,8 +1440,8 @@ fun DetailRow(label: String, value: String) {
             .padding(vertical = 3.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = label, fontSize = 13.sp, color = Color(0xFF64748B))
-        Text(text = value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
+        Text(text = label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text = value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -1496,7 +1493,7 @@ fun StatsDialog(
                     themeColor = themeColor
                 )
 
-                HorizontalDivider(color = Color(0xFFF1F5F9))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 StatItem(
                     label = when (activeLang) {
@@ -1516,10 +1513,10 @@ fun StatsDialog(
                         else -> "Total Purchase Cost"
                     },
                     value = "Ar ${FormatUtil.formatPrice(totalPurchaseCost)}",
-                    themeColor = Color(0xFF64748B)
+                    themeColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                HorizontalDivider(color = Color(0xFFF1F5F9))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 StatItem(
                     label = when (activeLang) {
@@ -1528,7 +1525,7 @@ fun StatsDialog(
                         else -> "Net Profit"
                     },
                     value = "Ar ${FormatUtil.formatPrice(totalProfit)}",
-                    themeColor = if (totalProfit >= 0.0) Color(0xFF10B981) else Color.Red,
+                    themeColor = if (totalProfit >= 0.0) Color(0xFF10B981) else MaterialTheme.colorScheme.error,
                     isBoldValue = true
                 )
 
@@ -1564,7 +1561,7 @@ fun StatItem(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = label, fontSize = 13.sp, color = Color(0xFF64748B))
+        Text(text = label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
             text = value,
             fontSize = 14.sp,
@@ -1575,10 +1572,7 @@ fun StatItem(
 }
 
 @Composable
-private fun borderStroke(): BorderStroke {
-    val isDark = MaterialTheme.colorScheme.background == Color(0xFF002114)
-    return BorderStroke(
-        width = 1.dp,
-        color = if (isDark) Color(0xFF2C5E43) else Color(0xFFE2E8F0)
-    )
-}
+private fun borderStroke(): BorderStroke = BorderStroke(
+    width = 1.dp,
+    color = MaterialTheme.colorScheme.outlineVariant
+)
