@@ -7,12 +7,18 @@ import com.example.data.local.AppDatabase
 import com.example.data.model.Product
 import com.example.data.repository.InventoryRepository
 import com.example.ui.viewmodel.InventoryViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -34,6 +40,28 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class DeletionTombstoneTest {
+
+    // deleteProduct() (comme la plupart des écritures du ViewModel) part sur lancerProtege(), qui
+    // lance sur viewModelScope SANS dispatcher explicite — donc Dispatchers.Main.immediate. Sous
+    // Robolectric, Main est adossé au vrai Looper Android, dont la file d'attente reste PAUSED par
+    // défaut : une continuation qui doit reprendre sur Main après un aller-retour Room (thread
+    // d'exécution interne de Room) reste posée dans la file tant que rien n'appelle explicitement
+    // shadowOf(Looper.getMainLooper()).idle() — ce qu'aucun test ici ne fait. C'est ce qui expliquait
+    // que le test attende le tombstone jusqu'à 3 secondes sans jamais le voir apparaître : la reprise
+    // n'était pas simplement lente, elle n'avait aucune chance d'arriver du tout. En comparaison,
+    // syncFullDatabaseSync() (voir BackupRestoreDuplicationTest) lance explicitement sur
+    // Dispatchers.IO, qui n'a pas besoin d'un Looper pompé — d'où sa fiabilité déjà connue.
+    // Remplacer Main par un dispatcher de test (UnconfinedTestDispatcher, exécution immédiate sur le
+    // thread courant, sans file d'attente réelle) élimine tout le problème à la racine.
+    @Before
+    fun installerDispatcherPrincipalDeTest() {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
+    }
+
+    @After
+    fun restaurerDispatcherPrincipal() {
+        Dispatchers.resetMain()
+    }
 
     private fun buildRepository(db: AppDatabase): InventoryRepository = InventoryRepository(
         database = db,

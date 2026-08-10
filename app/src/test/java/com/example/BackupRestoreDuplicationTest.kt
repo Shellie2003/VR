@@ -9,10 +9,16 @@ import com.example.data.model.Sale
 import com.example.data.model.SoldItem
 import com.example.data.repository.InventoryRepository
 import com.example.ui.viewmodel.InventoryViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -30,6 +36,20 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class BackupRestoreDuplicationTest {
+
+    // Voir le commentaire équivalent dans DeletionTombstoneTest : le ViewModel construit ici lance
+    // aussi des écritures de fond sur viewModelScope (Dispatchers.Main.immediate par défaut, ex.
+    // son init block qui peut semer des produits d'exemple) — un dispatcher de test sans Looper réel
+    // les rend déterministes plutôt que dépendantes d'un pompage explicite de la file Robolectric.
+    @Before
+    fun installerDispatcherPrincipalDeTest() {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
+    }
+
+    @After
+    fun restaurerDispatcherPrincipal() {
+        Dispatchers.resetMain()
+    }
 
     @Test
     fun `restoring the same backup twice does not duplicate a sale`() = runBlocking {
