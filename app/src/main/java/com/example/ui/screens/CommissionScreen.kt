@@ -107,7 +107,7 @@ fun CommissionScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Column(
             modifier = Modifier.fillMaxSize()
@@ -125,12 +125,12 @@ fun CommissionScreen(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFF1F5F9))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Hiverina",
-                        tint = Color(0xFF1E293B),
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -143,7 +143,7 @@ fun CommissionScreen(
                     },
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Black,
-                        color = Color(0xFF1E293B),
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 18.sp
                     ),
                     modifier = Modifier.weight(1f)
@@ -153,7 +153,7 @@ fun CommissionScreen(
             // 2. Tab Bar
             TabRow(
                 selectedTabIndex = selectedTabState,
-                containerColor = Color.White,
+                containerColor = MaterialTheme.colorScheme.background,
                 contentColor = themeColor,
                 indicator = { tabPositions ->
                     TabRowDefaults.SecondaryIndicator(
@@ -191,8 +191,8 @@ fun CommissionScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
@@ -212,7 +212,7 @@ fun CommissionScreen(
                                     else -> "How to use: First select the product. Enter the number of cartons, items per carton, total purchase price, and finally your desired retail selling price per unit to analyze margins."
                                 },
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF475569),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 lineHeight = 16.sp
                             )
                         }
@@ -227,7 +227,7 @@ fun CommissionScreen(
                         },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1E293B)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     // Searchable Dropdown for Product
@@ -265,7 +265,7 @@ fun CommissionScreen(
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = themeColor,
-                                unfocusedBorderColor = Color(0xFFCBD5E1)
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                             )
                         )
 
@@ -333,7 +333,7 @@ fun CommissionScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    unfocusedBorderColor = Color(0xFFCBD5E1)
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                                 )
                             )
 
@@ -393,7 +393,7 @@ fun CommissionScreen(
                             },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E293B)
+                            color = MaterialTheme.colorScheme.onSurface
                         )
 
                         TextButton(
@@ -553,8 +553,8 @@ fun CommissionScreen(
                     }
 
                     val marginStatusColor = when {
-                        totalProfit < 0.0 -> Color(0xFFEF4444) // Red
-                        totalProfit == 0.0 -> Color(0xFF64748B) // Slate
+                        totalProfit < 0.0 -> MaterialTheme.colorScheme.error
+                        totalProfit == 0.0 -> MaterialTheme.colorScheme.onSurfaceVariant // Slate
                         marginPct < 15.0 -> Color(0xFFF59E0B) // Amber/Yellow
                         else -> Color(0xFF10B981) // Emerald Green
                     }
@@ -666,7 +666,7 @@ fun CommissionScreen(
                                     else -> "TOTAL POTENTIAL PROFIT"
                                 },
                                 value = "${FormatUtil.formatPrice(totalProfit)} Ar",
-                                color = if (totalProfit >= 0.0) Color(0xFF10B981) else Color.Red,
+                                color = if (totalProfit >= 0.0) Color(0xFF10B981) else MaterialTheme.colorScheme.error,
                                 isBold = true
                             )
 
@@ -677,7 +677,7 @@ fun CommissionScreen(
                                     else -> "Net Profit per Carton"
                                 },
                                 value = "${FormatUtil.formatPrice(profitPerCarton)} Ar",
-                                color = if (profitPerCarton >= 0.0) Color(0xFF059669) else Color.Red,
+                                color = if (profitPerCarton >= 0.0) Color(0xFF059669) else MaterialTheme.colorScheme.error,
                                 isBold = true
                             )
 
@@ -688,7 +688,7 @@ fun CommissionScreen(
                                     else -> "Net Profit per Unit"
                                 },
                                 value = "${FormatUtil.formatPrice(profitPerUnit)} Ar",
-                                color = if (profitPerUnit >= 0.0) Color(0xFF059669) else Color.Red
+                                color = if (profitPerUnit >= 0.0) Color(0xFF059669) else MaterialTheme.colorScheme.error
                             )
 
                             CalculationRow(
@@ -814,7 +814,7 @@ fun CommissionScreen(
                                 },
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E293B),
+                                color = MaterialTheme.colorScheme.onSurface,
                                 textAlign = TextAlign.Center
                             )
                         }
@@ -834,7 +834,7 @@ fun CommissionScreen(
                                 else -> "These products need restocking soon:"
                             },
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color(0xFF64748B),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium
                         )
 
@@ -842,8 +842,8 @@ fun CommissionScreen(
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(16.dp),
-                                border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC))
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -857,7 +857,7 @@ fun CommissionScreen(
                                             text = product.name,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 15.sp,
-                                            color = Color(0xFF1E293B)
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Row(
@@ -867,20 +867,20 @@ fun CommissionScreen(
                                             Box(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(6.dp))
-                                                    .background(Color(0xFFFEE2E2))
+                                                    .background(MaterialTheme.colorScheme.errorContainer)
                                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                                             ) {
                                                 val currentStockStr = if (product.stock % 1.0 == 0.0) product.stock.toInt().toString() else "%.1f".format(product.stock)
                                                 Text(
                                                     text = "${currentStockStr} ${product.unit}",
-                                                    color = Color(0xFFEF4444),
+                                                    color = MaterialTheme.colorScheme.onErrorContainer,
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold
                                                 )
                                             }
                                             Text(
                                                 text = "(Seuil: ${product.lowStockThreshold.toInt()})",
-                                                color = Color(0xFF64748B),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontSize = 11.sp
                                             )
                                         }
@@ -888,7 +888,7 @@ fun CommissionScreen(
                                         Text(
                                             text = "PV: ${FormatUtil.formatPrice(product.price)} Ar | PA: ${FormatUtil.formatPrice(product.wholesalePrice ?: product.prixAchatUniteBase)} Ar",
                                             fontSize = 12.sp,
-                                            color = Color(0xFF475569)
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
 
@@ -933,7 +933,7 @@ fun CommissionScreen(
                     .padding(16.dp)
                     .fillMaxWidth(),
                 shape = RoundedCornerShape(10.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.inverseSurface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
             ) {
                 Row(
@@ -948,7 +948,7 @@ fun CommissionScreen(
                     )
                     Text(
                         text = successMessage,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.inverseOnSurface,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.weight(1f)
@@ -1036,7 +1036,7 @@ fun CommissionScreen(
 fun CalculationRow(
     label: String,
     value: String,
-    color: Color = Color(0xFF1E293B),
+    color: Color = MaterialTheme.colorScheme.onSurface,
     isBold: Boolean = false
 ) {
     Row(
@@ -1047,7 +1047,7 @@ fun CalculationRow(
         Text(
             text = label,
             fontSize = 13.sp,
-            color = Color(0xFF64748B),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1.3f)
         )
