@@ -1,13 +1,11 @@
 package com.example
 
 import android.content.Context
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
-import androidx.compose.ui.Modifier
+import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.test.performScrollTo
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.local.AppDatabase
@@ -38,7 +36,13 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class SettingsScreenUiTest {
 
-    @get:Rule val composeTestRule = createComposeRule()
+    // createAndroidComposeRule<ComponentActivity>() plutôt que createComposeRule() nu : héberge le
+    // contenu dans une vraie Activity Robolectric (fenêtre/decor view réels, configuration d'écran
+    // réaliste) — indispensable pour un écran entier en fillMaxSize() + défilement. createComposeRule()
+    // sans Activity a fait échouer assertIsDisplayed() ("The component is not displayed!") même après
+    // avoir forcé une taille explicite via un Box englobant, ce qui pointait vers un problème plus
+    // profond que la seule taille de fenêtre (probablement l'absence de vraie fenêtre/root réels).
+    @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
     // Voir DeletionTombstoneTest : InventoryViewModel écrit sur viewModelScope sans dispatcher
     // explicite (Dispatchers.Main.immediate), qui reste bloqué sous le Looper Robolectric en pause
@@ -92,34 +96,30 @@ class SettingsScreenUiTest {
     private fun verifieEcranVisible(darkTheme: Boolean) {
         composeTestRule.setContent {
             MyApplicationTheme(darkTheme = darkTheme) {
-                // Taille explicite : cet écran entier est en fillMaxSize() + défilement, et
-                // createComposeRule() sans Activity hôte ne garantit pas de dimensions de fenêtre
-                // réalistes sous Robolectric — sans ça, assertIsDisplayed() peut échouer sur un
-                // écran pourtant correctement composé (bornes racine nulles ou non déterministes).
-                // Hauteur généreuse pour que tout le contenu défilant tienne sans geste de défilement.
-                Box(modifier = Modifier.size(400.dp, 2400.dp)) {
-                    SettingsScreen(
-                        viewModel = buildViewModel(),
-                        onNavigateToHistory = {},
-                        onNavigateToCommission = {},
-                        onNavigateToBarcodes = {},
-                        onNavigateToHome = {},
-                        onNavigateToSync = {},
-                        onNavigateToCaisseMouvements = {},
-                        onNavigateToDashboard = {},
-                        onNavigateToPeremption = {},
-                        onNavigateToEpicerie = {},
-                        onNavigateToSecurite = {},
-                        onNavigateToEtagere = {}
-                    )
-                }
+                SettingsScreen(
+                    viewModel = buildViewModel(),
+                    onNavigateToHistory = {},
+                    onNavigateToCommission = {},
+                    onNavigateToBarcodes = {},
+                    onNavigateToHome = {},
+                    onNavigateToSync = {},
+                    onNavigateToCaisseMouvements = {},
+                    onNavigateToDashboard = {},
+                    onNavigateToPeremption = {},
+                    onNavigateToEpicerie = {},
+                    onNavigateToSecurite = {},
+                    onNavigateToEtagere = {}
+                )
             }
         }
 
         composeTestRule.onNodeWithTag("settings_epicerie_button").assertIsDisplayed()
-        // La carte de mise à jour interne (voir UpdateManager) : présente mais jamais cliquée ici,
-        // un vrai clic ferait un appel réseau sortant vers R2 — indésirable et non déterministe
-        // dans un test unitaire (même principe déjà suivi pour les boutons Firebase de cet écran).
-        composeTestRule.onNodeWithTag("update_check_button").assertIsDisplayed()
+        // La carte de mise à jour interne (voir UpdateManager) est loin dans l'écran défilant — sur
+        // la hauteur d'écran réelle simulée par l'Activity Robolectric, elle peut être hors du
+        // viewport initial. performScrollTo() fait défiler jusqu'à la rendre visible avant de
+        // vérifier, exactement comme un utilisateur le ferait. Jamais cliquée ici : un vrai clic
+        // ferait un appel réseau sortant vers R2 — indésirable et non déterministe dans un test
+        // unitaire (même principe déjà suivi pour les boutons Firebase de cet écran).
+        composeTestRule.onNodeWithTag("update_check_button").performScrollTo().assertIsDisplayed()
     }
 }

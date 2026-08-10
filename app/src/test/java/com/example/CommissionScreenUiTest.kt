@@ -1,13 +1,11 @@
 package com.example
 
 import android.content.Context
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
-import androidx.compose.ui.Modifier
+import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.test.performScrollTo
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.local.AppDatabase
@@ -39,7 +37,10 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class CommissionScreenUiTest {
 
-    @get:Rule val composeTestRule = createComposeRule()
+    // createAndroidComposeRule<ComponentActivity>() plutôt que createComposeRule() nu : voir
+    // SettingsScreenUiTest — indispensable pour un écran entier en fillMaxSize() + défilement,
+    // createComposeRule() sans Activity n'offre pas de fenêtre/root réels sous Robolectric.
+    @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
     // Voir DeletionTombstoneTest : InventoryViewModel écrit sur viewModelScope sans dispatcher
     // explicite (Dispatchers.Main.immediate), qui reste bloqué sous le Looper Robolectric en pause
@@ -93,19 +94,15 @@ class CommissionScreenUiTest {
     private fun verifieEcranVisible(darkTheme: Boolean) {
         composeTestRule.setContent {
             MyApplicationTheme(darkTheme = darkTheme) {
-                // Taille explicite : voir SettingsScreenUiTest — cet écran est en fillMaxSize() +
-                // défilement, et createComposeRule() sans Activity hôte ne garantit pas de
-                // dimensions de fenêtre réalistes sous Robolectric. Hauteur généreuse pour que le
-                // bouton de validation (assez bas dans le formulaire) tienne sans geste de défilement.
-                Box(modifier = Modifier.size(400.dp, 2400.dp)) {
-                    CommissionScreen(
-                        viewModel = buildViewModel(),
-                        onNavigateBack = {}
-                    )
-                }
+                CommissionScreen(
+                    viewModel = buildViewModel(),
+                    onNavigateBack = {}
+                )
             }
         }
 
-        composeTestRule.onNodeWithTag("validate_commission_restock_button").assertIsDisplayed()
+        // performScrollTo() : le bouton de validation est assez bas dans le formulaire pour être
+        // hors du viewport initial sur la hauteur d'écran réelle simulée par l'Activity Robolectric.
+        composeTestRule.onNodeWithTag("validate_commission_restock_button").performScrollTo().assertIsDisplayed()
     }
 }
