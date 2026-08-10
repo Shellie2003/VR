@@ -278,11 +278,16 @@ fun SettingsScreen(
     var recoveryCodeInput by remember { mutableStateOf("") }
     var recoveryCodeError by remember { mutableStateOf(false) }
 
-    val isDark = MaterialTheme.colorScheme.background == Color(0xFF002114)
-    val cardBg = if (isDark) Color(0xFF1B4332) else Color(0xFFF8FAFC)
-    val cardBorderColor = if (isDark) Color(0xFF2C5E43) else Color(0xFFE2E8F0)
-    val mainTextColor = if (isDark) Color.White else Color(0xFF1E293B)
-    val secondaryTextColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+    // Tokens Material3 directement plutôt qu'un isDark manuel comparant background à un hex précis
+    // (voir AGENTS.md §57) : ce dernier casse silencieusement dès que la palette change de valeurs,
+    // alors que colorScheme.* suit toujours le thème réellement appliqué. Noms de variables conservés
+    // tels quels (cardBg/cardBorderColor/mainTextColor/secondaryTextColor sont passés en paramètre à
+    // VendeurRolesCard et réutilisés à des dizaines d'endroits dans ce fichier) pour ne pas avoir à
+    // toucher chaque site d'appel individuellement.
+    val cardBg = MaterialTheme.colorScheme.surface
+    val cardBorderColor = MaterialTheme.colorScheme.outlineVariant
+    val mainTextColor = MaterialTheme.colorScheme.onSurface
+    val secondaryTextColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     Box(
         modifier = Modifier
@@ -310,7 +315,7 @@ fun SettingsScreen(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(if (isDark) Color(0xFF1B4332) else Color(0xFFF1F5F9))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -465,7 +470,7 @@ fun SettingsScreen(
                                         .background(color)
                                         .border(
                                             width = if (isSelected) 3.dp else 0.dp,
-                                            color = if (isSelected) (if (isDark) Color.White else Color.Black) else Color.Transparent,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onBackground else Color.Transparent,
                                             shape = CircleShape
                                         ),
                                     contentAlignment = Alignment.Center
@@ -535,8 +540,8 @@ fun SettingsScreen(
                                 .height(38.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isLightSel) themeColor else (if (isDark) Color(0xFF1B4332) else Color.White),
-                                contentColor = if (isLightSel) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
+                                containerColor = if (isLightSel) themeColor else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (isLightSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                             ),
                             border = androidx.compose.foundation.BorderStroke(
                                 width = 1.dp,
@@ -560,8 +565,8 @@ fun SettingsScreen(
                                 .height(38.dp),
                                 shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isDarkSel) themeColor else (if (isDark) Color(0xFF1B4332) else Color.White),
-                                contentColor = if (isDarkSel) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
+                                containerColor = if (isDarkSel) themeColor else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (isDarkSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                             ),
                             border = androidx.compose.foundation.BorderStroke(
                                 width = 1.dp,
@@ -585,8 +590,8 @@ fun SettingsScreen(
                                 .height(38.dp),
                                 shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isSystemSel) themeColor else (if (isDark) Color(0xFF1B4332) else Color.White),
-                                contentColor = if (isSystemSel) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
+                                containerColor = if (isSystemSel) themeColor else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (isSystemSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                             ),
                             border = androidx.compose.foundation.BorderStroke(
                                 width = 1.dp,
@@ -648,8 +653,8 @@ fun SettingsScreen(
                                     .height(38.dp),
                                 shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isSelected) themeColor else (if (isDark) Color(0xFF1B4332) else Color.White),
-                                    contentColor = if (isSelected) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
+                                    containerColor = if (isSelected) themeColor else MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                                 ),
                                 border = androidx.compose.foundation.BorderStroke(
                                     width = 1.dp,
@@ -716,8 +721,8 @@ fun SettingsScreen(
                                 .height(38.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isRetail) themeColor else (if (isDark) Color(0xFF1B4332) else Color.White),
-                                contentColor = if (isRetail) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
+                                containerColor = if (isRetail) themeColor else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (isRetail) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                             ),
                             border = androidx.compose.foundation.BorderStroke(
                                 width = 1.dp,
@@ -741,8 +746,8 @@ fun SettingsScreen(
                                 .height(38.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isWholesale) themeColor else (if (isDark) Color(0xFF1B4332) else Color.White),
-                                contentColor = if (isWholesale) Color.White else (if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569))
+                                containerColor = if (isWholesale) themeColor else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (isWholesale) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                             ),
                             border = androidx.compose.foundation.BorderStroke(
                                 width = 1.dp,
@@ -1108,8 +1113,8 @@ fun SettingsScreen(
                     .clickable { onNavigateToSecurite() }
                     .testTag("settings_securite_button"),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFD32F2F).copy(alpha = 0.08f)),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD32F2F).copy(alpha = 0.3f))
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.08f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
             ) {
                 Row(
                     modifier = Modifier
@@ -1127,7 +1132,7 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFD32F2F)),
+                                .background(MaterialTheme.colorScheme.error),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -1147,7 +1152,7 @@ fun SettingsScreen(
                                 },
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFFD32F2F)
+                                color = MaterialTheme.colorScheme.error
                             )
                             Text(
                                 text = when (activeLang) {
@@ -1164,7 +1169,7 @@ fun SettingsScreen(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = null,
-                        tint = Color(0xFFD32F2F),
+                        tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -2036,7 +2041,7 @@ fun SettingsScreen(
                     .padding(16.dp)
                     .fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.inverseSurface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
             ) {
                 Row(
@@ -2051,7 +2056,7 @@ fun SettingsScreen(
                     )
                     Text(
                         text = snackbarMessage.ifEmpty { savedMessage },
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.inverseOnSurface,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -2162,25 +2167,25 @@ private fun VendeurRolesCard(
                                         Box(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(6.dp))
-                                                .background(Color(0xFFC62828).copy(alpha = 0.12f))
+                                                .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f))
                                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                                         ) {
                                             Text(
                                                 text = when (activeLang) { "mg" -> "Tsy mavitrika"; "fr" -> "Inactif"; else -> "Inactive" },
                                                 fontSize = 9.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color(0xFFC62828)
+                                                color = MaterialTheme.colorScheme.error
                                             )
                                         }
                                     }
                                 }
                             }
                             Row {
-                                IconButton(onClick = { editingVendeur = vendeur }, modifier = Modifier.size(32.dp)) {
+                                IconButton(onClick = { editingVendeur = vendeur }) {
                                     Icon(imageVector = Icons.Default.Edit, contentDescription = null, tint = secondaryTextColor, modifier = Modifier.size(16.dp))
                                 }
-                                IconButton(onClick = { vendeurToDelete = vendeur }, modifier = Modifier.size(32.dp)) {
-                                    Icon(imageVector = Icons.Default.DeleteOutline, contentDescription = null, tint = Color(0xFFC62828), modifier = Modifier.size(16.dp))
+                                IconButton(onClick = { vendeurToDelete = vendeur }) {
+                                    Icon(imageVector = Icons.Default.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
@@ -2221,7 +2226,7 @@ private fun VendeurRolesCard(
             confirmButton = {
                 Button(
                     onClick = { viewModel.deleteVendeur(v); vendeurToDelete = null },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
                     Text(when (activeLang) { "mg" -> "Hamafa"; "fr" -> "Supprimer"; else -> "Delete" }, fontWeight = FontWeight.Bold)
                 }
