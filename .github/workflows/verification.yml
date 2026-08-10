@@ -9,6 +9,10 @@ name: Vérification de compilation
 # paquets distribuables : celui-ci ne les remplace ni ne les déclenche.
 
 on:
+  # Poussée directe sur une branche de travail claude/* : permet de vérifier compilation + tests
+  # AVANT de fusionner sur main, sans devoir ouvrir une Pull Request juste pour déclencher la CI.
+  push:
+    branches: [ "claude/**" ]
   pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
