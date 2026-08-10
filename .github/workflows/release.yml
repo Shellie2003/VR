@@ -10,6 +10,11 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # contents: write est nécessaire pour que softprops/action-gh-release (voir plus bas) puisse
+    # créer une Release et y attacher l'APK avec le GITHUB_TOKEN par défaut — sans cette permission
+    # explicite, certains dépôts (permissions par défaut en lecture seule) refuseraient la création.
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Code
@@ -20,6 +25,17 @@ jobs:
           # (profondeur par défaut = 1) et empêcherait toute mise à jour d'être acceptée par
           # Android (le versionCode doit strictement augmenter d'une release à l'autre).
           fetch-depth: 0
+
+      - name: Calculer la version (versionCode/versionName)
+        # Même formule que gitVersionCode dans app/build.gradle.kts : le nombre de commits sur HEAD,
+        # garanti strictement croissant d'une release à l'autre (fetch-depth: 0 ci-dessus est
+        # indispensable, sinon ce serait toujours 1 sur ce clone superficiel par défaut). Calculé une
+        # seule fois ici et partagé (via $GITHUB_ENV) avec l'étape de Release GitHub et celle de
+        # publication R2 plus bas, plutôt que dupliqué dans chacune.
+        run: |
+          VERSION_CODE=$(git rev-list --count HEAD)
+          echo "APP_VERSION_CODE=${VERSION_CODE}" >> "$GITHUB_ENV"
+          echo "APP_VERSION_NAME=1.0.${VERSION_CODE}" >> "$GITHUB_ENV"
 
       - name: Regenerate Gradle Wrapper
         run: gradle wrapper
@@ -80,11 +96,20 @@ jobs:
             ls -la app/build/outputs/apk/release/ || true
           fi
 
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v4
+      - name: Publier la Release GitHub avec l'APK
+        # Remplace l'ancien "Upload Release APK" (actions/upload-artifact@v4), qui échouait avec
+        # "Artifact storage quota has been hit" — le stockage des artefacts de build (temporaire,
+        # quota séparé et vite saturé) n'est pas fait pour distribuer un APK final. Les pièces
+        # jointes d'une Release GitHub utilisent un stockage distinct, sans ce quota, et restent
+        # accessibles indéfiniment (pas de purge automatique après quelques jours) — c'est aussi ce
+        # qui permet de récupérer l'APK immédiatement, sans dépendre des secrets R2 ci-dessous s'ils
+        # ne sont pas encore configurés.
+        uses: softprops/action-gh-release@v2
         with:
-          name: app-release-apk
-          path: app/build/outputs/apk/release/varotra.apk
+          tag_name: v${{ env.APP_VERSION_NAME }}
+          name: Varotra v${{ env.APP_VERSION_NAME }}
+          files: app/build/outputs/apk/release/varotra.apk
+          generate_release_notes: true
 
       - name: Publier sur Cloudflare R2 (mise à jour interne de l'app)
         env:
@@ -94,7 +119,7 @@ jobs:
         run: |
           # Facultatif : tant que ces 3 secrets ne sont pas configurés (Settings > Secrets and
           # variables > Actions), cette étape ne publie rien et n'échoue pas la release — l'APK
-          # signé reste disponible en artefact ci-dessus comme avant.
+          # signé reste disponible sur la Release GitHub ci-dessus comme avant.
           if [ -z "$R2_ACCOUNT_ID" ] || [ -z "$R2_ACCESS_KEY_ID" ] || [ -z "$R2_SECRET_ACCESS_KEY" ]; then
             echo "Secrets R2 non configurés (R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY) : publication de la mise à jour ignorée."
             exit 0
@@ -110,11 +135,8 @@ jobs:
             pip install --quiet awscli
           fi
 
-          # Même formule que gitVersionCode dans app/build.gradle.kts : le nombre de commits sur
-          # HEAD, garanti strictement croissant d'une release à l'autre (fetch-depth: 0 ci-dessus
-          # est indispensable, sinon ce serait toujours 1 sur ce clone superficiel par défaut).
-          VERSION_CODE=$(git rev-list --count HEAD)
-          VERSION_NAME="1.0.${VERSION_CODE}"
+          VERSION_CODE="${APP_VERSION_CODE}"
+          VERSION_NAME="${APP_VERSION_NAME}"
           SHA256=$(sha256sum "$APK_PATH" | cut -d ' ' -f1)
           APK_URL="https://pub-8562b104a83841e09966f730d5763b79.r2.dev/latest/varotra.apk"
 
