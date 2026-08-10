@@ -11,13 +11,16 @@ plugins {
 // codé en dur qu'on oublie facilement d'incrémenter. Google Play — et le mécanisme de mise à jour
 // interne (voir UpdateManager) — refusent une "mise à jour" dont le versionCode n'est pas
 // STRICTEMENT supérieur à celui déjà installé.
+//
+// providers.exec (Provider API), pas ProcessBuilder/Runtime.exec direct : le cache de
+// configuration de Gradle (activé par défaut depuis Gradle 9) interdit tout processus externe lancé
+// à la volée pendant la configuration et fait échouer le build entier ("Starting an external
+// process ... is unsupported") si on ne passe pas par cette API, qui sait l'enregistrer proprement
+// comme entrée du cache.
 fun gitCommitCount(): Int = try {
-  val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
-    .directory(rootDir)
-    .redirectErrorStream(true)
-    .start()
-  process.waitFor()
-  process.inputStream.bufferedReader().readText().trim().toIntOrNull() ?: 1
+  providers.exec {
+    commandLine("git", "rev-list", "--count", "HEAD")
+  }.standardOutput.asText.get().trim().toIntOrNull() ?: 1
 } catch (e: Exception) {
   1
 }
