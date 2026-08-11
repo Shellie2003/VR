@@ -10,7 +10,9 @@ import com.example.ui.viewmodel.InventoryViewModel
 import com.example.util.AppPreferences
 import com.example.util.RecoveryCode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -73,10 +75,18 @@ class GerantPinSessionTest {
         etagereDao = db.etagereDao()
     )
 
-    private suspend fun attendreVendeursCharges(viewModel: InventoryViewModel) {
+    /**
+     * `allVendeurs` est un `StateFlow` construit avec `SharingStarted.WhileSubscribed` : la requête
+     * Room sous-jacente ne démarre que si quelque chose s'abonne réellement au flux (ce que fait
+     * `collectAsState()` côté Compose en production). Un simple polling de `.value` sans abonnement
+     * ne déclenche jamais le chargement — d'où l'abonnement explicite ici avant d'attendre.
+     */
+    private suspend fun attendreVendeursCharges(viewModel: InventoryViewModel) = coroutineScope {
+        val job = launch { viewModel.allVendeurs.collect {} }
         repeat(30) {
             if (viewModel.allVendeurs.value.isEmpty()) delay(100)
         }
+        job.cancel()
     }
 
     @Test
