@@ -8,7 +8,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.local.AppDatabase
-import com.example.data.model.Product
 import com.example.data.repository.InventoryRepository
 import com.example.ui.screens.HomeScreen
 import com.example.ui.theme.MyApplicationTheme
@@ -27,10 +26,15 @@ import org.robolectric.annotation.Config
 
 /**
  * Vérifie que HomeScreen (section 60/61 de AGENTS.md) reste correct après le passage aux tokens
- * Material3 — s'affiche en clair ET en sombre, avec et sans produits. C'était le bug de mode sombre
- * le plus visible du rattrapage : `containerColor = Color.White` codé en dur sur CHAQUE carte de la
- * grille produits, l'écran que le gérant regarde en continu à la caisse, sans même la tentative
- * (fautive) de gestion du mode sombre qu'avaient SalesHistoryScreen/SettingsScreen au départ.
+ * Material3 — s'affiche en clair ET en sombre. C'était le bug de mode sombre le plus visible du
+ * rattrapage : `containerColor = Color.White` codé en dur sur CHAQUE carte de la grille produits,
+ * l'écran que le gérant regarde en continu à la caisse, sans même la tentative (fautive) de gestion
+ * du mode sombre qu'avaient SalesHistoryScreen/SettingsScreen au départ.
+ *
+ * Vérifie `home_settings_button`/`search_input` (rendus par `HomeHeaderContent`, donc présents dans
+ * l'état vide comme dans l'état avec produits) plutôt que la grille elle-même : une base fraîchement
+ * construite ici n'a aucun produit, et forcer une insertion nécessiterait un appel `suspend` en
+ * dehors de tout contexte de coroutine, inutile pour ce que ce test cherche à vérifier.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -75,18 +79,6 @@ class HomeScreenUiTest {
             auditLogDao = db.auditLogDao(),
             etagereDao = db.etagereDao()
         )
-        if (repository.getProductByBarcode("777000") == null) {
-            repository.insertProduct(
-                Product(
-                    name = "Riz",
-                    price = 2500.0,
-                    category = "Alimentation",
-                    stock = 10.0,
-                    unit = "Kilogramme",
-                    barcode = "777000"
-                )
-            )
-        }
         return InventoryViewModel(repository, context)
     }
 
