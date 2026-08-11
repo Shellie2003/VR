@@ -26,6 +26,7 @@ import com.example.data.repository.InventoryRepository
 import com.example.util.AppPreferences
 import com.example.util.FormatUtil
 import com.example.util.NotificationHelper
+import com.example.util.RecoveryCode
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -431,6 +432,16 @@ class InventoryViewModel(
         vendeurs.find { it.id == activeId && it.actif }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+    // Bug signalé : le PIN gérant n'était PARFOIS pas redemandé à l'ouverture de l'app. Cause :
+    // activeVendeurId (ci-dessus) est lu depuis les préférences persistées dès la construction du
+    // ViewModel — un gérant qui s'était connecté puis n'avait jamais explicitement cliqué
+    // "déconnexion" restait donc reconnu comme gérant indéfiniment, y compris après une fermeture
+    // complète de l'app (nouveau processus). Ce drapeau, lui, n'est JAMAIS persisté : il repart
+    // toujours à `false` à chaque nouvelle construction du ViewModel (donc à chaque ouverture
+    // fraîche de l'app), et ne passe à `true` que par une saisie de PIN réussie PENDANT cette
+    // exécution — voir `estGerant`, `verifyGerantPin`, `loginVendeur`, `logoutVendeur`.
+    private var gerantSessionVerifiedThisLaunch = false
+
     fun saveVendeur(vendeur: Vendeur) {
         viewModelScope.launch(coroutineExceptionHandler) {
             if (vendeur.id == 0L) {
@@ -459,6 +470,9 @@ class InventoryViewModel(
         if (vendeur.pinHash != Vendeur.hashPin(pin)) return false
         _activeVendeurId.value = vendeur.id
         appPreferences.activeVendeurId = vendeur.id
+        if (vendeur.role == Vendeur.ROLE_GERANT) {
+            gerantSessionVerifiedThisLaunch = true
+        }
         // Tracé pour pouvoir relier chaque transaction à une prise de poste identifiée.
         journaliser(
             type = AuditLog.Companion.Type.CONNEXION,
@@ -477,6 +491,7 @@ class InventoryViewModel(
         if (gerant != null) {
             _activeVendeurId.value = gerant.id
             appPreferences.activeVendeurId = gerant.id
+            gerantSessionVerifiedThisLaunch = true
         }
         return gerant
     }
@@ -484,16 +499,51 @@ class InventoryViewModel(
     fun logoutVendeur() {
         _activeVendeurId.value = null
         appPreferences.activeVendeurId = -1L
+        gerantSessionVerifiedThisLaunch = false
     }
 
-    // Paramètres is gated behind the gérant PIN only once at least one account exists AND no
-    // gérant is currently active on this device — a solo shop owner who never opens "Comptes &
-    // Rôles" never sees a PIN prompt anywhere.
-    fun requiresGerantPinForSettings(): Boolean {
-        val vendeurs = allVendeurs.value
-        if (vendeurs.isEmpty()) return false
-        return activeVendeur.value?.role != Vendeur.ROLE_GERANT
+    /**
+     * Code de récupération de la boutique (voir `RecoveryCode`/`AppPreferences.firebaseBackupToken`)
+     * accepté comme preuve d'identité de secours pour réinitialiser un PIN gérant oublié — le
+     * gérant le possède déjà (affiché dans Paramètres > Sauvegarde Cloud, communiqué au fournisseur
+     * à l'achat), et c'est la seule chose que l'app peut vérifier hors-ligne sans dépendre d'un
+     * autre gérant déjà connecté (justement indisponible si le gérant unique a oublié son PIN).
+     */
+    fun codeRecuperationValide(saisie: String): Boolean {
+        val stocke = appPreferences.firebaseBackupToken
+        if (stocke.isBlank()) return false
+        return RecoveryCode.normalize(saisie) == stocke || RecoveryCode.normalizeLegacyUuid(saisie) == stocke
     }
+
+    /**
+     * Réinitialise le PIN d'un compte gérant après vérification du code de récupération — et
+     * connecte immédiatement ce gérant, pour ne pas lui faire ressaisir un PIN qu'il vient tout
+     * juste de choisir. Retourne false si le code est invalide ou si le compte n'existe plus.
+     */
+    fun reinitialiserPinGerant(codeRecuperationSaisi: String, vendeurId: Long, nouveauPin: String): Boolean {
+        if (!codeRecuperationValide(codeRecuperationSaisi)) return false
+        val gerant = allVendeurs.value.find { it.id == vendeurId && it.actif && it.role == Vendeur.ROLE_GERANT } ?: return false
+        val misAJour = gerant.copy(pinHash = Vendeur.hashPin(nouveauPin))
+        viewModelScope.launch(coroutineExceptionHandler) {
+            repository.updateVendeur(misAJour)
+            triggerLocalSafetyBackup()
+        }
+        _activeVendeurId.value = gerant.id
+        appPreferences.activeVendeurId = gerant.id
+        gerantSessionVerifiedThisLaunch = true
+        journaliser(
+            type = AuditLog.Companion.Type.REINITIALISATION_PIN,
+            cible = gerant.nom,
+            details = "PIN réinitialisé via le code de récupération sur ${deviceName.value}",
+            severite = AuditLog.SEVERITE_ATTENTION
+        )
+        return true
+    }
+
+    // Paramètres est verrouillé derrière le PIN gérant dès qu'au moins un compte existe ET que les
+    // droits gérant de cette exécution n'ont pas encore été prouvés par une saisie de PIN — voir
+    // `estGerant` et le commentaire sur `gerantSessionVerifiedThisLaunch` plus haut.
+    fun requiresGerantPinForSettings(): Boolean = !estGerant
 
     // ------------------------------------------------------------------------------------------
     // Droits, traçabilité et détection d'anomalies
@@ -504,10 +554,14 @@ class InventoryViewModel(
      *
      * Tant qu'aucun compte n'a été créé (cas de l'épicier seul, très majoritaire), la réponse est
      * oui : l'app se comporte exactement comme avant, sans PIN ni restriction. Dès qu'un gérant a
-     * créé des comptes employés, seul un gérant connecté conserve les droits sensibles.
+     * créé des comptes employés, il faut à la fois (a) que le compte actif soit un gérant ET (b)
+     * que son PIN ait été prouvé PENDANT cette exécution de l'app — `activeVendeur` seul ne suffit
+     * plus, car il est reconstruit à partir de préférences persistées qui survivent à la fermeture
+     * complète de l'app (voir `gerantSessionVerifiedThisLaunch`).
      */
     val estGerant: Boolean
-        get() = allVendeurs.value.isEmpty() || activeVendeur.value?.role == Vendeur.ROLE_GERANT
+        get() = allVendeurs.value.isEmpty() ||
+            (activeVendeur.value?.role == Vendeur.ROLE_GERANT && gerantSessionVerifiedThisLaunch)
 
     /**
      * Suppression d'un historique de transaction (vente, dette, retour, mouvement de caisse,

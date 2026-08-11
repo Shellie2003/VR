@@ -717,6 +717,9 @@ fun MainAppLayout(
     // B.3/E.2: Paramètres is gated behind the gérant PIN only once at least one employee account
     // exists and no gérant is currently active on this device — see requiresGerantPinForSettings().
     var showGerantPinDialog by remember { mutableStateOf(false) }
+    // PIN gérant oublié : réinitialisation via le code de récupération de la boutique (voir
+    // ResetGerantPinDialog plus bas) — accessible depuis le dialogue de PIN ci-dessous.
+    var showResetGerantPinDialog by remember { mutableStateOf(false) }
     val navigateToSettings = {
         if (viewModel.requiresGerantPinForSettings()) {
             showGerantPinDialog = true
@@ -1035,6 +1038,24 @@ fun MainAppLayout(
                             color = MaterialTheme.colorScheme.error
                         )
                     }
+                    TextButton(
+                        onClick = {
+                            pin = ""
+                            pinError = false
+                            showGerantPinDialog = false
+                            showResetGerantPinDialog = true
+                        },
+                        modifier = Modifier.align(Alignment.End).testTag("gerant_pin_forgot_button")
+                    ) {
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Hadino ny PIN ?"
+                                "fr" -> "PIN oublié ?"
+                                else -> "Forgot PIN?"
+                            },
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -1064,6 +1085,205 @@ fun MainAppLayout(
             }
         )
     }
+
+    if (showResetGerantPinDialog) {
+        ResetGerantPinDialog(
+            viewModel = viewModel,
+            onDismiss = { showResetGerantPinDialog = false },
+            onSuccess = {
+                showResetGerantPinDialog = false
+                currentTab = ScreenTab.Parametres
+            }
+        )
+    }
+}
+
+/**
+ * Réinitialisation d'un PIN gérant oublié, en deux étapes : (1) le code de récupération de la
+ * boutique (la seule preuve d'identité vérifiable hors-ligne sans dépendre d'un autre gérant déjà
+ * connecté — justement indisponible si le gérant unique est celui qui a oublié son PIN), puis
+ * (2) le choix du compte gérant à réinitialiser (s'il y en a plusieurs) et un nouveau PIN.
+ */
+@Composable
+private fun ResetGerantPinDialog(
+    viewModel: InventoryViewModel,
+    onDismiss: () -> Unit,
+    onSuccess: () -> Unit
+) {
+    val activeLang by viewModel.language.collectAsState()
+    val allVendeurs by viewModel.allVendeurs.collectAsState()
+    val gerants = remember(allVendeurs) { allVendeurs.filter { it.actif && it.role == com.example.data.model.Vendeur.ROLE_GERANT } }
+
+    var codeVerifie by remember { mutableStateOf(false) }
+    var code by remember { mutableStateOf("") }
+    var codeError by remember { mutableStateOf(false) }
+
+    var selectedGerantId by remember { mutableStateOf(gerants.firstOrNull()?.id) }
+    var nouveauPin by remember { mutableStateOf("") }
+    var confirmPin by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = when (activeLang) {
+                    "mg" -> "Famerenana ny PIN Gerànta"
+                    "fr" -> "Réinitialiser le PIN gérant"
+                    else -> "Reset manager PIN"
+                },
+                fontWeight = FontWeight.Black
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (!codeVerifie) {
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Ampidiro ny kaody famerenana an'ny tsena (io ilay nampiasainao tamin'ny fitahirizana Cloud)."
+                            "fr" -> "Saisissez le code de récupération de la boutique (celui utilisé pour la sauvegarde Cloud)."
+                            else -> "Enter the shop's recovery code (the same one used for Cloud backup)."
+                        },
+                        fontSize = 12.sp
+                    )
+                    OutlinedTextField(
+                        value = code,
+                        onValueChange = { code = it; codeError = false },
+                        label = { Text(if (activeLang == "fr") "Code de récupération" else "Recovery code") },
+                        placeholder = { Text("VRT-A3F9-K2M7-QP4X") },
+                        singleLine = true,
+                        isError = codeError,
+                        modifier = Modifier.fillMaxWidth().testTag("reset_pin_recovery_code_input")
+                    )
+                    if (codeError) {
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Diso ny kaody famerenana."
+                                "fr" -> "Code de récupération incorrect."
+                                else -> "Incorrect recovery code."
+                            },
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                } else if (gerants.isEmpty()) {
+                    // Ne devrait pas arriver (requiresGerantPinForSettings suppose au moins un
+                    // compte), mais un message clair vaut mieux qu'un formulaire vide sans compte à choisir.
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Tsy misy kaonty gerànta hita."
+                            "fr" -> "Aucun compte gérant trouvé."
+                            else -> "No manager account found."
+                        },
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                } else {
+                    if (gerants.size > 1) {
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Kaonty inona no hovaina ny PIN-ny ?"
+                                "fr" -> "Quel compte réinitialiser ?"
+                                else -> "Which account to reset?"
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        gerants.forEach { gerant ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { selectedGerantId = gerant.id },
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                RadioButton(
+                                    selected = selectedGerantId == gerant.id,
+                                    onClick = { selectedGerantId = gerant.id }
+                                )
+                                Text(gerant.nom, fontSize = 14.sp)
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = nouveauPin,
+                        onValueChange = { if (it.length <= 6) { nouveauPin = it.filter { c -> c.isDigit() }; pinError = false } },
+                        label = { Text(if (activeLang == "fr") "Nouveau PIN" else "New PIN") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
+                        ),
+                        singleLine = true,
+                        isError = pinError,
+                        modifier = Modifier.fillMaxWidth().testTag("reset_pin_new_pin_input")
+                    )
+                    OutlinedTextField(
+                        value = confirmPin,
+                        onValueChange = { if (it.length <= 6) { confirmPin = it.filter { c -> c.isDigit() }; pinError = false } },
+                        label = { Text(if (activeLang == "fr") "Confirmer le PIN" else "Confirm PIN") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword
+                        ),
+                        singleLine = true,
+                        isError = pinError,
+                        modifier = Modifier.fillMaxWidth().testTag("reset_pin_confirm_pin_input")
+                    )
+                    if (pinError) {
+                        Text(
+                            text = when (activeLang) {
+                                "mg" -> "Tsy mitovy ny PIN, na latsaka 4 isa."
+                                "fr" -> "Les PIN ne correspondent pas, ou font moins de 4 chiffres."
+                                else -> "PINs don't match, or are fewer than 4 digits."
+                            },
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (!codeVerifie) {
+                        if (viewModel.codeRecuperationValide(code)) {
+                            codeVerifie = true
+                            codeError = false
+                        } else {
+                            codeError = true
+                        }
+                    } else {
+                        val gerantId = selectedGerantId
+                        if (gerantId == null || nouveauPin.length < 4 || nouveauPin != confirmPin) {
+                            pinError = true
+                        } else if (viewModel.reinitialiserPinGerant(code, gerantId, nouveauPin)) {
+                            onSuccess()
+                        } else {
+                            // Le code a pu changer entre-temps (très improbable) : on repart de zéro
+                            // plutôt que de laisser l'utilisateur bloqué sur un état incohérent.
+                            codeVerifie = false
+                            codeError = true
+                        }
+                    }
+                },
+                enabled = gerants.isNotEmpty() || !codeVerifie,
+                modifier = Modifier.testTag("reset_pin_confirm_button")
+            ) {
+                Text(
+                    text = if (!codeVerifie) {
+                        when (activeLang) { "mg" -> "Manaraka"; "fr" -> "Suivant"; else -> "Next" }
+                    } else {
+                        when (activeLang) { "mg" -> "Hitahiry"; "fr" -> "Réinitialiser"; else -> "Reset" }
+                    },
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(when (activeLang) { "mg" -> "Hanafoana"; "fr" -> "Annuler"; else -> "Cancel" })
+            }
+        }
+    )
 }
 
 @Composable

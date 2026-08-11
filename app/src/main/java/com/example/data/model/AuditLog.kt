@@ -67,6 +67,7 @@ data class AuditLog(
             const val AJUSTEMENT_STOCK = "AJUSTEMENT_STOCK"
             const val CONNEXION = "CONNEXION"
             const val CHANGEMENT_PRIX = "CHANGEMENT_PRIX"
+            const val REINITIALISATION_PIN = "REINITIALISATION_PIN"
         }
     }
 }
