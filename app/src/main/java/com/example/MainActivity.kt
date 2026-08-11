@@ -720,6 +720,10 @@ fun MainAppLayout(
     // PIN gérant oublié : réinitialisation via le code de récupération de la boutique (voir
     // ResetGerantPinDialog plus bas) — accessible depuis le dialogue de PIN ci-dessous.
     var showResetGerantPinDialog by remember { mutableStateOf(false) }
+    // Sync est aussi accessible directement depuis la barre du haut (hors Paramètres), sans
+    // passer par le code PIN — mémorise l'onglet d'origine pour que le retour n'atterrisse pas
+    // dans Paramètres si on n'y est jamais entré (sinon : contournement du PIN via Sync).
+    var syncEntryTab by remember { mutableStateOf(ScreenTab.Fandraisana) }
     val navigateToSettings = {
         if (viewModel.requiresGerantPinForSettings()) {
             showGerantPinDialog = true
@@ -756,7 +760,7 @@ fun MainAppLayout(
                     TopAppBarSection(
                         viewModel = viewModel,
                         onNavigateToSettings = navigateToSettings,
-                        onNavigateToSync = { currentTab = ScreenTab.Synchronisation },
+                        onNavigateToSync = { syncEntryTab = currentTab; currentTab = ScreenTab.Synchronisation },
                         isTablet = true
                     )
                 }
@@ -808,7 +812,7 @@ fun MainAppLayout(
                             onNavigateToCommission = { currentTab = ScreenTab.Commission },
                             onNavigateToBarcodes = { currentTab = ScreenTab.BarcodeList },
                             onNavigateToHome = navigateToHome,
-                            onNavigateToSync = { currentTab = ScreenTab.Synchronisation },
+                            onNavigateToSync = { syncEntryTab = ScreenTab.Parametres; currentTab = ScreenTab.Synchronisation },
                             onNavigateToCaisseMouvements = { currentTab = ScreenTab.CaisseMouvements },
                             onNavigateToDashboard = { currentTab = ScreenTab.Dashboard },
                             onNavigateToPeremption = { currentTab = ScreenTab.Peremption },
@@ -826,7 +830,7 @@ fun MainAppLayout(
                         )
                         ScreenTab.Synchronisation -> SyncScreen(
                             viewModel = viewModel,
-                            onNavigateBack = { currentTab = ScreenTab.Parametres }
+                            onNavigateBack = { currentTab = syncEntryTab }
                         )
                         ScreenTab.CaisseMouvements -> CaisseMouvementsScreen(
                             viewModel = viewModel,
@@ -864,7 +868,7 @@ fun MainAppLayout(
                     TopAppBarSection(
                         viewModel = viewModel,
                         onNavigateToSettings = navigateToSettings,
-                        onNavigateToSync = { currentTab = ScreenTab.Synchronisation },
+                        onNavigateToSync = { syncEntryTab = currentTab; currentTab = ScreenTab.Synchronisation },
                         isTablet = false
                     )
                 }
@@ -940,7 +944,7 @@ fun MainAppLayout(
                         onNavigateToCommission = { currentTab = ScreenTab.Commission },
                         onNavigateToBarcodes = { currentTab = ScreenTab.BarcodeList },
                         onNavigateToHome = navigateToHome,
-                        onNavigateToSync = { currentTab = ScreenTab.Synchronisation },
+                        onNavigateToSync = { syncEntryTab = ScreenTab.Parametres; currentTab = ScreenTab.Synchronisation },
                         onNavigateToCaisseMouvements = { currentTab = ScreenTab.CaisseMouvements },
                         onNavigateToDashboard = { currentTab = ScreenTab.Dashboard },
                         onNavigateToPeremption = { currentTab = ScreenTab.Peremption },
@@ -958,7 +962,7 @@ fun MainAppLayout(
                     )
                     ScreenTab.Synchronisation -> SyncScreen(
                         viewModel = viewModel,
-                        onNavigateBack = { currentTab = ScreenTab.Parametres }
+                        onNavigateBack = { currentTab = syncEntryTab }
                     )
                     ScreenTab.CaisseMouvements -> CaisseMouvementsScreen(
                         viewModel = viewModel,
