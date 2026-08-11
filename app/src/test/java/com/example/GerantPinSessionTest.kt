@@ -9,8 +9,9 @@ import com.example.data.repository.InventoryRepository
 import com.example.ui.viewmodel.InventoryViewModel
 import com.example.util.AppPreferences
 import com.example.util.RecoveryCode
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -76,17 +77,23 @@ class GerantPinSessionTest {
     )
 
     /**
-     * `allVendeurs` est un `StateFlow` construit avec `SharingStarted.WhileSubscribed` : la requête
-     * Room sous-jacente ne démarre que si quelque chose s'abonne réellement au flux (ce que fait
-     * `collectAsState()` côté Compose en production). Un simple polling de `.value` sans abonnement
-     * ne déclenche jamais le chargement — d'où l'abonnement explicite ici avant d'attendre.
+     * `allVendeurs` ET `activeVendeur` sont chacun des `StateFlow` construits avec
+     * `SharingStarted.WhileSubscribed` : leur logique amont (requête Room pour l'un, `combine`
+     * pour l'autre) ne tourne que tant qu'au moins un abonné écoute réellement le flux — ce que
+     * fait `collectAsState()` côté Compose en production. Ces deux collecteurs doivent donc rester
+     * actifs pendant TOUTE la durée du test (annulés seulement juste avant `db.close()`) : les
+     * arrêter dès que `allVendeurs` est chargé ferait retomber `activeVendeur.value` à sa valeur
+     * initiale (`null`) au prochain accès, y compris après un `verifyGerantPin`/`logoutVendeur`.
      */
-    private suspend fun attendreVendeursCharges(viewModel: InventoryViewModel) = coroutineScope {
-        val job = launch { viewModel.allVendeurs.collect {} }
+    private fun CoroutineScope.demarrerCollecteEtatVendeur(viewModel: InventoryViewModel): List<Job> = listOf(
+        launch { viewModel.allVendeurs.collect {} },
+        launch { viewModel.activeVendeur.collect {} }
+    )
+
+    private suspend fun attendreVendeursCharges(viewModel: InventoryViewModel) {
         repeat(30) {
             if (viewModel.allVendeurs.value.isEmpty()) delay(100)
         }
-        job.cancel()
     }
 
     @Test
@@ -107,6 +114,7 @@ class GerantPinSessionTest {
         AppPreferences(context).activeVendeurId = gerantId
 
         val viewModel = InventoryViewModel(repository, context)
+        val collecteJobs = demarrerCollecteEtatVendeur(viewModel)
         attendreVendeursCharges(viewModel)
 
         assertTrue(
@@ -120,6 +128,7 @@ class GerantPinSessionTest {
         assertFalse(viewModel.requiresGerantPinForSettings())
         assertTrue(viewModel.estGerant)
 
+        collecteJobs.forEach { it.cancel() }
         db.close()
     }
 
@@ -134,9 +143,9 @@ class GerantPinSessionTest {
             Vendeur(nom = "Koto", pinHash = Vendeur.hashPin("1234"), role = Vendeur.ROLE_GERANT, actif = true)
         )
         val viewModel = InventoryViewModel(repository, context)
+        val collecteJobs = demarrerCollecteEtatVendeur(viewModel)
         attendreVendeursCharges(viewModel)
 
-        val gerant = viewModel.allVendeurs.value.first()
         assertNotNull(viewModel.verifyGerantPin("1234"))
         assertTrue(viewModel.estGerant)
 
@@ -145,6 +154,7 @@ class GerantPinSessionTest {
         assertFalse(viewModel.estGerant)
         assertTrue(viewModel.requiresGerantPinForSettings())
 
+        collecteJobs.forEach { it.cancel() }
         db.close()
     }
 
@@ -159,6 +169,7 @@ class GerantPinSessionTest {
             Vendeur(nom = "Koto", pinHash = Vendeur.hashPin("1234"), role = Vendeur.ROLE_GERANT, actif = true)
         )
         val viewModel = InventoryViewModel(repository, context)
+        val collecteJobs = demarrerCollecteEtatVendeur(viewModel)
         attendreVendeursCharges(viewModel)
 
         val codeCorrect = AppPreferences(context).recoveryCodeFormatted
@@ -188,6 +199,7 @@ class GerantPinSessionTest {
         assertNull("L'ancien PIN doit être révoqué après réinitialisation", viewModel.verifyGerantPin("1234"))
         assertNotNull(viewModel.verifyGerantPin("9999"))
 
+        collecteJobs.forEach { it.cancel() }
         db.close()
     }
 
