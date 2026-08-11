@@ -69,142 +69,14 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(horizontal = if (isTablet) 24.dp else 16.dp)
         ) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(themeColor),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ShoppingBasket,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                    Text(
-                        text = groceryNameVal,
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            fontWeight = FontWeight.Black,
-                            color = themeColor,
-                            fontSize = 24.sp
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = 180.dp)
-                    )
-                }
-
-                IconButton(
-                    onClick = onNavigateToSettings,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(themeColor.copy(alpha = 0.12f))
-                        .testTag("home_settings_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Fikirakirana / Settings",
-                        tint = themeColor,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            }
-
-            // Search Box
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { viewModel.searchQuery.value = it },
-                placeholder = { 
-                    Text(
-                        text = "Hitady Entana...", 
-                        color = Color(0xFF94A3B8),
-                        fontSize = 14.sp
-                    ) 
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = null,
-                        tint = Color(0xFF64748B),
-                        modifier = Modifier.size(20.dp)
-                    )
-                },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.searchQuery.value = "" }) {
-                            Icon(imageVector = Icons.Default.Clear, contentDescription = null, tint = Color(0xFF64748B))
-                        }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .testTag("search_input"),
-                shape = RoundedCornerShape(24.dp),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Color(0xFFF1F5F9),
-                    unfocusedContainerColor = Color(0xFFF1F5F9),
-                    focusedBorderColor = Color.Transparent,
-                    unfocusedBorderColor = Color.Transparent,
-                    focusedTextColor = Color.Black,
-                    unfocusedTextColor = Color.Black
-                )
+            HomeHeaderContent(
+                groceryName = groceryNameVal,
+                themeColor = themeColor,
+                searchQuery = searchQuery,
+                onSearchQueryChange = { viewModel.searchQuery.value = it },
+                onNavigateToSettings = onNavigateToSettings,
+                onNavigateToList = onNavigateToList
             )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Section Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Entana farany nampidirina",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1E293B),
-                        fontSize = 16.sp
-                    )
-                )
-
-                Row(
-                    modifier = Modifier.clickable { onNavigateToList() },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = "Izy rehetra",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFF57C00)
-                    )
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = Color(0xFFF57C00),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
 
             // Prominent empty state redirect
             Box(
@@ -279,198 +151,18 @@ fun HomeScreen(
             ) {
                 items(products, key = { it.id }) { product ->
                     val cartItem = cart.find { it.id == "product_${product.id}" }
-                    val isInCart = cartItem != null
-
-                    // Card matching image 100%
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                viewModel.addToCart(product, 1.0)
-                                viewModel.lastClickedProductId.value = product.id
-                            }
-                            .testTag("product_grid_card_${product.id}"),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color.White
-                        ),
-                        elevation = CardDefaults.cardElevation(
-                            defaultElevation = 1.dp
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp)
-                        ) {
-                            // Image area
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(165.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFFE2E8F0)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (product.imageUrl.isNotEmpty()) {
-                                    AsyncImage(
-                                        model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current).data(product.imageUrl).crossfade(true).size(200).build(),
-                                        placeholder = androidx.compose.ui.graphics.painter.ColorPainter(androidx.compose.ui.graphics.Color(0xFFE2E8F0)),
-                                        error = androidx.compose.ui.graphics.painter.ColorPainter(androidx.compose.ui.graphics.Color(0xFFFFCDD2)),
-                                        contentDescription = product.name,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                } else {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(Color(0xFFECEFF1))
-                                    )
-                                }
-
-                                if (isInCart && cartItem != null) {
-                                    val count = cartItem.quantity
-                                    val countStr = if (count % 1.0 == 0.0) count.toInt().toString() else count.toString()
-
-                                    Row(
-                                        modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .padding(6.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(themeColor)
-                                            .padding(horizontal = 6.dp, vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .clip(CircleShape)
-                                                .background(Color.White.copy(alpha = 0.25f))
-                                                .clickable {
-                                                    viewModel.changeCartQuantityByDelta("product_${product.id}", -1.0)
-                                                },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Remove,
-                                                contentDescription = "Hanafo fikitihana",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                        }
-
-                                        Text(
-                                            text = countStr,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White,
-                                            modifier = Modifier.padding(end = 4.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Product Name
-                            Text(
-                                text = product.name,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E293B),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            // Column with Total Stock and Price stacked vertically
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                                horizontalAlignment = Alignment.Start
-                            ) {
-                                // Stock/Total
-                                val (stockValue, stockUnit) = when (product.unit.lowercase()) {
-                                    "kilogramme", "kg" -> product.stock.toInt().toString() to "kg"
-                                    "litre", "l" -> product.stock.toInt().toString() to "L"
-                                    "pièce", "piece", "pcs" -> product.stock.toInt().toString() to "pcs"
-                                    "paquet" -> product.stock.toInt().toString() to "paq"
-                                    "carton" -> product.stock.toInt().toString() to "ctn"
-                                    "sac" -> product.stock.toInt().toString() to "sac"
-                                    "boîte", "boite" -> product.stock.toInt().toString() to "bt"
-                                    "bouteille" -> product.stock.toInt().toString() to "btl"
-                                    "tasse", "kapoaka" -> product.stock.toInt().toString() to "kap"
-                                    else -> {
-                                        if (product.unit.isEmpty()) {
-                                            "Tahir" to "y"
-                                        } else {
-                                            product.stock.toInt().toString() to product.unit
-                                        }
-                                    }
-                                }
-
-                                val stockLabel = if (product.unit.isEmpty()) "$stockValue" else "$stockValue $stockUnit"
-
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFFFFECE0))
-                                        .padding(horizontal = 6.dp, vertical = 3.dp)
-                                ) {
-                                    Text(
-                                        text = when(activeLang) {
-                                            "mg" -> "Tahiry: $stockLabel"
-                                            "fr" -> "Total: $stockLabel"
-                                            else -> "Total: $stockLabel"
-                                        },
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFD35400)
-                                    )
-                                }
-
-                                // Price
-                                // Prix affiché : passe obligatoirement par PriceUtil, exactement comme
-                                // la carte de l'écran Stock, pour que les deux écrans ne puissent
-                                // jamais afficher deux prix différents pour un même produit.
-                                val isWholesaleActive = com.example.util.PriceUtil.isWholesaleActive(product, shopMode)
-                                val displayedPrice = com.example.util.PriceUtil.displayPrice(product, shopMode)
-
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text(
-                                        text = "Ar ${FormatUtil.formatPrice(displayedPrice)}",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = if (isWholesaleActive) themeColor else Color.Black
-                                    )
-                                    if (isWholesaleActive) {
-                                        Box(
-                                            modifier = Modifier
-                                                .background(themeColor.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
-                                                .padding(horizontal = 4.dp, vertical = 1.dp)
-                                        ) {
-                                            Text(
-                                                text = when(activeLang) {
-                                                    "mg" -> "Gros"
-                                                    "fr" -> "Gros"
-                                                    else -> "Gros"
-                                                },
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = themeColor
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    ProductGridCard(
+                        product = product,
+                        cartQuantity = cartItem?.quantity,
+                        shopMode = shopMode,
+                        activeLang = activeLang,
+                        themeColor = themeColor,
+                        onClick = {
+                            viewModel.addToCart(product, 1.0)
+                            viewModel.lastClickedProductId.value = product.id
+                        },
+                        onDecrement = { viewModel.changeCartQuantityByDelta("product_${product.id}", -1.0) }
+                    )
                 }
             }
 
@@ -483,146 +175,371 @@ fun HomeScreen(
                     .background(MaterialTheme.colorScheme.background)
                     .padding(horizontal = if (isTablet) 24.dp else 16.dp)
             ) {
-                // 1. Brand Logo & Settings Row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(66.dp)
-                        .padding(vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+                HomeHeaderContent(
+                    groceryName = groceryNameVal,
+                    themeColor = themeColor,
+                    searchQuery = searchQuery,
+                    onSearchQueryChange = { viewModel.searchQuery.value = it },
+                    onNavigateToSettings = onNavigateToSettings,
+                    onNavigateToList = onNavigateToList
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+/**
+ * Marque, bouton Paramètres, champ de recherche et en-tête de section : identique dans l'état vide
+ * (Column simple) et dans l'en-tête à défilement collant (Column de hauteur fixe + décalage animé),
+ * donc extrait une seule fois plutôt que dupliqué — un futur ajustement de couleur ou de libellé ne
+ * se fait alors qu'à un seul endroit.
+ */
+@Composable
+private fun HomeHeaderContent(
+    groceryName: String,
+    themeColor: Color,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToList: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(66.dp)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(themeColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.ShoppingBasket,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            Text(
+                text = groceryName,
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontWeight = FontWeight.Black,
+                    color = themeColor,
+                    fontSize = 24.sp
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 180.dp)
+            )
+        }
+
+        IconButton(
+            onClick = onNavigateToSettings,
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(themeColor.copy(alpha = 0.12f))
+                .testTag("home_settings_button")
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Fikirakirana / Settings",
+                tint = themeColor,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+    }
+
+    OutlinedTextField(
+        value = searchQuery,
+        onValueChange = onSearchQueryChange,
+        placeholder = {
+            Text(
+                text = "Hitady Entana...",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 14.sp
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+        },
+        trailingIcon = {
+            if (searchQuery.isNotEmpty()) {
+                IconButton(onClick = { onSearchQueryChange("") }) {
+                    Icon(imageVector = Icons.Default.Clear, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .testTag("search_input"),
+        shape = RoundedCornerShape(24.dp),
+        singleLine = true,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            focusedBorderColor = Color.Transparent,
+            unfocusedBorderColor = Color.Transparent,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+        )
+    )
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = "Entana farany nampidirina",
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 16.sp
+            )
+        )
+
+        Row(
+            modifier = Modifier.clickable { onNavigateToList() },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = "Izy rehetra",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFF57C00)
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = Color(0xFFF57C00),
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Carte produit de la grille d'accueil, extraite en composable autonome (état/actions passés en
+ * paramètres, aucune dépendance directe au ViewModel) : réutilisable et testable isolément, sur le
+ * même principe que `SaleListItem` pour `SalesHistoryScreen`. Prend `cartQuantity` (au lieu de
+ * l'objet panier complet) pour ne dépendre que de ce dont l'affichage a réellement besoin.
+ */
+@Composable
+private fun ProductGridCard(
+    product: Product,
+    cartQuantity: Double?,
+    shopMode: String,
+    activeLang: String,
+    themeColor: Color,
+    onClick: () -> Unit,
+    onDecrement: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .testTag("product_grid_card_${product.id}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 1.dp
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+        ) {
+            // Image area
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(165.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                if (product.imageUrl.isNotEmpty()) {
+                    val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
+                    val errorContainer = MaterialTheme.colorScheme.errorContainer
+                    AsyncImage(
+                        model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current).data(product.imageUrl).crossfade(true).size(200).build(),
+                        placeholder = androidx.compose.ui.graphics.painter.ColorPainter(surfaceVariant),
+                        error = androidx.compose.ui.graphics.painter.ColorPainter(errorContainer),
+                        contentDescription = product.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    )
+                }
+
+                if (cartQuantity != null) {
+                    val countStr = if (cartQuantity % 1.0 == 0.0) cartQuantity.toInt().toString() else cartQuantity.toString()
+
                     Row(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(themeColor)
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(42.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(themeColor),
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.25f))
+                                .clickable(onClick = onDecrement),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.ShoppingBasket,
-                                contentDescription = null,
+                                imageVector = Icons.Default.Remove,
+                                contentDescription = "Hanafo fikitihana",
                                 tint = Color.White,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(14.dp)
                             )
                         }
-                        Text(
-                            text = groceryNameVal,
-                            style = MaterialTheme.typography.headlineMedium.copy(
-                                fontWeight = FontWeight.Black,
-                                color = themeColor,
-                                fontSize = 24.sp
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = 180.dp)
-                        )
-                    }
 
-                    IconButton(
-                        onClick = onNavigateToSettings,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(themeColor.copy(alpha = 0.12f))
-                            .testTag("home_settings_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Fikirakirana / Settings",
-                            tint = themeColor,
-                            modifier = Modifier.size(22.dp)
+                        Text(
+                            text = countStr,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(end = 4.dp)
                         )
                     }
                 }
+            }
 
-                // 2. Search Box
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.searchQuery.value = it },
-                    placeholder = { 
-                        Text(
-                            text = "Hitady Entana...", 
-                            color = Color(0xFF94A3B8),
-                            fontSize = 14.sp
-                        ) 
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = null,
-                            tint = Color(0xFF64748B),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.searchQuery.value = "" }) {
-                                Icon(imageVector = Icons.Default.Clear, contentDescription = null, tint = Color(0xFF64748B))
-                            }
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Product Name
+            Text(
+                text = product.name,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Column with Total Stock and Price stacked vertically
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalAlignment = Alignment.Start
+            ) {
+                // Stock/Total
+                val (stockValue, stockUnit) = when (product.unit.lowercase()) {
+                    "kilogramme", "kg" -> product.stock.toInt().toString() to "kg"
+                    "litre", "l" -> product.stock.toInt().toString() to "L"
+                    "pièce", "piece", "pcs" -> product.stock.toInt().toString() to "pcs"
+                    "paquet" -> product.stock.toInt().toString() to "paq"
+                    "carton" -> product.stock.toInt().toString() to "ctn"
+                    "sac" -> product.stock.toInt().toString() to "sac"
+                    "boîte", "boite" -> product.stock.toInt().toString() to "bt"
+                    "bouteille" -> product.stock.toInt().toString() to "btl"
+                    "tasse", "kapoaka" -> product.stock.toInt().toString() to "kap"
+                    else -> {
+                        if (product.unit.isEmpty()) {
+                            "Tahir" to "y"
+                        } else {
+                            product.stock.toInt().toString() to product.unit
                         }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .testTag("search_input"),
-                    shape = RoundedCornerShape(24.dp),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFFF1F5F9),
-                        unfocusedContainerColor = Color(0xFFF1F5F9),
-                        focusedBorderColor = Color.Transparent,
-                        unfocusedBorderColor = Color.Transparent,
-                        focusedTextColor = Color.Black,
-                        unfocusedTextColor = Color.Black
-                    )
-                )
+                    }
+                }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                val stockLabel = if (product.unit.isEmpty()) "$stockValue" else "$stockValue $stockUnit"
 
-                // 3. Section Header Row
-                Row(
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFFFFECE0))
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
                 ) {
                     Text(
-                        text = "Entana farany nampidirina",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E293B),
-                            fontSize = 16.sp
-                        )
+                        text = when (activeLang) {
+                            "mg" -> "Tahiry: $stockLabel"
+                            "fr" -> "Total: $stockLabel"
+                            else -> "Total: $stockLabel"
+                        },
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFD35400)
                     )
+                }
 
-                    Row(
-                        modifier = Modifier.clickable { onNavigateToList() },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = "Izy rehetra",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFF57C00)
-                        )
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = Color(0xFFF57C00),
-                            modifier = Modifier.size(16.dp)
-                        )
+                // Price
+                // Prix affiché : passe obligatoirement par PriceUtil, exactement comme
+                // la carte de l'écran Stock, pour que les deux écrans ne puissent
+                // jamais afficher deux prix différents pour un même produit.
+                val isWholesaleActive = com.example.util.PriceUtil.isWholesaleActive(product, shopMode)
+                val displayedPrice = com.example.util.PriceUtil.displayPrice(product, shopMode)
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Ar ${FormatUtil.formatPrice(displayedPrice)}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Black,
+                        color = if (isWholesaleActive) themeColor else MaterialTheme.colorScheme.onSurface
+                    )
+                    if (isWholesaleActive) {
+                        Box(
+                            modifier = Modifier
+                                .background(themeColor.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = when (activeLang) {
+                                    "mg" -> "Gros"
+                                    "fr" -> "Gros"
+                                    else -> "Gros"
+                                },
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                        }
                     }
                 }
-                
-                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }
