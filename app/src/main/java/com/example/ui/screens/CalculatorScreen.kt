@@ -324,124 +324,15 @@ fun CalculatorScreen(
                                 contentPadding = PaddingValues(vertical = 4.dp)
                             ) {
                                 items(cart, key = { it.id }) { item ->
-                                    val maxStock = item.maxStock
-                                    val step = if (item.unit.lowercase().contains("litre") || 
-                                                   item.unit.lowercase().contains("kilo") || 
-                                                   item.unit == "L" || 
-                                                   item.unit == "kg") 0.25 else 1.0
-
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 4.dp, horizontal = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = item.name,
-                                                style = MaterialTheme.typography.bodyLarge,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(
-                                                    text = "${FormatUtil.formatPrice(item.price)} Ar / ${item.unit}",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.outline,
-                                                    fontSize = 10.sp
-                                                )
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Box(
-                                                    modifier = Modifier
-                                                        .clip(RoundedCornerShape(4.dp))
-                                                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                                                        .padding(horizontal = 4.dp, vertical = 1.dp)
-                                                ) {
-                                                    val qtyStr = if (item.quantity % 1.0 == 0.0) {
-                                                        item.quantity.toInt().toString()
-                                                    } else {
-                                                        "%.2f".format(item.quantity)
-                                                    }
-                                                    Text(
-                                                        text = "x$qtyStr ${item.unit}",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        fontWeight = FontWeight.Bold,
-                                                        fontSize = 9.sp
-                                                    )
-                                                }
-                                            }
+                                    CartItemRow(
+                                        item = item,
+                                        themeColor = themeColor,
+                                        onQuantityDelta = { delta -> viewModel.changeCartQuantityByDelta(item.id, delta) },
+                                        onEdit = {
+                                            editingCartItem = it
+                                            editingQuantityStr = if (it.quantity % 1.0 == 0.0) it.quantity.toInt().toString() else it.quantity.toString()
                                         }
-
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.End
-                                        ) {
-                                            IconButton(
-                                                onClick = {
-                                                    viewModel.changeCartQuantityByDelta(item.id, -step)
-                                                },
-                                                modifier = Modifier.size(24.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.RemoveCircleOutline,
-                                                    contentDescription = "Remove",
-                                                    tint = themeColor,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-
-                                            Spacer(modifier = Modifier.width(8.dp))
-
-                                            IconButton(
-                                                onClick = {
-                                                    if (item.quantity < maxStock) {
-                                                        viewModel.changeCartQuantityByDelta(item.id, step)
-                                                    }
-                                                },
-                                                enabled = item.quantity < maxStock,
-                                                modifier = Modifier.size(24.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.AddCircleOutline,
-                                                    contentDescription = "Add",
-                                                    tint = if (item.quantity < maxStock) themeColor else MaterialTheme.colorScheme.outline,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-
-                                            Spacer(modifier = Modifier.width(8.dp))
-
-                                            IconButton(
-                                                onClick = {
-                                                    editingCartItem = item
-                                                    editingQuantityStr = if (item.quantity % 1.0 == 0.0) item.quantity.toInt().toString() else item.quantity.toString()
-                                                },
-                                                modifier = Modifier.size(24.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Edit,
-                                                    contentDescription = "Edit Quantity",
-                                                    tint = themeColor,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-
-                                            Spacer(modifier = Modifier.width(12.dp))
-
-                                            Text(
-                                                text = "${FormatUtil.formatPrice(item.price * item.quantity)} Ar",
-                                                style = MaterialTheme.typography.bodyLarge,
-                                                fontWeight = FontWeight.Bold,
-                                                color = themeColor,
-                                                fontSize = 13.sp,
-                                                maxLines = 1
-                                            )
-                                        }
-                                    }
-                                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                                    )
                                 }
                             }
                         }
@@ -502,7 +393,7 @@ fun CalculatorScreen(
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.Backspace,
                                         contentDescription = "Clear",
-                                        tint = Color.Red,
+                                        tint = MaterialTheme.colorScheme.error,
                                         modifier = Modifier.size(14.dp)
                                     )
                                 }
@@ -643,7 +534,7 @@ fun CalculatorScreen(
                                         Icon(
                                             imageVector = Icons.Default.DeleteSweep,
                                             contentDescription = "Clear Cart",
-                                            tint = Color.Red,
+                                            tint = MaterialTheme.colorScheme.error,
                                             modifier = Modifier.size(24.dp)
                                         )
                                     }
@@ -684,7 +575,7 @@ fun CalculatorScreen(
                                     enabled = cart.isNotEmpty(),
                                     shape = RoundedCornerShape(12.dp),
                                     colors = ButtonDefaults.elevatedButtonColors(
-                                        containerColor = if (isTrosaMode) Color.Red else themeColor,
+                                        containerColor = if (isTrosaMode) MaterialTheme.colorScheme.error else themeColor,
                                         contentColor = Color.White
                                     ),
                                     elevation = ButtonDefaults.elevatedButtonElevation(defaultElevation = 2.dp),
@@ -834,126 +725,15 @@ fun CalculatorScreen(
                         contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
                         items(cart, key = { it.id }) { item ->
-                            val maxStock = item.maxStock
-                            val step = if (item.unit.lowercase().contains("litre") || 
-                                           item.unit.lowercase().contains("kilo") || 
-                                           item.unit == "L" || 
-                                           item.unit == "kg") 0.25 else 1.0
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp, horizontal = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Left details
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = item.name,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = "${FormatUtil.formatPrice(item.price)} Ar / ${item.unit}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.outline,
-                                            fontSize = 10.sp
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                                .padding(horizontal = 4.dp, vertical = 1.dp)
-                                        ) {
-                                            val qtyStr = if (item.quantity % 1.0 == 0.0) {
-                                                item.quantity.toInt().toString()
-                                            } else {
-                                                "%.2f".format(item.quantity)
-                                            }
-                                            Text(
-                                                text = "x$qtyStr ${item.unit}",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 9.sp
-                                            )
-                                        }
-                                    }
+                            CartItemRow(
+                                item = item,
+                                themeColor = themeColor,
+                                onQuantityDelta = { delta -> viewModel.changeCartQuantityByDelta(item.id, delta) },
+                                onEdit = {
+                                    editingCartItem = it
+                                    editingQuantityStr = if (it.quantity % 1.0 == 0.0) it.quantity.toInt().toString() else it.quantity.toString()
                                 }
-
-                                // Right controls
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.End
-                                ) {
-                                    IconButton(
-                                        onClick = {
-                                            viewModel.changeCartQuantityByDelta(item.id, -step)
-                                        },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.RemoveCircleOutline,
-                                            contentDescription = "Remove",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    IconButton(
-                                        onClick = {
-                                            if (item.quantity < maxStock) {
-                                                viewModel.changeCartQuantityByDelta(item.id, step)
-                                            }
-                                        },
-                                        enabled = item.quantity < maxStock,
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.AddCircleOutline,
-                                            contentDescription = "Add",
-                                            tint = if (item.quantity < maxStock) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    IconButton(
-                                        onClick = {
-                                            editingCartItem = item
-                                            editingQuantityStr = if (item.quantity % 1.0 == 0.0) item.quantity.toInt().toString() else item.quantity.toString()
-                                        },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Edit,
-                                            contentDescription = "Edit Quantity",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.width(12.dp))
-
-                                    Text(
-                                        text = "${FormatUtil.formatPrice(item.price * item.quantity)} Ar",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontSize = 13.sp,
-                                        maxLines = 1
-                                    )
-                                }
-                            }
-                            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                            )
                         }
                     }
                 }
@@ -996,7 +776,8 @@ fun CalculatorScreen(
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
+                            .height(52.dp)
+                            .testTag("calculator_product_search"),
                         shape = RoundedCornerShape(16.dp),
                         singleLine = true,
                         textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp)
@@ -1112,7 +893,7 @@ fun CalculatorScreen(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.Backspace,
                                 contentDescription = "Clear",
-                                tint = Color.Red,
+                                tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(14.dp)
                             )
                         }
@@ -1257,7 +1038,7 @@ fun CalculatorScreen(
                                 Icon(
                                     imageVector = Icons.Default.DeleteSweep,
                                     contentDescription = "Clear Cart",
-                                    tint = Color.Red,
+                                    tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -1298,13 +1079,14 @@ fun CalculatorScreen(
                             enabled = cart.isNotEmpty(),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.elevatedButtonColors(
-                                containerColor = if (isTrosaMode) Color.Red else MaterialTheme.colorScheme.secondaryContainer,
+                                containerColor = if (isTrosaMode) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondaryContainer,
                                 contentColor = if (isTrosaMode) Color.White else MaterialTheme.colorScheme.onSecondaryContainer
                             ),
                             elevation = ButtonDefaults.elevatedButtonElevation(defaultElevation = 1.5.dp),
                             modifier = Modifier
                                 .weight(2f)
                                 .height(40.dp)
+                                .testTag("calculator_checkout_button")
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -1383,7 +1165,7 @@ fun CalculatorScreen(
                                 BadgedBox(
                                     badge = {
                                         Badge(
-                                            containerColor = Color.Red,
+                                            containerColor = MaterialTheme.colorScheme.error,
                                             contentColor = Color.White
                                         ) {
                                             Text(text = miscCartItems.size.toString(), fontSize = 9.sp)
@@ -1408,7 +1190,7 @@ fun CalculatorScreen(
                             }
                             TextButton(
                                 onClick = { showClearConfirm = true },
-                                colors = ButtonDefaults.textButtonColors(contentColor = Color.Red),
+                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                             ) {
                                 Icon(
@@ -1434,7 +1216,7 @@ fun CalculatorScreen(
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = Color.White
+                        contentColor = MaterialTheme.colorScheme.onPrimary
                     ),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
@@ -1456,7 +1238,7 @@ fun CalculatorScreen(
                                 Text(
                                     text = totalLabel,
                                     fontSize = 11.sp,
-                                    color = Color.White.copy(alpha = 0.8f)
+                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1464,7 +1246,7 @@ fun CalculatorScreen(
                                         text = "${FormatUtil.formatPrice(totalAmount)} Ar",
                                         fontSize = 24.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = MaterialTheme.colorScheme.onPrimary
                                     )
 
                                     if (cart.isNotEmpty()) {
@@ -1481,12 +1263,12 @@ fun CalculatorScreen(
                                             },
                                             modifier = Modifier
                                                 .size(24.dp)
-                                                .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
+                                                .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
                                         ) {
                                             Icon(
                                                 imageVector = Icons.AutoMirrored.Filled.Undo,
                                                 contentDescription = "Undo",
-                                                tint = Color.White,
+                                                tint = MaterialTheme.colorScheme.onPrimary,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                         }
@@ -1497,7 +1279,7 @@ fun CalculatorScreen(
                             if (amountReceived > 0.0) {
                                 val isSufficient = changeToReturn >= 0.0
                                 val boxColor = if (isSufficient) Color(0xFF81C784) else Color(0xFFE57373)
-                                val boxBgColor = Color.White.copy(alpha = 0.15f)
+                                val boxBgColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f)
 
                                 Box(
                                     modifier = Modifier
@@ -1532,7 +1314,7 @@ fun CalculatorScreen(
                                             text = "${FormatUtil.formatPrice(displayChange)} Ar",
                                             fontSize = 16.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color.White
+                                            color = MaterialTheme.colorScheme.onPrimary
                                         )
                                     }
                                 }
@@ -1552,7 +1334,7 @@ fun CalculatorScreen(
                                 placeholder = {
                                     Text(
                                         text = "${t("cash_given")} (Ar)",
-                                        color = Color.White.copy(alpha = 0.5f),
+                                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f),
                                         fontSize = 13.sp
                                     )
                                 },
@@ -1561,19 +1343,19 @@ fun CalculatorScreen(
                                     Icon(
                                         imageVector = Icons.Default.Payments,
                             contentDescription = null,
-                                        tint = Color.White,
+                                        tint = MaterialTheme.colorScheme.onPrimary,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 },
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = Color.White.copy(alpha = 0.15f),
-                                    unfocusedContainerColor = Color.White.copy(alpha = 0.15f),
+                                    focusedContainerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f),
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f),
                                     focusedBorderColor = Color.Transparent,
                                     unfocusedBorderColor = Color.Transparent,
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedPlaceholderColor = Color.White.copy(alpha = 0.5f),
-                                    unfocusedPlaceholderColor = Color.White.copy(alpha = 0.5f)
+                                    focusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                                    focusedPlaceholderColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f),
+                                    unfocusedPlaceholderColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
                                 ),
                                 modifier = Modifier
                                     .weight(1f)
@@ -1583,7 +1365,7 @@ fun CalculatorScreen(
                                 textStyle = MaterialTheme.typography.bodyMedium.copy(
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = MaterialTheme.colorScheme.onPrimary
                                 )
                             )
 
@@ -1596,7 +1378,7 @@ fun CalculatorScreen(
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Backspace,
                                     contentDescription = "Clear",
-                                    tint = Color.White,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -1618,8 +1400,8 @@ fun CalculatorScreen(
                                     },
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color.White.copy(alpha = 0.2f),
-                                        contentColor = Color.White
+                                        containerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f),
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
                                     ),
                                     shape = RoundedCornerShape(8.dp),
                                     elevation = null,
@@ -1860,7 +1642,7 @@ fun CalculatorScreen(
                                                         Icon(
                                                             imageVector = Icons.AutoMirrored.Filled.Backspace,
                                                             contentDescription = "Clear",
-                                                            tint = Color.Red,
+                                                            tint = MaterialTheme.colorScheme.error,
                                                             modifier = Modifier.size(14.dp)
                                                         )
                                                     }
@@ -1945,7 +1727,7 @@ fun CalculatorScreen(
                                                         Icon(
                                                             imageVector = Icons.AutoMirrored.Filled.Backspace,
                                                             contentDescription = "Clear",
-                                                            tint = Color.Red,
+                                                            tint = MaterialTheme.colorScheme.error,
                                                             modifier = Modifier.size(14.dp)
                                                         )
                                                     }
@@ -2088,7 +1870,7 @@ fun CalculatorScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 if (!isTrosaMode) {
-                    PaymentModeRow(selectedPaymentMode, { selectedPaymentMode = it }, activeLang, Color(0xFF2E7D32))
+                    PaymentModeRow(selectedPaymentMode, { selectedPaymentMode = it }, activeLang, themeColor)
                     Spacer(modifier = Modifier.height(6.dp))
                 }
 
@@ -2156,7 +1938,7 @@ fun CalculatorScreen(
                             }
                         },
                         enabled = cart.isNotEmpty(),
-                        colors = ButtonDefaults.buttonColors(containerColor = if (isTrosaMode) Color.Red else Color(0xFF2E7D32)),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (isTrosaMode) MaterialTheme.colorScheme.error else themeColor),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .weight(2f)
@@ -2362,7 +2144,7 @@ fun CalculatorScreen(
                     Text(
                         text = scannerHint,
                         fontSize = 13.sp,
-                        color = Color(0xFF64748B)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     val realScanLabel = when (activeLang) {
@@ -2480,7 +2262,7 @@ fun CalculatorScreen(
                     Text(
                         text = scanSimulationTitle,
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = Color(0xFF334155)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     if (productsWithBarcodes.isEmpty()) {
@@ -2491,7 +2273,7 @@ fun CalculatorScreen(
                                 else -> "No barcode products in system."
                             },
                             fontSize = 12.sp,
-                            color = Color(0xFFEF4444)
+                            color = MaterialTheme.colorScheme.error
                         )
                     } else {
                         LazyRow(
@@ -2535,7 +2317,7 @@ fun CalculatorScreen(
                     Text(
                         text = manualEntryLabel,
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = Color(0xFF334155)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -2709,7 +2491,7 @@ fun CalculatorScreen(
                                         Icon(
                                             imageVector = Icons.Default.RemoveCircle,
                                             contentDescription = "Remove",
-                                            tint = Color.Red,
+                                            tint = MaterialTheme.colorScheme.error,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -2914,6 +2696,126 @@ fun CalculatorScreen(
     }
 }
 
+// Ligne d'un article du panier — dupliquée à l'identique dans la mise en page tablette (deux
+// panneaux côte à côte) et la mise en page téléphone (onglet "checkout") avant cette extraction.
+@Composable
+private fun CartItemRow(
+    item: CartItem,
+    themeColor: Color,
+    onQuantityDelta: (Double) -> Unit,
+    onEdit: (CartItem) -> Unit
+) {
+    val maxStock = item.maxStock
+    val step = if (item.unit.lowercase().contains("litre") ||
+                   item.unit.lowercase().contains("kilo") ||
+                   item.unit == "L" ||
+                   item.unit == "kg") 0.25 else 1.0
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp, horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.name,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "${FormatUtil.formatPrice(item.price)} Ar / ${item.unit}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    fontSize = 10.sp
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                ) {
+                    val qtyStr = if (item.quantity % 1.0 == 0.0) {
+                        item.quantity.toInt().toString()
+                    } else {
+                        "%.2f".format(item.quantity)
+                    }
+                    Text(
+                        text = "x$qtyStr ${item.unit}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 9.sp
+                    )
+                }
+            }
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End
+        ) {
+            IconButton(
+                onClick = { onQuantityDelta(-step) },
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.RemoveCircleOutline,
+                    contentDescription = "Remove",
+                    tint = themeColor,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            IconButton(
+                onClick = { if (item.quantity < maxStock) onQuantityDelta(step) },
+                enabled = item.quantity < maxStock,
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AddCircleOutline,
+                    contentDescription = "Add",
+                    tint = if (item.quantity < maxStock) themeColor else MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            IconButton(
+                onClick = { onEdit(item) },
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit Quantity",
+                    tint = themeColor,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Text(
+                text = "${FormatUtil.formatPrice(item.price * item.quantity)} Ar",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = themeColor,
+                fontSize = 13.sp,
+                maxLines = 1
+            )
+        }
+    }
+    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+}
+
 // B.1: Compact selector for the real payment mode of a cash sale (Espèces / Mvola / Orange Money).
 // Not shown in Trosa mode since credit sales are always recorded as CREDIT.
 @Composable
@@ -2995,10 +2897,10 @@ fun CashRegisterProductCard(
         shape = RoundedCornerShape(24.dp),
         border = BorderStroke(
             1.dp,
-            Color(0xFFE0E0E0)
+            MaterialTheme.colorScheme.outlineVariant
         ),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
         Column(
@@ -3016,15 +2918,15 @@ fun CashRegisterProductCard(
                     modifier = Modifier
                         .size(56.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .border(BorderStroke(1.dp, Color(0xFFE5E5E5)), RoundedCornerShape(16.dp))
-                        .background(Color(0xFFF9F9F9)),
+                        .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
                     if (product.imageUrl.isNotEmpty()) {
                         AsyncImage(
                             model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current).data(product.imageUrl).crossfade(true).size(200).build(),
-                            placeholder = androidx.compose.ui.graphics.painter.ColorPainter(androidx.compose.ui.graphics.Color(0xFFE2E8F0)),
-                            error = androidx.compose.ui.graphics.painter.ColorPainter(androidx.compose.ui.graphics.Color(0xFFFFCDD2)),
+                            placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
+                            error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
@@ -3033,7 +2935,7 @@ fun CashRegisterProductCard(
                         Icon(
                             imageVector = Icons.Default.Image,
                             contentDescription = null,
-                            tint = Color(0xFFCCCCCC),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -3052,7 +2954,7 @@ fun CashRegisterProductCard(
                     }
                     Text(
                         text = "T : $stockQtyStr",
-                        color = if (isOutOfStock) MaterialTheme.colorScheme.error else Color(0xFF757575),
+                        color = if (isOutOfStock) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Normal,
                         maxLines = 1,
@@ -3063,7 +2965,7 @@ fun CashRegisterProductCard(
 
                     Text(
                         text = "${FormatUtil.formatPrice(product.price)} Ar",
-                        color = Color(0xFF333333),
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -3077,7 +2979,7 @@ fun CashRegisterProductCard(
             // Product Name
             Text(
                 text = product.name,
-                color = Color(0xFF333333),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Normal,
                 maxLines = 1,
