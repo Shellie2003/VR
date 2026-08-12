@@ -17,6 +17,7 @@ import com.example.data.model.MouvementStock
 import com.example.data.model.LotProduit
 import com.example.data.model.Vente
 import com.example.data.model.LigneVente
+import com.example.data.model.LigneVenteLot
 import com.example.data.model.Restock
 import com.example.data.model.MouvementCaisse
 import com.example.data.model.CaisseSession
