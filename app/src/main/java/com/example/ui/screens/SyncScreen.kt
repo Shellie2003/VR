@@ -83,11 +83,10 @@ fun SyncScreen(
     var isScannerOpen by remember { mutableStateOf(false) }
     var selectedRoleTab by remember { mutableStateOf(if (isServerMode) 0 else 1) }
 
-    val isDark = MaterialTheme.colorScheme.background == Color(0xFF002114)
-    val cardBg = if (isDark) Color(0xFF1B4332) else Color(0xFFF8FAFC)
-    val cardBorderColor = if (isDark) Color(0xFF2C5E43) else Color(0xFFE2E8F0)
-    val mainTextColor = if (isDark) Color.White else Color(0xFF1E293B)
-    val secondaryTextColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+    val cardBg = MaterialTheme.colorScheme.surface
+    val cardBorderColor = MaterialTheme.colorScheme.outlineVariant
+    val mainTextColor = MaterialTheme.colorScheme.onSurface
+    val secondaryTextColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     // Localized texts
     val titleText = when (activeLang) {
@@ -184,7 +183,10 @@ fun SyncScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.testTag("sync_back_button")
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Hiverina",
@@ -208,7 +210,8 @@ fun SyncScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 8.dp)
+                    .testTag("sync_status_card"),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = cardBg),
                 border = androidx.compose.foundation.BorderStroke(1.dp, cardBorderColor)
@@ -534,8 +537,8 @@ fun SyncScreen(
                                     context.startService(intent)
                                     viewModel.addSyncLog("Hajanona ny Server.")
                                 },
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.Red),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -606,7 +609,7 @@ fun SyncScreen(
                                     context.startService(intent)
                                     viewModel.addSyncLog("Nisara-mifandray tamin'ny Server.")
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {

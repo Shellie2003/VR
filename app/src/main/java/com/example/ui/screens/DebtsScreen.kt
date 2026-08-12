@@ -668,7 +668,7 @@ fun DebtCard(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(Color(0xFFD32F2F).copy(alpha = 0.15f))
+                                    .background(MaterialTheme.colorScheme.errorContainer)
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
@@ -679,7 +679,7 @@ fun DebtCard(
                                     },
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Black,
-                                    color = Color(0xFFD32F2F)
+                                    color = MaterialTheme.colorScheme.onErrorContainer
                                 )
                             }
                         }
@@ -694,7 +694,7 @@ fun DebtCard(
                         Text(
                             text = "${when (activeLang) { "mg" -> "Fetr'andro"; "fr" -> "Échéance"; else -> "Due" }}: $dueDateStr",
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (debt.isOverdue()) Color(0xFFD32F2F) else MaterialTheme.colorScheme.outline,
+                            color = if (debt.isOverdue()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline,
                             fontWeight = if (debt.isOverdue()) FontWeight.Bold else FontWeight.Normal
                         )
                     }
@@ -878,7 +878,7 @@ fun DebtorGroupCard(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(Color(0xFFD32F2F).copy(alpha = 0.15f))
+                                    .background(MaterialTheme.colorScheme.errorContainer)
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
@@ -889,7 +889,7 @@ fun DebtorGroupCard(
                                     },
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Black,
-                                    color = Color(0xFFD32F2F)
+                                    color = MaterialTheme.colorScheme.onErrorContainer
                                 )
                             }
                         }
@@ -1133,7 +1133,7 @@ fun DebtDetailDialog(
                             else -> "Due date"
                         },
                         value = dueDateFormatter.format(Date(due)),
-                        valueColor = if (debt.isOverdue()) Color(0xFFD32F2F) else MaterialTheme.colorScheme.onSurface
+                        valueColor = if (debt.isOverdue()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
