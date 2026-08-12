@@ -131,7 +131,11 @@ class AddProductCategoryDropdownTest {
             composeTestRule.onAllNodesWithText(categoriePerso).fetchSemanticsNodes().isNotEmpty()
         }
 
-        composeTestRule.onNodeWithText(categoriePerso).assertIsDisplayed()
+        // Les catégories personnalisées sont ajoutées APRÈS la trentaine d'entrées standard : dans
+        // un menu de cette longueur, l'entrée est rendue mais hors de la portion visible. On fait
+        // donc défiler jusqu'à elle avant de vérifier son affichage, exactement comme le ferait le
+        // gérant — même recette que pour `SettingsScreen`/`CommissionScreen` (section 61).
+        composeTestRule.onNodeWithText(categoriePerso).performScrollTo().assertIsDisplayed()
 
         db.close()
     }
