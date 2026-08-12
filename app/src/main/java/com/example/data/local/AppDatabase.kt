@@ -55,7 +55,7 @@ import androidx.room.migration.Migration
         NiveauEtagere::class,
         ProduitNiveau::class
     ],
-    version = 24,
+    version = 25,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -204,6 +204,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Mode pharmacie : principe actif, dosage, forme galénique et délivrance sur ordonnance.
+         * Quatre colonnes AJOUTÉES et facultatives — les produits déjà en base restent valides tels
+         * quels, et une épicerie ne les remplira jamais. `surOrdonnance` reçoit 0 par défaut, donc
+         * aucun produit existant ne devient subitement soumis à ordonnance.
+         */
+        val MIGRATION_24_25 = object : Migration(24, 25) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE products ADD COLUMN dci TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE products ADD COLUMN dosage TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE products ADD COLUMN formeGalenique TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE products ADD COLUMN surOrdonnance INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -234,7 +249,7 @@ abstract class AppDatabase : RoomDatabase() {
                         db.execSQL("INSERT INTO unites_produit (id, produitId, nomUnite, facteurVersBase, prixVente, prixAchat, codeBarre, estUniteBase, estUniteVenteDefaut, ordre, actif) VALUES (4, 4, 'Pièce', 1.0, 1000.0, 850.0, '3250541505351', 1, 1, 0, 1)")
                     }
                 })
-                .addMigrations(MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24)
+                .addMigrations(MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25)
                 // F4 — Filet de sécurité volontairement restreint.
                 //
                 // Avant : `fallbackToDestructiveMigration(true)`, c'est-à-dire « en cas de doute,

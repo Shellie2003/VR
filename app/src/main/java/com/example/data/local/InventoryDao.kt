@@ -27,7 +27,7 @@ interface ProductDao {
         WHERE isTemplate = 0
         AND (:category = 'All' OR category = :category)
         AND (:showLowStockOnly = 0 OR stock < lowStockThreshold)
-        AND (:query = '' OR name LIKE '%' || :query || '%' OR category LIKE '%' || :query || '%' OR barcode LIKE '%' || :query || '%')
+        AND (:query = '' OR name LIKE '%' || :query || '%' OR category LIKE '%' || :query || '%' OR barcode LIKE '%' || :query || '%' OR dci LIKE '%' || :query || '%')
         ORDER BY name ASC
     """)
     // F6 — le `LIMIT 100` qui plafonnait cette requête faisait disparaître, sans le moindre

@@ -76,6 +76,15 @@ fun AddProductScreen(
     var nomCourt by remember(editingProduct) { mutableStateOf(editingProduct?.nomCourt ?: "") }
     var sousCategorie by remember(editingProduct) { mutableStateOf(editingProduct?.sousCategorie ?: "") }
     var marque by remember(editingProduct) { mutableStateOf(editingProduct?.marque ?: "") }
+
+    // Mode pharmacie : ces champs ne sont saisis que si la boutique est une pharmacie, mais l'état
+    // est toujours initialisé depuis le produit — passer temporairement en mode épicerie ne doit
+    // jamais effacer une DCI déjà renseignée.
+    var dci by remember(editingProduct) { mutableStateOf(editingProduct?.dci ?: "") }
+    var dosage by remember(editingProduct) { mutableStateOf(editingProduct?.dosage ?: "") }
+    var formeGalenique by remember(editingProduct) { mutableStateOf(editingProduct?.formeGalenique ?: "") }
+    var surOrdonnance by remember(editingProduct) { mutableStateOf(editingProduct?.surOrdonnance ?: false) }
+    val estPharmacie = viewModel.shopMode.collectAsState().value == com.example.util.ShopMode.PHARMACIE
     var description by remember(editingProduct) { mutableStateOf(editingProduct?.description ?: "") }
 
     // Stock & Pricing state
@@ -668,6 +677,95 @@ fun AddProductScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     )
+
+                    // --- Bloc pharmacie ---
+                    // Affiché uniquement en mode pharmacie : une épicerie ne doit pas voir son
+                    // formulaire s'allonger de champs qui ne la concernent pas.
+                    if (estPharmacie) {
+                        OutlinedTextField(
+                            value = dci,
+                            onValueChange = { dci = it },
+                            label = { Text(
+                                when(activeLang) {
+                                    "mg" -> "Molekiola (DCI)"
+                                    "fr" -> "Molécule (DCI)"
+                                    else -> "Active ingredient (INN)"
+                                }
+                            ) },
+                            supportingText = {
+                                Text(
+                                    when(activeLang) {
+                                        "mg" -> "Ohatra: paracétamol — izay no tadiavin'ny mpanjifa"
+                                        "fr" -> "Ex : paracétamol — c'est ce que le client demande"
+                                        else -> "E.g. paracetamol — what the customer asks for"
+                                    }
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("product_dci_input"),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = dosage,
+                                onValueChange = { dosage = it },
+                                label = { Text(
+                                    when(activeLang) {
+                                        "fr" -> "Dosage"
+                                        else -> "Dosage"
+                                    }
+                                ) },
+                                placeholder = { Text("500 mg") },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = formeGalenique,
+                                onValueChange = { formeGalenique = it },
+                                label = { Text(
+                                    when(activeLang) {
+                                        "mg" -> "Endrika"
+                                        "fr" -> "Forme"
+                                        else -> "Form"
+                                    }
+                                ) },
+                                placeholder = { Text(
+                                    when(activeLang) {
+                                        "fr" -> "comprimé"
+                                        else -> "tablet"
+                                    }
+                                ) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = surOrdonnance,
+                                onCheckedChange = { surOrdonnance = it },
+                                modifier = Modifier.testTag("product_sur_ordonnance_checkbox")
+                            )
+                            Text(
+                                text = when(activeLang) {
+                                    "mg" -> "Mila taratasy dokotera (ordonnance)"
+                                    "fr" -> "Délivrance sur ordonnance"
+                                    else -> "Prescription required"
+                                },
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
 
                     // Description
                     OutlinedTextField(
@@ -1431,6 +1529,10 @@ fun AddProductScreen(
                                 nomCourt = nomCourt.trim().ifEmpty { null },
                                 sousCategorie = sousCategorie.trim().ifEmpty { null },
                                 marque = marque.trim().ifEmpty { null },
+                                dci = dci.trim().ifEmpty { null },
+                                dosage = dosage.trim().ifEmpty { null },
+                                formeGalenique = formeGalenique.trim().ifEmpty { null },
+                                surOrdonnance = surOrdonnance,
                                 description = description.trim().ifEmpty { null },
                                 stockMax = finalStockMax,
                                 emplacement = emplacement.trim().ifEmpty { null },
