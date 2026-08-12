@@ -99,6 +99,7 @@ fun MainLifecycleContainer() {
             database.fournisseurDao(),
             database.mouvementStockDao(),
             database.lotProduitDao(),
+            database.ligneVenteLotDao(),
             database.venteDao(),
             database.lignesVenteDao(),
             database.restockDao(),

@@ -42,6 +42,7 @@ import androidx.room.migration.Migration
         LotProduit::class,
         Vente::class,
         LigneVente::class,
+        LigneVenteLot::class,
         Restock::class,
         MouvementCaisse::class,
         CaisseSession::class,
@@ -53,7 +54,7 @@ import androidx.room.migration.Migration
         NiveauEtagere::class,
         ProduitNiveau::class
     ],
-    version = 23,
+    version = 24,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -75,6 +76,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun reglePrixDao(): ReglePrixDao
     abstract fun fournisseurDao(): FournisseurDao
     abstract fun mouvementStockDao(): MouvementStockDao
+    abstract fun ligneVenteLotDao(): LigneVenteLotDao
     abstract fun lotProduitDao(): LotProduitDao
     abstract fun venteDao(): VenteDao
     abstract fun lignesVenteDao(): LigneVenteDao
@@ -176,6 +178,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Traçabilité ventes/lots : quelle quantité de quelle ligne de vente est sortie de quel lot.
+         * Table AJOUTÉE, aucune table existante n'est modifiée — les bases déjà en service ne
+         * risquent donc rien, et la table reste simplement vide pour les épiceries qui ne saisissent
+         * pas de lots.
+         */
+        val MIGRATION_23_24 = object : Migration(23, 24) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS ligne_vente_lots (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        ligneVenteId INTEGER NOT NULL,
+                        lotId INTEGER NOT NULL,
+                        quantite REAL NOT NULL,
+                        FOREIGN KEY(ligneVenteId) REFERENCES lignes_vente(id) ON DELETE CASCADE,
+                        FOREIGN KEY(lotId) REFERENCES lots_produit(id) ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_ligne_vente_lots_ligneVenteId ON ligne_vente_lots(ligneVenteId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_ligne_vente_lots_lotId ON ligne_vente_lots(lotId)")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -206,7 +233,7 @@ abstract class AppDatabase : RoomDatabase() {
                         db.execSQL("INSERT INTO unites_produit (id, produitId, nomUnite, facteurVersBase, prixVente, prixAchat, codeBarre, estUniteBase, estUniteVenteDefaut, ordre, actif) VALUES (4, 4, 'Pièce', 1.0, 1000.0, 850.0, '3250541505351', 1, 1, 0, 1)")
                     }
                 })
-                .addMigrations(MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)
+                .addMigrations(MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24)
                 // F4 — Filet de sécurité volontairement restreint.
                 //
                 // Avant : `fallbackToDestructiveMigration(true)`, c'est-à-dire « en cas de doute,

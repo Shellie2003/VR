@@ -77,6 +77,7 @@ class CalculatorScreenUiTest {
             fournisseurDao = db.fournisseurDao(),
             mouvementStockDao = db.mouvementStockDao(),
             lotProduitDao = db.lotProduitDao(),
+            ligneVenteLotDao = db.ligneVenteLotDao(),
             venteDao = db.venteDao(),
             lignesVenteDao = db.lignesVenteDao(),
             restockDao = db.restockDao(),

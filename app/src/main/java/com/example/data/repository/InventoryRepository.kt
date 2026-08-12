@@ -3,6 +3,7 @@ package com.example.data.repository
 import androidx.room.withTransaction
 import com.example.data.local.*
 import com.example.data.model.*
+import com.example.util.FefoAllocator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 
@@ -17,6 +18,7 @@ class InventoryRepository(
     val fournisseurDao: FournisseurDao,
     val mouvementStockDao: MouvementStockDao,
     val lotProduitDao: LotProduitDao,
+    val ligneVenteLotDao: LigneVenteLotDao,
     val venteDao: VenteDao,
     val lignesVenteDao: LigneVenteDao,
     val restockDao: RestockDao,
@@ -378,9 +380,24 @@ class InventoryRepository(
                     prixUnitaireApplique = item.price,
                     montantLigne = item.quantity * item.price
                 )
-                lignesVenteDao.insertLigneVente(ligne)
+                val ligneVenteId = lignesVenteDao.insertLigneVente(ligne)
 
                 if (decrementStock) {
+                    // Traçabilité ventes/lots (FEFO). Sans effet pour les épiceries qui ne
+                    // saisissent aucun lot : la liste est vide, aucune ligne n'est écrite, et le
+                    // décrément de stock ci-dessous reste seul maître du stock comme auparavant.
+                    val lotsDisponibles = lotProduitDao.getLotsDisponiblesPourProduit(targetId)
+                    for (allocation in FefoAllocator.repartir(lotsDisponibles, item.quantity)) {
+                        lotProduitDao.decrementerQuantite(allocation.lotId, allocation.quantite)
+                        ligneVenteLotDao.insert(
+                            LigneVenteLot(
+                                ligneVenteId = ligneVenteId,
+                                lotId = allocation.lotId,
+                                quantite = allocation.quantite
+                            )
+                        )
+                    }
+
                     // Record MouvementStock
                     val mvt = MouvementStock(
                         produitId = targetId,

@@ -180,3 +180,34 @@ data class LigneVente(
 
     val regleAppliqueeId: Long? = null // traçabilité : quelle promo a joué
 )
+
+/**
+ * Quelle quantité de quelle ligne de vente est sortie de quel lot.
+ *
+ * **Pourquoi une table de liaison plutôt qu'un `lotId` sur [LigneVente].** Une même ligne peut
+ * couvrir PLUSIEURS lots — vendre 10 boîtes alors que le lot le plus proche de la péremption n'en
+ * contient que 6 en prend 6 ici et 4 sur le suivant. Un champ unique sur la ligne ne saurait pas
+ * représenter ce cas, pourtant courant dès qu'on suit les dates. Ça évite en prime toute migration
+ * sur `lignes_vente`, table déjà écrite à chaque vente.
+ *
+ * **Reste vide pour qui ne saisit pas de lots**, c'est-à-dire la quasi-totalité des épiceries :
+ * aucune ligne n'est créée, et la caisse se comporte exactement comme avant.
+ *
+ * C'est cette table qui rend possibles les deux gestes impossibles jusqu'ici : répondre à « qui a
+ * acheté ce lot rappelé ? » et écouler en priorité ce qui périme le plus tôt.
+ */
+@Entity(
+    tableName = "ligne_vente_lots",
+    foreignKeys = [
+        ForeignKey(entity = LigneVente::class, parentColumns = ["id"], childColumns = ["ligneVenteId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = LotProduit::class, parentColumns = ["id"], childColumns = ["lotId"], onDelete = ForeignKey.CASCADE)
+    ],
+    indices = [Index("ligneVenteId"), Index("lotId")]
+)
+data class LigneVenteLot(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val ligneVenteId: Long,
+    val lotId: Long,
+    /** Quantité prélevée sur ce lot, en unité de base. */
+    val quantite: Double
+)

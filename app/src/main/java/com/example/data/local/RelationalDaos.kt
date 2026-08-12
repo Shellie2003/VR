@@ -106,6 +106,33 @@ interface LotProduitDao {
 
     @Delete
     suspend fun deleteLot(lot: LotProduit)
+
+    /**
+     * Lots encore approvisionnés pour ce produit, du plus proche de la péremption au plus lointain.
+     * Version `suspend` (et non `Flow`) : l'allocation FEFO se fait au sein de la transaction de
+     * caisse, qui a besoin d'une photo immédiate du stock, pas d'un flux observable.
+     */
+    @Query("SELECT * FROM lots_produit WHERE produitId = :produitId AND quantite > 0 ORDER BY datePeremption ASC")
+    suspend fun getLotsDisponiblesPourProduit(produitId: Long): List<LotProduit>
+
+    @Query("UPDATE lots_produit SET quantite = quantite - :quantite WHERE id = :lotId")
+    suspend fun decrementerQuantite(lotId: Long, quantite: Double)
+}
+
+@Dao
+interface LigneVenteLotDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(lien: LigneVenteLot): Long
+
+    /** Traçabilité de rappel : toutes les sorties d'un lot donné. */
+    @Query("SELECT * FROM ligne_vente_lots WHERE lotId = :lotId")
+    suspend fun getPourLot(lotId: Long): List<LigneVenteLot>
+
+    @Query("SELECT * FROM ligne_vente_lots WHERE ligneVenteId = :ligneVenteId")
+    suspend fun getPourLigneVente(ligneVenteId: Long): List<LigneVenteLot>
+
+    @Query("SELECT * FROM ligne_vente_lots")
+    fun getAll(): Flow<List<LigneVenteLot>>
 }
 
 @Dao
