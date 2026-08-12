@@ -69,9 +69,8 @@ fun CaisseMouvementsScreen(
     var selectedMouvementIds by remember { mutableStateOf(setOf<Long>()) }
     var showMultiDeleteConfirm by remember { mutableStateOf(false) }
 
-    val isDark = MaterialTheme.colorScheme.background == Color(0xFF002114)
-    val mainTextColor = if (isDark) Color.White else Color(0xFF1E293B)
-    val secondaryTextColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+    val mainTextColor = MaterialTheme.colorScheme.onSurface
+    val secondaryTextColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     val screenTitle = when (activeLang) {
         "mg" -> "Vola an-Kesty"
@@ -172,7 +171,7 @@ fun CaisseMouvementsScreen(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(if (isDark) Color(0xFF1B4332) else Color(0xFFF1F5F9))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -665,7 +664,10 @@ private fun CaisseSessionCard(
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = onCloseClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    ),
                     modifier = Modifier.testTag("caisse_close_session_button")
                 ) {
                     Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))

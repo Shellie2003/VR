@@ -49,9 +49,8 @@ fun PeremptionScreen(
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
 
-    val isDark = MaterialTheme.colorScheme.background == Color(0xFF002114)
-    val mainTextColor = if (isDark) Color.White else Color(0xFF1E293B)
-    val secondaryTextColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+    val mainTextColor = MaterialTheme.colorScheme.onSurface
+    val secondaryTextColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     val now = remember { System.currentTimeMillis() }
     val warningThreshold = now + EXPIRY_WARNING_WINDOW_MS
@@ -93,7 +92,7 @@ fun PeremptionScreen(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(if (isDark) Color(0xFF1B4332) else Color(0xFFF1F5F9))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -294,7 +293,10 @@ fun PeremptionScreen(
             confirmButton = {
                 Button(
                     onClick = { viewModel.deleteLot(lot); lotToDelete = null },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
                 ) {
                     Text(when (activeLang) { "mg" -> "Hamafa"; "fr" -> "Supprimer"; else -> "Delete" }, fontWeight = FontWeight.Bold)
                 }
@@ -382,7 +384,7 @@ private fun LotCard(
                 Icon(imageVector = Icons.Default.Edit, contentDescription = null, tint = secondaryTextColor, modifier = Modifier.size(16.dp))
             }
             IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                Icon(imageVector = Icons.Default.DeleteOutline, contentDescription = null, tint = Color(0xFFC62828), modifier = Modifier.size(16.dp))
+                Icon(imageVector = Icons.Default.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
             }
         }
     }

@@ -97,6 +97,33 @@ class CalculatorScreenUiTest {
     @Test
     fun `ecran de caisse visible en sombre`() = verifieCaisseVisible(darkTheme = true)
 
+    /**
+     * Bug signalé par l'utilisateur : « parfois les écrans n'affichent pas le bouton le plus bas ».
+     * Sur cet écran, le bouton de validation est le contrôle le plus important de l'app, et il vit
+     * dans une `Column` NON défilante, sous ~420dp de blocs rigides. Le cas déclencheur en usage
+     * réel n'est pas tant le petit écran que le CLAVIER : il l'ouvre pour saisir les espèces
+     * reçues, la fenêtre se réduit d'autant, et le bouton passait hors champ.
+     *
+     * Ce test rejoue exactement cette situation en écrasant la hauteur disponible (411x460dp, soit
+     * l'ordre de grandeur qu'il reste d'un téléphone courant une fois le clavier déployé) et exige
+     * que le bouton reste affiché. Il échouerait sans la compression du sélecteur de produits
+     * introduite par le `BoxWithConstraints`.
+     */
+    @Test
+    @Config(sdk = [36], qualifiers = "w411dp-h460dp")
+    fun `le bouton de validation reste visible quand la hauteur disponible est reduite`() {
+        composeTestRule.setContent {
+            MyApplicationTheme {
+                CalculatorScreen(
+                    viewModel = buildViewModel(),
+                    onNavigateToHome = {}
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("calculator_checkout_button").assertIsDisplayed()
+    }
+
     private fun verifieCaisseVisible(darkTheme: Boolean) {
         composeTestRule.setContent {
             MyApplicationTheme(darkTheme = darkTheme) {

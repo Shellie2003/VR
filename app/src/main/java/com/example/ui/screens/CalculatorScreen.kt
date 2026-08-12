@@ -614,6 +614,22 @@ fun CalculatorScreen(
                 }
             }
     } else {
+        // Cette disposition n'est PAS défilante (le panier absorbe l'espace restant via weight(1f)),
+        // et ce qui la suit est à hauteur fixe : sélecteur de produits (~231dp) puis carte de
+        // facturation (~186dp) qui porte le bouton « Valider ». Dès que la hauteur réellement
+        // disponible descend sous la somme de ces blocs rigides — petit écran, mais SURTOUT clavier
+        // ouvert pour saisir les espèces reçues — le bas était rogné et le bouton de validation
+        // devenait inatteignable. `imePadding()` est posé sur le BoxWithConstraints lui-même (et non
+        // sur la Column interne) pour que `maxHeight` reflète la place restante clavier compris ;
+        // le sélecteur de produits se comprime alors en premier, la carte de facturation restant
+        // toujours entièrement visible.
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding()
+        ) {
+        val hauteurDisponibleReduite = maxHeight < 620.dp
+        val hauteurSelecteurProduits = if (hauteurDisponibleReduite) 104.dp else 175.dp
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -794,7 +810,7 @@ fun CalculatorScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(175.dp)
+                        .height(hauteurSelecteurProduits)
                 ) {
                     if (filteredProducts.isEmpty()) {
                         Box(
@@ -1964,7 +1980,8 @@ fun CalculatorScreen(
                 }
             }
         }
-    }
+        }
+        }
 }
 
     // Clear cart confirmation Alert Dialog
