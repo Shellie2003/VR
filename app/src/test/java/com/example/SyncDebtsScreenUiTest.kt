@@ -34,9 +34,15 @@ import org.robolectric.annotation.Config
  * palette sombre change de fond, la comparaison devient fausse et TOUT l'écran repasse en couleurs
  * claires sur un fond sombre. `DebtsScreen`, lui, mélangeait `Color(0xFFD32F2F)` et
  * `colorScheme.error` pour exactement la même sémantique (dette en retard / impayée).
+ *
+ * `qualifiers` fixe le même gabarit de téléphone réaliste que `CalculatorScreenUiTest` : les
+ * éléments visés sont ici tout en haut des deux écrans, mais figer la taille d'écran rend le test
+ * indépendant de l'écran par défaut de Robolectric, qui est petit et peut changer d'une version à
+ * l'autre. Ni `SyncScreen` ni `DebtsScreen` n'ont de branche tablette, donc la largeur n'a pas
+ * d'incidence sur la disposition rendue ici.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [36], qualifiers = "w411dp-h891dp")
 class SyncDebtsScreenUiTest {
 
     @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()

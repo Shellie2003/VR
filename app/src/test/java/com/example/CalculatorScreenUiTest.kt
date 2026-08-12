@@ -35,9 +35,18 @@ import org.robolectric.annotation.Config
  *
  * Les assertions portent sur `calculator_product_search` et `calculator_checkout_button`, tous deux
  * rendus dans la disposition téléphone (le chemin par défaut) quel que soit l'état du panier.
+ *
+ * `qualifiers` fixe un gabarit de téléphone réaliste et HAUT (411x891dp, format Pixel), pour deux
+ * raisons : la disposition de caisse est une `Column` NON défilante dont le contenu à hauteur fixe
+ * (en-tête + sélecteur de produits 231dp + carte de facturation ~186dp) dépasse le petit écran par
+ * défaut de Robolectric — le bas est alors rogné et `assertIsDisplayed()` échoue, sans que
+ * `performScrollTo()` puisse aider faute de conteneur défilant (contrairement à `SettingsScreen`/
+ * `CommissionScreen`, section 61) ; et la largeur doit rester SOUS 600dp pour tester bien la
+ * disposition téléphone, `CalculatorScreen` basculant sur une disposition tablette à deux panneaux
+ * au-delà (`screenWidthDp >= 600`), laquelle ne porte pas ces `testTag`.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+@Config(sdk = [36], qualifiers = "w411dp-h891dp")
 class CalculatorScreenUiTest {
 
     @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
