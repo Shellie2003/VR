@@ -27,6 +27,7 @@ import com.example.util.AppPreferences
 import com.example.util.FormatUtil
 import com.example.util.NotificationHelper
 import com.example.util.RecoveryCode
+import com.example.util.ShopMode
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -283,13 +284,13 @@ class InventoryViewModel(
         themeMode.value = mode
     }
 
-    fun updateShopMode(mode: String) {
+    fun updateShopMode(mode: ShopMode) {
         appPreferences.shopMode = mode
         shopMode.value = mode
         // Recalculate cart item prices based on the new mode
         val current = _cart.value.map { item ->
             if (item.productId != null) {
-                val activePrice = if (mode == "wholesale" && item.wholesalePrice != null && item.wholesalePrice > 0.0) {
+                val activePrice = if (mode == ShopMode.GROSSISTE && item.wholesalePrice != null && item.wholesalePrice > 0.0) {
                     item.wholesalePrice
                 } else {
                     item.regularPrice
@@ -1503,7 +1504,7 @@ class InventoryViewModel(
         val itemId = "product_${product.id}"
         val existingIndex = current.indexOfFirst { it.id == itemId }
         
-        val activePrice = if (shopMode.value == "wholesale" && product.wholesalePrice != null && product.wholesalePrice > 0.0) {
+        val activePrice = if (shopMode.value == ShopMode.GROSSISTE && product.wholesalePrice != null && product.wholesalePrice > 0.0) {
             product.wholesalePrice
         } else {
             product.price

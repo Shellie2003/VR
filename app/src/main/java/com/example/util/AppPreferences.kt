@@ -149,9 +149,13 @@ class AppPreferences(context: Context) {
         get() = prefs.getString(KEY_LANG, "mg") ?: "mg"
         set(value) = prefs.edit().putString(KEY_LANG, value).apply()
 
-    var shopMode: String
-        get() = prefs.getString(KEY_SHOP_MODE, "retail") ?: "retail"
-        set(value) = prefs.edit().putString(KEY_SHOP_MODE, value).apply()
+    /**
+     * Métier de la boutique. La valeur écrite reste la `cle` de [ShopMode] — inchangée pour les
+     * modes historiques — donc les appareils déjà en service gardent leur réglage tel quel.
+     */
+    var shopMode: ShopMode
+        get() = ShopMode.depuisCle(prefs.getString(KEY_SHOP_MODE, ShopMode.PAR_DEFAUT.cle))
+        set(value) = prefs.edit().putString(KEY_SHOP_MODE, value.cle).apply()
 
     var groceryName: String
         get() = prefs.getString(KEY_GROCERY_NAME, "Varotra") ?: "Varotra"

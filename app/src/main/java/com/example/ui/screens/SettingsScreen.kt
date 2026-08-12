@@ -137,6 +137,27 @@ fun SettingsScreen(
         else -> "Wholesale (Bulk/Gros)"
     }
 
+    val pharmacieLabel = when (activeLang) {
+        "mg" -> "Farmasia (Pharmacie)"
+        "fr" -> "Pharmacie"
+        else -> "Pharmacy"
+    }
+
+    val barLabel = when (activeLang) {
+        "mg" -> "Bara (Bar)"
+        "fr" -> "Bar / Boissons"
+        else -> "Bar / Drinks"
+    }
+
+    // Un seul endroit décrit les modes et leur libellé : ajouter un métier plus tard ne demandera
+    // pas de retoucher la mise en page du sélecteur.
+    val modesDisponibles = listOf(
+        com.example.util.ShopMode.DETAIL to retailLabel,
+        com.example.util.ShopMode.GROSSISTE to wholesaleLabel,
+        com.example.util.ShopMode.PHARMACIE to pharmacieLabel,
+        com.example.util.ShopMode.BAR to barLabel
+    )
+
     val themeLabel = when (activeLang) {
         "mg" -> "Loko Fototra (Thème)"
         "fr" -> "Thème (Couleurs)"
@@ -708,58 +729,43 @@ fun SettingsScreen(
                         )
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Retail Option
-                        val isRetail = shopModeVal == "retail"
-                        Button(
-                            onClick = { viewModel.updateShopMode("retail") },
+                    // Grille 2 x 2 plutôt qu'une seule rangée : à quatre métiers, des boutons
+                    // côte à côte deviendraient trop étroits pour rester lisibles sur un téléphone.
+                    modesDisponibles.chunked(2).forEach { rangee ->
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .height(38.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isRetail) themeColor else MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = if (isRetail) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            border = androidx.compose.foundation.BorderStroke(
-                                width = 1.dp,
-                                color = if (isRetail) Color.Transparent else cardBorderColor
-                            ),
-                            contentPadding = PaddingValues(0.dp)
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(
-                                text = retailLabel,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        // Wholesale Option
-                        val isWholesale = shopModeVal == "wholesale"
-                        Button(
-                            onClick = { viewModel.updateShopMode("wholesale") },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(38.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isWholesale) themeColor else MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = if (isWholesale) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            border = androidx.compose.foundation.BorderStroke(
-                                width = 1.dp,
-                                color = if (isWholesale) Color.Transparent else cardBorderColor
-                            ),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text(
-                                text = wholesaleLabel,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            rangee.forEach { (mode, libelle) ->
+                                val estActif = shopModeVal == mode
+                                Button(
+                                    onClick = { viewModel.updateShopMode(mode) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(38.dp)
+                                        .testTag("shop_mode_${mode.cle}"),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (estActif) themeColor else MaterialTheme.colorScheme.surfaceVariant,
+                                        contentColor = if (estActif) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        width = 1.dp,
+                                        color = if (estActif) Color.Transparent else cardBorderColor
+                                    ),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Text(
+                                        text = libelle,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
                         }
                     }
                 }

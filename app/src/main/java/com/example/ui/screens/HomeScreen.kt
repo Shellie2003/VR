@@ -352,7 +352,7 @@ private fun HomeHeaderContent(
 private fun ProductGridCard(
     product: Product,
     cartQuantity: Double?,
-    shopMode: String,
+    shopMode: com.example.util.ShopMode,
     activeLang: String,
     themeColor: Color,
     onClick: () -> Unit,

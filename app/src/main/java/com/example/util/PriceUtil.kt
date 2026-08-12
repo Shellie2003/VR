@@ -15,10 +15,10 @@ import com.example.data.model.Product
 object PriceUtil {
 
     /** True when the wholesale (ambongadiny) price is the one actually charged for this product. */
-    fun isWholesaleActive(product: Product, shopMode: String): Boolean =
-        shopMode == "wholesale" && (product.wholesalePrice ?: 0.0) > 0.0
+    fun isWholesaleActive(product: Product, shopMode: ShopMode): Boolean =
+        shopMode == ShopMode.GROSSISTE && (product.wholesalePrice ?: 0.0) > 0.0
 
     /** The selling price a cashier would actually charge right now for one unit. */
-    fun displayPrice(product: Product, shopMode: String): Double =
+    fun displayPrice(product: Product, shopMode: ShopMode): Double =
         if (isWholesaleActive(product, shopMode)) product.wholesalePrice!! else product.price
 }
