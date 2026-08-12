@@ -96,6 +96,22 @@ class GerantPinSessionTest {
         }
     }
 
+    /**
+     * `reinitialiserPinGerant` accorde l'accès immédiatement (drapeau de session en mémoire) mais
+     * écrit le nouveau PIN de façon ASYNCHRONE : `viewModelScope.launch { repository.updateVendeur }`,
+     * puis Room doit encore propager la modification jusqu'à `allVendeurs`. Enchaîner directement
+     * sur une vérification de PIN lit donc parfois encore l'ancien hachage — d'où un test qui passe
+     * la plupart du temps et échoue de temps en temps. On attend explicitement la propagation
+     * plutôt que de supposer qu'elle a eu lieu.
+     */
+    private suspend fun attendrePinPropage(viewModel: InventoryViewModel, vendeurId: Long, pinAttendu: String) {
+        val hashAttendu = Vendeur.hashPin(pinAttendu)
+        repeat(50) {
+            if (viewModel.allVendeurs.value.any { it.id == vendeurId && it.pinHash == hashAttendu }) return
+            delay(50)
+        }
+    }
+
     @Test
     fun `une session gerant persistee depuis une precedente ouverture de l'app ne donne pas les droits sans re-saisie du PIN`() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -190,9 +206,14 @@ class GerantPinSessionTest {
 
         assertTrue(viewModel.reinitialiserPinGerant(codeCorrect, gerantId, "9999"))
         // La réinitialisation réussie connecte immédiatement ce gérant, sans lui faire ressaisir
-        // le PIN qu'il vient de choisir.
+        // le PIN qu'il vient de choisir. Cet accès est accordé par le drapeau de session en
+        // mémoire, donc sans attendre l'écriture en base.
         assertTrue(viewModel.estGerant)
         assertFalse(viewModel.requiresGerantPinForSettings())
+
+        // L'écriture du nouveau PIN, elle, est asynchrone : on attend qu'elle soit visible dans
+        // `allVendeurs` avant de vérifier les PIN, sans quoi on relirait parfois l'ancien hachage.
+        attendrePinPropage(viewModel, gerantId, "9999")
 
         // Nouvelle session : l'ancien PIN ne doit plus fonctionner, le nouveau si.
         viewModel.logoutVendeur()
