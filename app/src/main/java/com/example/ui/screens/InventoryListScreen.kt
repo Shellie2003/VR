@@ -424,7 +424,7 @@ fun ProductInventoryCard(
                                     text = "ALERT",
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Black,
-                                    color = Color.White
+                                    color = MaterialTheme.colorScheme.onError
                                 )
                             }
                         }
@@ -432,14 +432,14 @@ fun ProductInventoryCard(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(0xFFD32F2F))
+                                    .background(MaterialTheme.colorScheme.error)
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
                                     text = "LOW QTY",
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Black,
-                                    color = Color.White
+                                    color = MaterialTheme.colorScheme.onError
                                 )
                             }
                         }

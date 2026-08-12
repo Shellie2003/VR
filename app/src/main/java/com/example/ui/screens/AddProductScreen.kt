@@ -1783,8 +1783,8 @@ fun AddProductScreen(
                                                 if (!p.imageUrl.isNullOrBlank()) {
                                                     AsyncImage(
                                                         model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current).data(p.imageUrl).crossfade(true).size(100).build(),
-                                                        placeholder = androidx.compose.ui.graphics.painter.ColorPainter(androidx.compose.ui.graphics.Color(0xFFE2E8F0)),
-                                                        error = androidx.compose.ui.graphics.painter.ColorPainter(androidx.compose.ui.graphics.Color(0xFFFFCDD2)),
+                                                        placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
+                                                        error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
                                                         contentDescription = null,
                                                         contentScale = ContentScale.Crop,
                                                         modifier = Modifier.fillMaxSize()
