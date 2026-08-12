@@ -222,6 +222,22 @@ fun AddProductScreen(
         "Autres / Divers",
         "Hafa"
     )
+    // Les catégories déjà enregistrées sur des produits existants (requête DISTINCT côté Room).
+    // Celles créées par le gérant via « Hafa » étaient bien sauvegardées sur le produit, mais la
+    // liste déroulante ne proposait QUE `standardCategories` : la catégorie personnalisée était
+    // donc invisible pour les articles suivants, et il fallait la ressaisir à l'identique à chaque
+    // fois (avec le risque de doublons dus à une faute de frappe). On les réinjecte ici.
+    val categoriesEnregistrees by viewModel.categories.collectAsState()
+    val categoriesDisponibles = remember(categoriesEnregistrees) {
+        val personnalisees = categoriesEnregistrees
+            .filter { it.isNotBlank() && it != "Hafa" && it !in standardCategories }
+            .distinct()
+            .sorted()
+        // « Hafa » reste en dernier : ce n'est pas une catégorie réelle mais l'entrée « autre »,
+        // qui fait apparaître le champ de saisie d'une nouvelle catégorie.
+        standardCategories.filter { it != "Hafa" } + personnalisees + "Hafa"
+    }
+
     var selectedCategory by remember(editingProduct) {
         val cat = editingProduct?.category ?: "Épicerie - Farine & Boulangerie"
         mutableStateOf(if (standardCategories.contains(cat)) cat else "Hafa")
@@ -593,7 +609,7 @@ fun AddProductScreen(
                                 expanded = showCategoryDropdown,
                                 onDismissRequest = { showCategoryDropdown = false }
                             ) {
-                                standardCategories.forEach { cat ->
+                                categoriesDisponibles.forEach { cat ->
                                     DropdownMenuItem(
                                         text = { Text(cat) },
                                         onClick = {
