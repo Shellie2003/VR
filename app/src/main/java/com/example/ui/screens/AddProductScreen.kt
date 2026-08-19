@@ -84,7 +84,8 @@ fun AddProductScreen(
     var dosage by remember(editingProduct) { mutableStateOf(editingProduct?.dosage ?: "") }
     var formeGalenique by remember(editingProduct) { mutableStateOf(editingProduct?.formeGalenique ?: "") }
     var surOrdonnance by remember(editingProduct) { mutableStateOf(editingProduct?.surOrdonnance ?: false) }
-    val estPharmacie = viewModel.shopMode.collectAsState().value == com.example.util.ShopMode.PHARMACIE
+    val modeBoutique by viewModel.shopMode.collectAsState()
+    val estPharmacie = modeBoutique == com.example.util.ShopMode.PHARMACIE
     var description by remember(editingProduct) { mutableStateOf(editingProduct?.description ?: "") }
 
     // Stock & Pricing state
@@ -257,7 +258,16 @@ fun AddProductScreen(
     }
 
     // Units
-    val units = listOf("Pièce", "Litre", "Kilogramme", "Paquet", "Carton", "Sac", "Boîte", "Bouteille", "Tasse/Kapoaka")
+    // Unités proposées selon le métier (épicerie, gros, pharmacie, bar). `pourFormulaire` garantit
+    // en plus que l'unité DÉJÀ enregistrée sur le produit reste sélectionnable même si elle vient
+    // d'un autre métier — sinon rouvrir un médicament depuis une boutique repassée en mode épicerie
+    // afficherait une unité vide, et l'enregistrement l'écraserait silencieusement.
+    val units = remember(modeBoutique, editingProduct) {
+        com.example.util.UnitesMesure.pourFormulaire(
+            mode = modeBoutique,
+            uniteActuelle = editingProduct?.unit
+        )
+    }
     var selectedUnit by remember(editingProduct) {
         mutableStateOf(editingProduct?.unit ?: "Pièce")
     }

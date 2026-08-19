@@ -174,7 +174,7 @@ fun CalculatorScreen(
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp),
+                                .heightIn(min = 56.dp),
                             shape = RoundedCornerShape(16.dp),
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp)
@@ -411,17 +411,16 @@ fun CalculatorScreen(
                                     onValueChange = { amountReceivedStr = it },
                                     placeholder = { Text("${t("cash_given")} (Ar)", fontSize = 11.sp) },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            leadingIcon = { Icon(androidx.compose.material.icons.Icons.Default.Search, contentDescription = null, modifier = Modifier.size(14.dp)) },
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedContainerColor = MaterialTheme.colorScheme.surface,
                                         unfocusedContainerColor = MaterialTheme.colorScheme.surface
                                     ),
                                     modifier = Modifier
-                                        .weight(1.3f)
-                                        .height(52.dp),
+                                        .weight(1.9f)
+                                        .heightIn(min = 56.dp),
                                     shape = RoundedCornerShape(10.dp),
                                     singleLine = true,
-                                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 17.sp, fontWeight = FontWeight.Bold)
                                 )
 
                                 if (amountReceived > 0.0) {
@@ -431,7 +430,7 @@ fun CalculatorScreen(
 
                                     Box(
                                         modifier = Modifier
-                                            .weight(1.7f)
+                                            .weight(1.1f)
                                             .clip(RoundedCornerShape(8.dp))
                                             .background(boxBgColor)
                                             .border(1.dp, boxColor, RoundedCornerShape(8.dp))
@@ -792,7 +791,7 @@ fun CalculatorScreen(
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp)
+                            .heightIn(min = 56.dp)
                             .testTag("calculator_product_search"),
                         shape = RoundedCornerShape(16.dp),
                         singleLine = true,
@@ -928,17 +927,16 @@ fun CalculatorScreen(
                             onValueChange = { amountReceivedStr = it },
                             placeholder = { Text("${t("cash_given")} (Ar)", fontSize = 11.sp) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            leadingIcon = { Icon(androidx.compose.material.icons.Icons.Default.Search, contentDescription = null, modifier = Modifier.size(14.dp)) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                                 unfocusedContainerColor = MaterialTheme.colorScheme.surface
                             ),
                             modifier = Modifier
-                                .weight(1.3f)
-                                .height(52.dp),
+                                .weight(1.9f)
+                                .heightIn(min = 56.dp),
                             shape = RoundedCornerShape(10.dp),
                             singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 17.sp, fontWeight = FontWeight.Bold)
                         )
 
                         if (amountReceived > 0.0) {
@@ -948,7 +946,7 @@ fun CalculatorScreen(
 
                             Box(
                                 modifier = Modifier
-                                    .weight(1.7f)
+                                    .weight(1.1f)
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(boxBgColor)
                                     .border(1.dp, boxColor, RoundedCornerShape(8.dp))
@@ -1375,7 +1373,7 @@ fun CalculatorScreen(
                                 ),
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(52.dp),
+                                    .heightIn(min = 56.dp),
                                 shape = RoundedCornerShape(10.dp),
                                 singleLine = true,
                                 textStyle = MaterialTheme.typography.bodyMedium.copy(
@@ -1637,7 +1635,7 @@ fun CalculatorScreen(
                                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                                         modifier = Modifier
                                                             .weight(1f)
-                                                            .height(52.dp),
+                                                            .heightIn(min = 56.dp),
                                                         shape = RoundedCornerShape(8.dp),
                                                         singleLine = true,
                                                         colors = OutlinedTextFieldDefaults.colors(
@@ -1645,7 +1643,7 @@ fun CalculatorScreen(
                                                             unfocusedContainerColor = MaterialTheme.colorScheme.surface
                                                         ),
                                                         textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                                            fontSize = 13.sp,
+                                                            fontSize = 17.sp,
                                                             fontWeight = FontWeight.Bold,
                                                             textAlign = TextAlign.Center
                                                         )
@@ -1722,7 +1720,7 @@ fun CalculatorScreen(
                                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                                         modifier = Modifier
                                                             .weight(1f)
-                                                            .height(52.dp),
+                                                            .heightIn(min = 56.dp),
                                                         shape = RoundedCornerShape(8.dp),
                                                         singleLine = true,
                                                         colors = OutlinedTextFieldDefaults.colors(
@@ -1730,7 +1728,7 @@ fun CalculatorScreen(
                                                             unfocusedContainerColor = MaterialTheme.colorScheme.surface
                                                         ),
                                                         textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                                            fontSize = 13.sp,
+                                                            fontSize = 17.sp,
                                                             fontWeight = FontWeight.Bold,
                                                             textAlign = TextAlign.Center
                                                         )
