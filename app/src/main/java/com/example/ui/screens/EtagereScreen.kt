@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -7,12 +10,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,9 +35,12 @@ import com.example.data.model.Etagere
 import com.example.data.model.Product
 import com.example.data.model.ProduitNiveau
 import com.example.ui.viewmodel.InventoryViewModel
+import com.example.util.EmplacementProduit
 import com.example.util.EtagereColors
 import com.example.util.EtagereLayout
 import com.example.util.FormatUtil
+import com.example.util.RechercheEtagere
+import kotlinx.coroutines.launch
 
 /**
  * Plan d'étagères interactif : une rangée d'étagères (gauche/droite), chacune composée de niveaux
@@ -83,6 +91,25 @@ fun EtagereScreen(
     var etagereARenommer by remember { mutableStateOf<Etagere?>(null) }
     var etagereASupprimer by remember { mutableStateOf<Etagere?>(null) }
 
+    // Recherche « où est rangé ce produit ? ». À ne pas confondre avec celle du dialogue de
+    // rangement, qui répond à la question inverse (« quel produit poser dans cette case ? ») et
+    // parcourt tout le catalogue : celle-ci ne parcourt que ce qui est effectivement rangé.
+    var rechercheEmplacement by remember { mutableStateOf("") }
+    val resultatsEmplacement = remember(plan, rechercheEmplacement) {
+        RechercheEtagere.chercher(plan, rechercheEmplacement)
+    }
+    val etatDefilement = rememberLazyListState()
+    val portee = rememberCoroutineScope()
+    // Le niveau vers lequel on vient de conduire le gérant reste souligné quelques secondes : une
+    // fois l'étagère à l'écran, il faut encore repérer LA case parmi les autres.
+    var niveauMisEnEvidenceId by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(niveauMisEnEvidenceId) {
+        if (niveauMisEnEvidenceId != null) {
+            kotlinx.coroutines.delay(3000)
+            niveauMisEnEvidenceId = null
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
             title = {
@@ -107,7 +134,79 @@ fun EtagereScreen(
                 viewModel.ajouterEtagere(EtagereLayout.Cote.FIN)
             }
         } else {
+            OutlinedTextField(
+                value = rechercheEmplacement,
+                onValueChange = { rechercheEmplacement = it },
+                placeholder = {
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Aiza ny entana ? (anarana na kaody)"
+                            "fr" -> "Où est ce produit ? (nom ou code-barres)"
+                            else -> "Where is this product? (name or barcode)"
+                        },
+                        fontSize = 13.sp
+                    )
+                },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (rechercheEmplacement.isNotEmpty()) {
+                        IconButton(onClick = { rechercheEmplacement = "" }) {
+                            Icon(Icons.Default.Clear, contentDescription = null)
+                        }
+                    }
+                },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .testTag("etagere_recherche_input"),
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            if (rechercheEmplacement.trim().length >= RechercheEtagere.LONGUEUR_MINIMALE) {
+                if (resultatsEmplacement.isEmpty()) {
+                    Text(
+                        text = when (activeLang) {
+                            "mg" -> "Tsy hita ao amin'ny efitrano"
+                            "fr" -> "Introuvable dans le plan d'étagères"
+                            else -> "Not found in the shelf plan"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 180.dp)
+                            .padding(horizontal = 16.dp)
+                            .testTag("etagere_resultats_recherche"),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(resultatsEmplacement, key = { "${it.niveauId}_${it.produitId}" }) { emplacement ->
+                            ResultatEmplacement(
+                                emplacement = emplacement,
+                                activeLang = activeLang,
+                                onClick = {
+                                    // On efface la saisie AVANT de défiler : la liste de résultats
+                                    // disparaît, le plan reprend toute la hauteur, et l'étagère
+                                    // visée arrive donc dans une vue déjà stabilisée.
+                                    rechercheEmplacement = ""
+                                    niveauMisEnEvidenceId = emplacement.niveauId
+                                    portee.launch {
+                                        // +1 : la LazyRow commence par le bouton « ajouter à gauche ».
+                                        etatDefilement.animateScrollToItem(emplacement.indexEtagere + 1)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
             LazyRow(
+                state = etatDefilement,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -124,6 +223,7 @@ fun EtagereScreen(
                     ColonneEtagere(
                         etagereAvecNiveaux = etagereAvecNiveaux,
                         activeLang = activeLang,
+                        niveauMisEnEvidenceId = niveauMisEnEvidenceId,
                         onClickNiveau = { niveauSelectionneId = it.niveau.id },
                         onAjouterNiveau = { cote -> viewModel.ajouterNiveau(etagereAvecNiveaux.etagere.id, cote) },
                         onRenommer = { etagereARenommer = etagereAvecNiveaux.etagere },
@@ -319,6 +419,7 @@ private const val HAUTEUR_NIVEAU_DP = 84
 private fun ColonneEtagere(
     etagereAvecNiveaux: InventoryViewModel.EtagereAvecNiveaux,
     activeLang: String,
+    niveauMisEnEvidenceId: Long?,
     onClickNiveau: (InventoryViewModel.NiveauAvecProduits) -> Unit,
     onAjouterNiveau: (EtagereLayout.Cote) -> Unit,
     onRenommer: () -> Unit,
@@ -411,6 +512,7 @@ private fun ColonneEtagere(
                     niveauAvecProduits = niveauAvecProduits,
                     numeroAffiche = niveauxAffiches.size - index,
                     activeLang = activeLang,
+                    estMisEnEvidence = niveauAvecProduits.niveau.id == niveauMisEnEvidenceId,
                     onClick = { onClickNiveau(niveauAvecProduits) }
                 )
             }
@@ -440,11 +542,73 @@ private fun ColonneEtagere(
     }
 }
 
+/**
+ * Une ligne de résultat : ce qu'on a trouvé, et surtout OÙ. Le nom de l'étagère et celui du niveau
+ * sont affichés ensemble parce que c'est l'information qui fait marcher le vendeur au bon endroit —
+ * le nom du produit seul ne sert à rien ici, il vient d'être tapé.
+ */
+@Composable
+private fun ResultatEmplacement(
+    emplacement: EmplacementProduit,
+    activeLang: String,
+    onClick: () -> Unit
+) {
+    val niveauAffiche = emplacement.niveauNom.ifBlank {
+        when (activeLang) { "mg" -> "Rayon"; "fr" -> "Niveau"; else -> "Level" }
+    }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .testTag("resultat_emplacement_${emplacement.niveauId}_${emplacement.produitId}"),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Place,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = emplacement.produitNom,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "${emplacement.etagereNom} · $niveauAffiche",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
 @Composable
 private fun CelluleNiveau(
     niveauAvecProduits: InventoryViewModel.NiveauAvecProduits,
     numeroAffiche: Int,
     activeLang: String,
+    estMisEnEvidence: Boolean = false,
     onClick: () -> Unit
 ) {
     val estVide = niveauAvecProduits.produits.isEmpty()
@@ -459,6 +623,15 @@ private fun CelluleNiveau(
         EtagereColors.normaliser(niveauAvecProduits.niveau.couleur)?.let { parseHexColorOrNull(it) }
     }
 
+    // Bordure animée plutôt qu'un simple changement de couleur de fond : arriver sur l'étagère ne
+    // suffit pas, il faut encore distinguer LA case des autres. L'épaisseur revient à zéro d'elle-
+    // même quand la mise en évidence expire, donc rien à nettoyer côté appelant.
+    val epaisseurBordure by animateDpAsState(
+        targetValue = if (estMisEnEvidence) 3.dp else 0.dp,
+        animationSpec = tween(durationMillis = 350),
+        label = "bordure_mise_en_evidence"
+    )
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -466,6 +639,9 @@ private fun CelluleNiveau(
             .clickable { onClick() }
             .testTag("niveau_${niveauAvecProduits.niveau.id}"),
         shape = RoundedCornerShape(10.dp),
+        border = if (epaisseurBordure > 0.dp) {
+            BorderStroke(epaisseurBordure, MaterialTheme.colorScheme.primary)
+        } else null,
         colors = CardDefaults.cardColors(
             containerColor = couleurNiveau?.copy(alpha = if (estVide) 0.20f else 0.28f)
                 ?: if (estVide) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
