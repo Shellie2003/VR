@@ -111,11 +111,13 @@ jobs:
           print(f"TOTAL {total} test(s), {echecs} échec(s)")
           PYTHON
 
-      # Les rapports ne sont conservés qu'en cas d'échec : c'est le seul moment où on les lit.
-      - name: Rapports de tests (si échec)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: rapports-tests
-          path: app/build/reports/tests/
-          retention-days: 7
+      # L'envoi des rapports de tests en artefact a été RETIRÉ. Deux raisons, constatées à l'usage :
+      #
+      # 1. Il n'a jamais servi. Chaque échec de cette session a été diagnostiqué à partir de l'étape
+      #    « Résumé des tests » ci-dessus, qui imprime déjà le nom de chaque test en échec et son
+      #    message dans le journal du run — accessible immédiatement, sans téléchargement.
+      # 2. Il coûtait cher et nuisait. Le stockage d'artefacts est un quota séparé, saturé depuis
+      #    plusieurs jours (« Artifact storage quota has been hit ») : l'étape échouait donc
+      #    SYSTÉMATIQUEMENT, ajoutant un échec parasite à chaque run déjà rouge, tout en continuant
+      #    de consommer le quota du compte — quota dont le dépassement peut bloquer l'attribution
+      #    des machines et empêcher tout run de démarrer.
