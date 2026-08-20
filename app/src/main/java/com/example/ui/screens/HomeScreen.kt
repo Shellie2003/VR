@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -161,7 +163,19 @@ fun HomeScreen(
                             viewModel.addToCart(product, 1.0)
                             viewModel.lastClickedProductId.value = product.id
                         },
-                        onDecrement = { viewModel.changeCartQuantityByDelta("product_${product.id}", -1.0) }
+                        onDecrement = { viewModel.changeCartQuantityByDelta("product_${product.id}", -1.0) },
+                        // Le rangement automatique (tri prédictif, voir `filteredProducts`) réordonne
+                        // toute la grille dès qu'un produit est touché. Sans animation, les cartes
+                        // sautaient d'un coup : le vendeur perdait de vue l'article qu'il venait de
+                        // toucher, et rien n'indiquait que l'app venait de RANGER quelque chose.
+                        // L'animation rend le geste lisible — on voit les articles associés remonter.
+                        //
+                        // `key = { it.id }` juste au-dessus en est la condition : sans clé stable,
+                        // Compose recycle les emplacements au lieu de suivre les éléments, et il n'y
+                        // a plus rien à animer.
+                        modifier = Modifier.animateItem(
+                            placementSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+                        )
                     )
                 }
             }
@@ -356,10 +370,11 @@ private fun ProductGridCard(
     activeLang: String,
     themeColor: Color,
     onClick: () -> Unit,
-    onDecrement: () -> Unit
+    onDecrement: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .testTag("product_grid_card_${product.id}"),
