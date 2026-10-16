@@ -9,6 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -34,6 +35,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
 import com.example.data.model.Product
 import com.example.ui.viewmodel.InventoryViewModel
@@ -122,6 +124,12 @@ fun HomeScreen(
         val headerHeightPx = with(density) { headerHeightDp.toPx() }
         var headerOffsetHeightPx by remember { mutableStateOf(0f) }
 
+        // Le rangement automatique épingle en tête le produit qu'on vient de toucher. Encore
+        // faut-il le VOIR : sans remontée, un produit sélectionné depuis le bas de la grille est
+        // rangé en première position... hors de l'écran, et le vendeur doit remonter à la main.
+        val etatGrille = rememberLazyGridState()
+        val porteeDefilement = rememberCoroutineScope()
+
         val nestedScrollConnection = remember {
             object : NestedScrollConnection {
                 override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -140,6 +148,7 @@ fun HomeScreen(
         ) {
             // Scrollable Grid Content
             LazyVerticalGrid(
+                state = etatGrille,
                 columns = GridCells.Fixed(if (isTablet) 3 else 2),
                 modifier = Modifier
                     .fillMaxSize()
@@ -162,6 +171,13 @@ fun HomeScreen(
                         onClick = {
                             viewModel.addToCart(product, 1.0)
                             viewModel.lastClickedProductId.value = product.id
+                            porteeDefilement.launch {
+                                // L'en-tête repliable est piloté à la main par `nestedScroll` :
+                                // un défilement programmatique ne le rouvre pas tout seul, et on
+                                // arriverait en haut de liste avec un en-tête à moitié escamoté.
+                                headerOffsetHeightPx = 0f
+                                etatGrille.animateScrollToItem(0)
+                            }
                         },
                         onDecrement = { viewModel.changeCartQuantityByDelta("product_${product.id}", -1.0) },
                         // Le rangement automatique (tri prédictif, voir `filteredProducts`) réordonne
