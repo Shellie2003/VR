@@ -1,0 +1,219 @@
+name: Desktop — compilation et paquets
+
+# Chaîne de build de la version de bureau (Compose Multiplatform sur JVM).
+#
+# Workflow SÉPARÉ de `verification.yml` à dessein, et non une étape ajoutée dedans. Deux raisons,
+# toutes deux tirées de l'expérience de ce dépôt :
+#  1. Les deux chaînes tombent en panne pour des motifs sans rapport (SDK Android d'un côté,
+#     `jpackage` et outils natifs de l'autre). Mélangées, une case rouge ne dit plus laquelle est
+#     cassée — c'est exactement ce qui avait conduit à séparer compilation et tests dans
+#     `verification.yml`.
+#  2. Les deux tournent EN PARALLÈLE sur les mêmes déclencheurs : vérifier le desktop ne retarde
+#     donc pas le retour de la vérification Android.
+
+on:
+  # Même déclencheur que `verification.yml` : une poussée sur la branche de travail doit dire si le
+  # desktop compile toujours, sans attendre une Pull Request.
+  push:
+    branches: [ "claude/**" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  # Déclenchement manuel, avec la possibilité de demander les paquets natifs des trois systèmes.
+  workflow_dispatch:
+    inputs:
+      paquets_natifs:
+        description: "Fabriquer aussi les paquets natifs (Linux, Windows, macOS)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------------------------
+  # Barrière rapide. Une seule machine, pas d'empaquetage : répond en quelques minutes à la seule
+  # question qui bloque une fusion — « le code de bureau compile-t-il, et ses tests passent-ils ? »
+  # ---------------------------------------------------------------------------------------------
+  verifier:
+    name: Compilation et tests (Linux)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v4
+        with:
+          # Le numéro de version du paquet vient de `git rev-list --count HEAD`. Un clone
+          # superficiel (profondeur 1 par défaut) renverrait toujours 1 — la leçon est déjà
+          # inscrite dans release.yml, et elle vaut ici aussi.
+          fetch-depth: 0
+
+      # Java 21 : `jpackage` exige au moins le JDK 14, et la vérification Android est déjà sous 21
+      # (contrainte Robolectric). Aligner les deux évite un second JDK sur la machine.
+      - name: JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+          cache: 'gradle'
+
+      # Le module :desktop n'en a pas besoin, mais Gradle CONFIGURE tous les modules du build avant
+      # d'exécuter la moindre tâche : les signingConfigs de :app sont donc évalués, et un keystore
+      # absent ferait échouer ce workflow pour un motif entièrement étranger au desktop.
+      - name: Keystore jetable (exigé par la configuration de :app)
+        run: |
+          keytool -genkeypair -v -keystore debug.keystore \
+            -storepass android -keypass android -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Environnements locaux
+        run: touch local.properties
+
+      - name: Droit d'exécution sur gradlew
+        run: chmod +x gradlew
+
+      # Deux étapes séparées, même principe que verification.yml : un échec des tests ne doit pas
+      # laisser planer le doute sur la compilation.
+      - name: Compilation du module desktop
+        run: ./gradlew :desktop:compileKotlin --no-daemon
+
+      - name: Tests du module desktop
+        run: ./gradlew :desktop:test --no-daemon
+
+      - name: Résumé des tests
+        if: always()
+        run: |
+          python3 - <<'PYTHON'
+          import glob, xml.etree.ElementTree as ET
+          total = echecs = 0
+          fichiers = sorted(glob.glob('desktop/build/test-results/test/*.xml'))
+          if not fichiers:
+              print("Aucun résultat de test : la tâche n'est pas allée jusque-là.")
+          for chemin in fichiers:
+              try:
+                  racine = ET.parse(chemin).getroot()
+              except Exception as e:
+                  print(f"?      {chemin} illisible : {e}")
+                  continue
+              n = int(racine.get('tests') or 0)
+              e = int(racine.get('failures') or 0) + int(racine.get('errors') or 0)
+              total += n; echecs += e
+              print(f"{'ECHEC' if e else 'ok':6} {racine.get('name')}  ({n} test(s), {e} échec(s))")
+              for cas in racine.iter('testcase'):
+                  for pb in list(cas.findall('failure')) + list(cas.findall('error')):
+                      msg = ' '.join((pb.get('message') or pb.get('type') or '').split())[:220]
+                      print(f"         -> {cas.get('name')} : {msg}")
+          print(f"TOTAL {total} test(s), {echecs} échec(s)")
+          PYTHON
+
+  # ---------------------------------------------------------------------------------------------
+  # Paquets natifs. Trois systèmes, parce qu'AUCUNE machine ne peut produire les trois formats :
+  # `jpackage` fabrique uniquement celui du système sur lequel il tourne (.deb sous Linux, .msi
+  # sous Windows, .dmg sous macOS).
+  #
+  # Volontairement PAS déclenché à chaque poussée : trois machines pendant plusieurs minutes pour
+  # un résultat que personne ne télécharge serait du gaspillage. Sur demande, ou sur une étiquette
+  # de version.
+  # ---------------------------------------------------------------------------------------------
+  paquets:
+    name: Paquet natif — ${{ matrix.etiquette }}
+    needs: verifier
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.paquets_natifs) ||
+      startsWith(github.ref, 'refs/tags/')
+
+    # `fail-fast: false` : si Windows échoue, on veut quand même savoir si Linux et macOS
+    # réussissent. Un seul système cassé est un diagnostic ; les trois annulés n'en est pas un.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            etiquette: linux
+          - os: windows-latest
+            etiquette: windows
+          - os: macos-latest
+            etiquette: macos
+
+    runs-on: ${{ matrix.os }}
+
+    # Nécessaire pour attacher les paquets à une Release : le jeton par défaut est en lecture seule
+    # et refuserait l'envoi — leçon déjà apprise sur release.yml.
+    permissions:
+      contents: write
+
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+          cache: 'gradle'
+
+      # `keytool` est fourni par le JDK, donc disponible sur les trois systèmes. La syntaxe
+      # multi-lignes de shell n'est en revanche pas portable : une seule ligne fonctionne partout,
+      # y compris sous PowerShell.
+      - name: Keystore jetable (exigé par la configuration de :app)
+        run: keytool -genkeypair -v -keystore debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Environnements locaux
+        run: touch local.properties
+        shell: bash
+
+      # Deux étapes, et c'est le choix important de ce job.
+      #
+      # `createDistributable` ne produit qu'une arborescence exécutable : il ne dépend d'aucun
+      # outil d'empaquetage extérieur au JDK, et réussit donc sur les trois systèmes. C'est la
+      # véritable barrière — elle prouve que le code de bureau s'assemble en application lançable.
+      #
+      # `packageDistributionForCurrentOS` fabrique l'installateur, et dépend d'outils du système
+      # (WiX sous Windows, dpkg sous Linux) dont la présence sur les machines GitHub varie d'une
+      # image à l'autre. Il est donc en « meilleur effort » : son échec signale un outil manquant,
+      # pas un code cassé, et ne doit pas faire passer la barrière au rouge.
+      - name: Assemblage de l'application (barrière)
+        run: ./gradlew :desktop:createDistributable --no-daemon
+        shell: bash
+
+      - name: Installateur natif (meilleur effort)
+        id: installateur
+        continue-on-error: true
+        run: ./gradlew :desktop:packageDistributionForCurrentOS --no-daemon
+        shell: bash
+
+      # Ce qui a réellement été produit, avec la taille : c'est l'information qu'on vient chercher
+      # dans le journal, et elle évite d'avoir à télécharger quoi que ce soit pour la connaître.
+      #
+      # Aucun envoi en artefact, délibérément : le stockage d'artefacts est un quota séparé, déjà
+      # saturé sur ce compte, et son dépassement peut empêcher l'attribution des machines — donc
+      # bloquer tous les workflows. Pour distribuer, une étiquette de version attache les paquets à
+      # une Release GitHub (stockage distinct, sans ce quota), comme le fait déjà release.yml.
+      - name: Ce qui a été produit
+        if: always()
+        shell: bash
+        run: |
+          echo "Installateur : ${{ steps.installateur.outcome }}"
+          echo "--- Fichiers produits ---"
+          find desktop/build/compose/binaries -maxdepth 4 \
+            \( -name '*.deb' -o -name '*.msi' -o -name '*.dmg' -o -name '*.rpm' -o -name '*.exe' \) \
+            -exec ls -lh {} \; 2>/dev/null || true
+          echo "--- Arborescence exécutable ---"
+          du -sh desktop/build/compose/binaries/main/app/* 2>/dev/null || true
+
+      # Sur étiquette de version uniquement : les installateurs rejoignent la Release GitHub, à
+      # côté de l'APK Android. Même mécanisme que release.yml, pour la même raison — c'est le seul
+      # stockage durable et public du dépôt qui ne consomme pas le quota d'artefacts.
+      - name: Attacher à la Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            desktop/build/compose/binaries/main/deb/*.deb
+            desktop/build/compose/binaries/main/msi/*.msi
+            desktop/build/compose/binaries/main/dmg/*.dmg
+          fail_on_unmatched_files: false
