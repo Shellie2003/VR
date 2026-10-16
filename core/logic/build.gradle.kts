@@ -3,12 +3,15 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 /**
  * `:core:logic` — les règles de calcul de l'application, en Kotlin pur.
  *
- * Premier morceau du découpage annoncé en section 76, et volontairement le plus sûr : il ne
- * contient QUE des fichiers qui n'avaient déjà aucune dépendance Android ni Room. Déplacer du code
- * déjà indépendant ne peut rien casser d'autre que la configuration du build — qu'une CI verte
- * suffit à valider. Les utilitaires couplés aux entités Room (`PriceUtil`, `FefoAllocator`,
- * `DebtAllocation`, `EtagereLayout`, `AnomalyDetector`) restent dans `:app` jusqu'à ce que les
- * modèles soient extraits à leur tour, ce qui est un chantier distinct.
+ * Constitué en deux temps (sections 78 et 80). D'abord les six utilitaires qui n'avaient **déjà**
+ * aucune dépendance Android ni Room — l'étape la plus sûre possible, puisque déplacer du code déjà
+ * indépendant ne peut rien casser d'autre que la configuration du build. Puis, une fois les
+ * modèles extraits dans `:core:model`, les cinq calculs qui en dépendaient : `PriceUtil`,
+ * `FefoAllocator`, `DebtAllocation`, `EtagereLayout`, `AnomalyDetector`.
+ *
+ * Reste dans `:app` : `RechercheEtagere`, seul utilitaire encore couplé à une classe imbriquée
+ * dans `InventoryViewModel`. Le sortir demande d'abord d'en extraire cette classe — un chantier
+ * distinct, qui touche au ViewModel et non aux calculs.
  *
  * **Le package reste `com.example.util`.** Un module Gradle n'impose aucun changement de package,
  * et le conserver rend l'extraction invisible pour les ~100 sites d'appel : aucun import à
@@ -21,6 +24,9 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
  */
 plugins {
   alias(libs.plugins.kotlin.jvm)
+  // Explicite plutôt que supposé fourni par le plugin Kotlin : la configuration `api` utilisée
+  // plus bas vient de `java-library`.
+  `java-library`
 }
 
 // Java 11 et non 21, et c'est la contrainte à ne pas rater : `:app` compile en Java 11, et un
@@ -40,5 +46,12 @@ java {
 }
 
 dependencies {
+  // `api` et non `implementation` : les signatures publiques d'ici exposent les modèles
+  // (`PriceUtil.displayPrice(product: Product, ...)`, `FefoAllocator.repartir(lots: List<LotProduit>, ...)`).
+  // Avec `implementation`, un module qui dépend de :core:logic verrait ces fonctions sans pouvoir
+  // nommer leurs paramètres — une erreur de compilation déroutante chez l'appelant, pour une
+  // dépendance qu'il n'a pas déclarée et dont il ignore l'existence.
+  api(project(":core:model"))
+
   testImplementation(libs.junit)
 }
