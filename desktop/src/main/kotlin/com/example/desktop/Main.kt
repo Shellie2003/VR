@@ -14,7 +14,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.util.ShopMode
+import com.example.util.enDecimal
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -94,10 +101,16 @@ private fun EcranSocle(version: String?) {
                             "Système",
                             "${System.getProperty("os.name")} ${System.getProperty("os.arch")}"
                         )
+                        LigneInfo(
+                            "Métiers (code partagé)",
+                            ShopMode.entries.joinToString(", ") { it.name.lowercase() }
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        DemoMontantPartage()
                         Spacer(Modifier.height(16.dp))
                         Text(
-                            text = "Prochaine étape : extraire le code commun (modèles, calculs, " +
-                                "écrans) en modules indépendants, puis les brancher ici.",
+                            text = "Prochaine étape : extraire les modèles de données, puis les " +
+                                "calculs qui en dépendent (prix, FEFO, dettes), puis les écrans.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -122,6 +135,51 @@ private fun LigneInfo(libelle: String, valeur: String) {
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+/**
+ * Démonstration vivante du code partagé, et non une simple mention dans une liste.
+ *
+ * `NombreUtil` est la règle qui lit les montants saisis à la caisse — virgule ou point, espaces de
+ * milliers, devise en suffixe. C'est le calcul dont une erreur ne se verrait PAS à l'écran mais
+ * produirait une monnaie rendue fausse (voir section 49). Le voir fonctionner ici prouve qu'une
+ * seule source de vérité sert les deux plateformes : si cette règle change côté Android, elle
+ * change ici, sans recopie.
+ *
+ * Un champ interactif plutôt qu'une valeur figée : une constante affichée prouverait seulement que
+ * le module se compile, pas que la règle s'exécute.
+ */
+@Composable
+private fun DemoMontantPartage() {
+    var saisie by remember { mutableStateOf("12 500,50 Ar") }
+    val valeur = saisie.enDecimal()
+
+    Column {
+        Text(
+            text = "Lecture d'un montant (règle partagée avec la caisse Android)",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = saisie,
+            onValueChange = { saisie = it },
+            singleLine = true
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            // Une saisie illisible renvoie `null` et non zéro — c'est la garantie centrale de
+            // `NombreUtil` : une faute de frappe ne doit jamais devenir un montant nul silencieux.
+            text = valeur?.let { "Valeur lue : $it" } ?: "Saisie refusée (ce n'est pas un nombre)",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = if (valeur == null) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            }
         )
     }
 }

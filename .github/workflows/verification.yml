@@ -74,8 +74,14 @@ jobs:
 
       # Dont Migration20To21Test, qui rejoue la migration de schéma sur une base peuplée : casser
       # la préservation des données à la mise à jour doit échouer ici, pas chez un client.
+      #
+      # `:core:logic:test` est indispensable EN PLUS de `testDebugUnitTest`, et c'est un piège dont
+      # il faut se souvenir à chaque nouveau module : `testDebugUnitTest` est une tâche de variante
+      # ANDROID, elle n'existe pas dans un module `kotlin("jvm")`. Sans cette mention explicite, les
+      # tests déplacés dans :core:logic (section 78) cesseraient tout simplement d'être exécutés —
+      # sans aucune erreur, la CI resterait verte en vérifiant moins de choses qu'avant.
       - name: Tests unitaires
-        run: ./gradlew testDebugUnitTest --no-daemon
+        run: ./gradlew testDebugUnitTest :core:logic:test --no-daemon
 
       # Gradle ne dit que « des tests ont échoué ». La première version de cette étape déversait
       # 4 000 caractères de XML par fichier : illisible, et surtout la ligne qui compte se
@@ -91,7 +97,12 @@ jobs:
           python3 - <<'PYTHON'
           import glob, xml.etree.ElementTree as ET
           total = echecs = 0
-          fichiers = sorted(glob.glob('app/build/test-results/testDebugUnitTest/*.xml'))
+          # Deux emplacements : la variante Android de :app, et la tâche `test` du module JVM
+          # :core:logic. N'en lire qu'un afficherait un total amputé sans le signaler.
+          fichiers = sorted(
+              glob.glob('app/build/test-results/testDebugUnitTest/*.xml')
+              + glob.glob('core/logic/build/test-results/test/*.xml')
+          )
           if not fichiers:
               print("Aucun résultat de test : la tâche n'est pas allée jusque-là.")
           for chemin in fichiers:

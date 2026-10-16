@@ -49,6 +49,10 @@ kotlin {
 }
 
 dependencies {
+  // Le code de calcul partagé avec Android. C'est la première dépendance qui donne au module
+  // desktop autre chose à faire que s'ouvrir : les mêmes règles de lecture des montants et la
+  // même liste de métiers tournent désormais des deux côtés, à partir d'une seule source.
+  implementation(project(":core:logic"))
   implementation(compose.desktop.currentOs)
   // Material 3 est à demander EXPLICITEMENT : `compose.desktop.currentOs` n'embarque que
   // Material 2. Sans cette ligne, les imports `androidx.compose.material3.*` ne résolvent pas —

@@ -146,5 +146,6 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
   implementation(project(":sync"))
+  implementation(project(":core:logic"))
   implementation(libs.zxing.core)
 }
