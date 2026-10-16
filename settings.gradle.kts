@@ -34,6 +34,11 @@ include(":sync")
 // Règles de calcul en Kotlin pur, partagées entre Android et le bureau. Premier morceau du
 // découpage : ne contient que du code qui n'avait déjà aucune dépendance Android, donc son
 // extraction ne peut rien casser d'autre que la configuration du build.
+// Entités de données. Extraites de :app parce que leur inspection a montré qu'elles n'utilisent
+// que quatre annotations Room et AUCUN type du framework Android — elles n'étaient donc pas
+// réellement liées à Android, seulement rangées à côté de lui.
+include(":core:model")
+
 include(":core:logic")
 
 include(":desktop")
