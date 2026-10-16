@@ -28,6 +28,7 @@ import com.example.util.FormatUtil
 import com.example.util.NotificationHelper
 import com.example.util.RecoveryCode
 import com.example.util.ShopMode
+import com.example.util.PriceUtil
 import com.example.util.InfoMiseAJour
 import com.example.util.UpdateManager
 import kotlinx.coroutines.flow.*
@@ -1582,11 +1583,18 @@ class InventoryViewModel(
         val itemId = "product_${product.id}"
         val existingIndex = current.indexOfFirst { it.id == itemId }
         
-        val activePrice = if (shopMode.value == ShopMode.GROSSISTE && product.wholesalePrice != null && product.wholesalePrice > 0.0) {
-            product.wholesalePrice
-        } else {
-            product.price
-        }
+        // Passe par `PriceUtil` au lieu de redécider ici, et le détour n'est pas gratuit : cette
+        // ligne dupliquait mot pour mot la règle du prix de gros que la section 32 avait justement
+        // centralisée pour empêcher deux écrans d'afficher deux prix différents. La duplication
+        // s'était glissée dans le PANIER, donc à l'endroit où un écart ne se voit pas à l'écran
+        // mais fausse le montant encaissé. Les deux expressions sont strictement équivalentes —
+        // vérifié avant substitution, car remplacer un calcul de prix n'est sans risque qu'à cette
+        // condition.
+        //
+        // L'extraction des modèles (section 79) a rendu ce doublon visible : Kotlin refuse le
+        // smart cast d'une propriété mutable publique venue d'un AUTRE module, donc
+        // `product.wholesalePrice > 0.0` après un test de nullité ne compilait plus.
+        val activePrice = PriceUtil.displayPrice(product, shopMode.value)
         
         if (existingIndex != -1) {
             val updatedQty = current[existingIndex].quantity + quantity

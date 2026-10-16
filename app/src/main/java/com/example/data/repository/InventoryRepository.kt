@@ -347,8 +347,14 @@ class InventoryRepository(
                 val targetId = existingProduit.id
                 // Get or create base UniteProduit
                 var uniteId = 0L
-                val units = if (existingProduit.codeBarrePrincipal?.isNotEmpty() == true) {
-                    uniteProduitDao.getUniteByBarcode(existingProduit.codeBarrePrincipal)
+                // Capturé dans une variable locale : depuis que les modèles vivent dans un module
+                // distinct (section 79), Kotlin refuse de considérer `codeBarrePrincipal` comme
+                // non-nul après le test, une propriété mutable publique d'un autre module pouvant
+                // en principe changer entre les deux lectures. Lire la valeur UNE fois est de
+                // toute façon plus juste que la relire, test compris.
+                val codeBarre = existingProduit.codeBarrePrincipal
+                val units = if (!codeBarre.isNullOrEmpty()) {
+                    uniteProduitDao.getUniteByBarcode(codeBarre)
                 } else null
 
                 val baseUnit = if (units != null) units else uniteProduitDao.getBaseUniteForProduit(targetId)
