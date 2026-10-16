@@ -96,6 +96,7 @@ fun SettingsScreen(
     val groceryNameVal by viewModel.groceryName.collectAsState()
     val currentThemeKey by viewModel.colorTheme.collectAsState()
     val themeColor by viewModel.themeColor.collectAsState()
+    val miseAJourConnue by viewModel.infoMiseAJour.collectAsState()
     val shopModeVal by viewModel.shopMode.collectAsState()
     val themeModeVal by viewModel.themeMode.collectAsState()
     val firebaseDatabaseUrlVal by viewModel.firebaseDatabaseUrl.collectAsState()
@@ -2030,7 +2031,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            UpdateCard(activeLang = activeLang, themeColor = themeColor)
+            UpdateCard(activeLang = activeLang, themeColor = themeColor, miseAJourConnue = miseAJourConnue)
 
             Spacer(modifier = Modifier.height(32.dp))
         }
@@ -2400,12 +2401,15 @@ private fun VendeurEditDialog(
  * de dette à reproduire.
  */
 @Composable
-private fun UpdateCard(activeLang: String, themeColor: Color) {
+private fun UpdateCard(activeLang: String, themeColor: Color, miseAJourConnue: InfoMiseAJour? = null) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
     var isChecking by remember { mutableStateOf(false) }
-    var updateInfo by remember { mutableStateOf<InfoMiseAJour?>(null) }
+    // Pré-rempli par la vérification discrète du démarrage (voir InventoryViewModel) : le
+    // gérant qui suit la pastille arrive sur une carte qui annonce déjà la version disponible,
+    // au lieu de devoir relancer à la main une vérification qui vient d'avoir lieu.
+    var updateInfo by remember(miseAJourConnue) { mutableStateOf(miseAJourConnue) }
     var isDownloading by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf(0f) }
     var downloadedFile by remember { mutableStateOf<java.io.File?>(null) }
@@ -2575,30 +2579,46 @@ private fun UpdateCard(activeLang: String, themeColor: Color) {
                         isChecking = true
                         bannerMessage = ""
                         coroutineScope.launch {
-                            val resultat = UpdateManager.verifierMiseAJourDisponible(BuildConfig.VERSION_CODE)
-                            isChecking = false
-                            resultat.fold(
-                                onSuccess = { info ->
-                                    if (info != null) {
-                                        updateInfo = info
-                                    } else {
-                                        bannerIsError = false
+                            try {
+                                val resultat = UpdateManager.verifierMiseAJourDisponible(BuildConfig.VERSION_CODE)
+                                resultat.fold(
+                                    onSuccess = { info ->
+                                        if (info != null) {
+                                            updateInfo = info
+                                        } else {
+                                            bannerIsError = false
+                                            bannerMessage = when (activeLang) {
+                                                "mg" -> "Efa ny version farany no eo aminao."
+                                                "fr" -> "Vous avez déjà la dernière version."
+                                                else -> "You already have the latest version."
+                                            }
+                                        }
+                                    },
+                                    onFailure = {
+                                        bannerIsError = true
                                         bannerMessage = when (activeLang) {
-                                            "mg" -> "Efa ny version farany no eo aminao."
-                                            "fr" -> "Vous avez déjà la dernière version."
-                                            else -> "You already have the latest version."
+                                            "mg" -> "Tsy afaka nanamarina raha misy fanavaozana (jereo ny internet)."
+                                            "fr" -> "Impossible de vérifier les mises à jour (vérifiez votre connexion internet)."
+                                            else -> "Could not check for updates (check your internet connection)."
                                         }
                                     }
-                                },
-                                onFailure = {
-                                    bannerIsError = true
-                                    bannerMessage = when (activeLang) {
-                                        "mg" -> "Tsy afaka nanamarina raha misy fanavaozana (jereo ny internet)."
-                                        "fr" -> "Impossible de vérifier les mises à jour (vérifiez votre connexion internet)."
-                                        else -> "Could not check for updates (check your internet connection)."
-                                    }
+                                )
+                            } catch (annulation: kotlinx.coroutines.CancellationException) {
+                                // Comportement normal d'une coroutine : à relancer tel quel, et
+                                // surtout pas à transformer en erreur visible.
+                                throw annulation
+                            } catch (inattendu: Throwable) {
+                                bannerIsError = true
+                                bannerMessage = when (activeLang) {
+                                    "mg" -> "Tsy afaka nanamarina raha misy fanavaozana (jereo ny internet)."
+                                    "fr" -> "Impossible de vérifier les mises à jour (vérifiez votre connexion internet)."
+                                    else -> "Could not check for updates (check your internet connection)."
                                 }
-                            )
+                            } finally {
+                                // Dans TOUS les cas, le bouton redevient utilisable : un bouton
+                                // resté bloqué en chargement est un cul-de-sac pour le gérant.
+                                isChecking = false
+                            }
                         }
                     },
                     enabled = !isChecking,

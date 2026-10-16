@@ -77,6 +77,25 @@ object UpdateManager {
         }
     }
 
+    /**
+     * La pastille « nouvelle version » doit-elle être affichée ?
+     *
+     * [versionConnue] est le dernier `versionCode` vu sur le serveur, mémorisé dans les
+     * préférences ; [versionInstallee] est celui de l'application en cours d'exécution.
+     *
+     * Fonction pure, et volontairement isolée malgré sa brièveté : c'est elle qui décide si le
+     * gérant apprend un jour qu'une version existe. Une erreur ici ne provoquerait aucun plantage
+     * et ne se verrait nulle part — elle laisserait simplement une épicerie sur une version
+     * ancienne pour toujours, ce qui est exactement le genre de panne qu'on ne découvre jamais.
+     *
+     * La comparaison est stricte, ce qui donne gratuitement deux propriétés : la pastille s'éteint
+     * d'elle-même dès que la mise à jour est installée (le `versionCode` installé dépasse alors la
+     * valeur mémorisée), et une valeur mémorisée aberrante — plus ancienne que l'installée, cas
+     * d'un retour à une version antérieure — n'allume rien.
+     */
+    fun badgeMiseAJourVisible(versionConnue: Int, versionInstallee: Int): Boolean =
+        versionConnue > versionInstallee
+
     suspend fun verifierMiseAJourDisponible(versionCodeActuel: Int): Result<InfoMiseAJour?> =
         withContext(Dispatchers.IO) {
             try {

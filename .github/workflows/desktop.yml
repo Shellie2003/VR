@@ -108,13 +108,22 @@ jobs:
           PYTHON
 
   # ---------------------------------------------------------------------------------------------
-  # Paquets natifs. Trois systèmes, parce qu'AUCUNE machine ne peut produire les trois formats :
-  # `jpackage` fabrique uniquement celui du système sur lequel il tourne (.deb sous Linux, .msi
-  # sous Windows, .dmg sous macOS).
+  # Paquet natif — WINDOWS UNIQUEMENT.
   #
-  # Volontairement PAS déclenché à chaque poussée : trois machines pendant plusieurs minutes pour
-  # un résultat que personne ne télécharge serait du gaspillage. Sur demande, ou sur une étiquette
-  # de version.
+  # Décision de l'utilisateur, et elle est fondée : le parc de bureau des commerces visés est
+  # massivement sous Windows. La chaîne a bel et bien produit les trois formats du premier coup
+  # (.deb 55 Mo, .msi 58 Mo, .dmg 67 Mo), donc rien n'était cassé — mais faire tourner trois
+  # machines pour deux paquets que personne n'installera reste du gaspillage.
+  #
+  # Rétablir Linux et macOS ne demande que de remettre leurs deux postes dans `matrix.include` :
+  # le reste du job est déjà écrit pour être portable (`shell: bash` explicite, `keytool` en une
+  # seule ligne, formats déclarés tous les trois dans `build.gradle.kts`). C'est pour cela que la
+  # matrice est CONSERVÉE pour un seul système au lieu d'être supprimée.
+  #
+  # `jpackage` ne fabrique que le format de son propre système : un `.msi` exige donc bien une
+  # machine Windows, aucune machine Linux ne peut le produire.
+  #
+  # Volontairement PAS déclenché à chaque poussée : sur demande, ou sur une étiquette de version.
   # ---------------------------------------------------------------------------------------------
   paquets:
     name: Paquet natif — ${{ matrix.etiquette }}
@@ -123,18 +132,15 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.paquets_natifs) ||
       startsWith(github.ref, 'refs/tags/')
 
-    # `fail-fast: false` : si Windows échoue, on veut quand même savoir si Linux et macOS
-    # réussissent. Un seul système cassé est un diagnostic ; les trois annulés n'en est pas un.
+    # `fail-fast: false` conservé : il ne sert à rien avec un seul poste, mais il devient
+    # immédiatement utile dès qu'un second système est rétabli — et on ne penserait pas à
+    # le rajouter à ce moment-là.
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            etiquette: linux
           - os: windows-latest
             etiquette: windows
-          - os: macos-latest
-            etiquette: macos
 
     runs-on: ${{ matrix.os }}
 
@@ -212,8 +218,11 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          # Les trois chemins sont conservés alors que seul le .msi est produit aujourd'hui :
+          # `fail_on_unmatched_files: false` rend les deux autres inoffensifs, et ils évitent
+          # d'oublier cette étape le jour où Linux ou macOS sont rétablis dans la matrice.
           files: |
-            desktop/build/compose/binaries/main/deb/*.deb
             desktop/build/compose/binaries/main/msi/*.msi
+            desktop/build/compose/binaries/main/deb/*.deb
             desktop/build/compose/binaries/main/dmg/*.dmg
           fail_on_unmatched_files: false

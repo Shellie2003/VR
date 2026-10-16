@@ -1302,6 +1302,7 @@ fun TopAppBarSection(
     val groceryNameVal by viewModel.groceryName.collectAsState()
     val activeLang by viewModel.language.collectAsState()
     val isSyncConnected by com.example.sync.SyncManager.isConnected.collectAsState()
+    val miseAJourDisponible by viewModel.miseAJourDisponible.collectAsState()
     val context = LocalContext.current
     val allVendeurs by viewModel.allVendeurs.collectAsState()
     val activeVendeur by viewModel.activeVendeur.collectAsState()
@@ -1436,20 +1437,37 @@ fun TopAppBarSection(
                     }
                 }
 
-                // Settings icon button
-                IconButton(
-                    onClick = onNavigateToSettings,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(themeColor.copy(alpha = 0.12f))
-                        .testTag("app_bar_settings_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Paramètres",
-                        tint = themeColor
-                    )
+                // Settings icon button, avec pastille quand une nouvelle version est disponible.
+                // La carte de mise à jour vit dans Paramètres : marquer CETTE icône conduit donc le
+                // gérant exactement là où l'action se trouve, sans rien interrompre.
+                Box {
+                    IconButton(
+                        onClick = onNavigateToSettings,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(themeColor.copy(alpha = 0.12f))
+                            .testTag("app_bar_settings_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Paramètres",
+                            tint = themeColor
+                        )
+                    }
+                    if (miseAJourDisponible) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                // Orange et non rouge : une version disponible est une invitation,
+                                // pas une anomalie. Aucun token « avertissement » n'existe dans le
+                                // thème, d'où la valeur en dur, comme les autres oranges du projet.
+                                .background(Color(0xFFF57C00))
+                                .testTag("app_bar_update_badge")
+                        )
+                    }
                 }
             }
         }

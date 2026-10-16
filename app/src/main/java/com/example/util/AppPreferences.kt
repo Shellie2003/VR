@@ -20,6 +20,8 @@ class AppPreferences(context: Context) {
         private const val KEY_LAST_OVERDUE_DEBT_CHECK = "key_last_overdue_debt_check"
         private const val KEY_ACTIVE_VENDEUR_ID = "key_active_vendeur_id"
         private const val KEY_LAST_EXPIRY_CHECK = "key_last_expiry_check"
+        private const val KEY_LAST_UPDATE_CHECK = "key_last_update_check"
+        private const val KEY_DERNIERE_VERSION_DISPONIBLE = "key_derniere_version_disponible"
         private const val KEY_DEVICE_NAME = "key_device_name"
         private const val KEY_SHOP_ADDRESS = "key_shop_address"
         private const val KEY_SHOP_PHONE = "key_shop_phone"
@@ -140,6 +142,31 @@ class AppPreferences(context: Context) {
     var lastOverdueDebtCheckDate: String
         get() = prefs.getString(KEY_LAST_OVERDUE_DEBT_CHECK, "") ?: ""
         set(value) = prefs.edit().putString(KEY_LAST_OVERDUE_DEBT_CHECK, value).apply()
+
+    // Date (yyyy-MM-dd) de la dernière vérification de mise à jour, pour n'interroger le manifeste
+    // qu'une fois par jour civil — même limitation que les rappels de dettes et de péremption. Un
+    // épicier ouvre l'application des dizaines de fois par jour ; vérifier à chaque lancement
+    // consommerait ses données mobiles pour une réponse qui ne change pas d'une heure à l'autre.
+    var lastUpdateCheckDate: String
+        get() = prefs.getString(KEY_LAST_UPDATE_CHECK, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_LAST_UPDATE_CHECK, value).apply()
+
+    /**
+     * Dernier `versionCode` vu sur le serveur de mise à jour, ou 0 si aucune vérification n'a
+     * jamais abouti.
+     *
+     * Mémorisé, et ce n'est pas un détail : sans lui, la pastille de nouvelle version disparaîtrait
+     * au prochain lancement dès que la vérification du jour a déjà eu lieu — ou que l'appareil est
+     * hors ligne, ce qui est le cas courant. Le gérant verrait l'avertissement une fois, puis plus
+     * jamais, jusqu'au lendemain.
+     *
+     * Conséquence heureuse de ce choix : la pastille s'éteint TOUTE SEULE après la mise à jour,
+     * puisque le `versionCode` installé devient alors supérieur à cette valeur. Aucun code de
+     * nettoyage à écrire, donc aucun risque de pastille fantôme sur une application déjà à jour.
+     */
+    var derniereVersionDisponible: Int
+        get() = prefs.getInt(KEY_DERNIERE_VERSION_DISPONIBLE, 0)
+        set(value) = prefs.edit().putInt(KEY_DERNIERE_VERSION_DISPONIBLE, value).apply()
 
     var firebaseDatabaseUrl: String
         get() = prefs.getString(KEY_FIREBASE_DATABASE_URL, "") ?: ""

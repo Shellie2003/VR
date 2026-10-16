@@ -28,6 +28,8 @@ import com.example.util.FormatUtil
 import com.example.util.NotificationHelper
 import com.example.util.RecoveryCode
 import com.example.util.ShopMode
+import com.example.util.InfoMiseAJour
+import com.example.util.UpdateManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -1031,6 +1033,9 @@ class InventoryViewModel(
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
             checkExpiryAlertsNotification()
         }
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
+            verifierMiseAJourAuDemarrage()
+        }
         // Auto Firebase Cloud Backup: push immediately whenever the device regains internet
         // access, so data created while offline is not stuck waiting for the next mutation.
         networkCallback = com.example.util.NetworkMonitor.observeOnline(context) {
@@ -1072,6 +1077,79 @@ class InventoryViewModel(
             }
         }
         appPreferences.lastExpiryCheckDate = todayStr
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Mise à jour de l'application : vérification discrète au démarrage
+    //
+    // La fonctionnalité existait (UpdateManager + carte dans Paramètres) mais restait ENTIÈREMENT
+    // manuelle : il fallait savoir qu'une nouvelle version pouvait exister, ouvrir Paramètres, et
+    // appuyer sur « Vérifier ». Autrement dit, un gérant qui ne soupçonnait rien restait
+    // indéfiniment sur son ancienne version — correctifs de données compris.
+    //
+    // Ce qui est ajouté ici est une vérification silencieuse, et RIEN DE PLUS : pas de boîte de
+    // dialogue, pas de notification, pas de téléchargement. Le choix est délibéré et conforme à la
+    // règle posée dès l'origine (« la mise à jour reste toujours facultative, jamais forcée au
+    // démarrage ») : accueillir le gérant par une fenêtre au moment où il ouvre sa caisse pour
+    // encaisser un client serait exactement le genre d'interruption qu'on apprend à fermer sans
+    // lire. Une pastille sur l'icône des Paramètres se remarque sans rien interrompre.
+    // ---------------------------------------------------------------------------------------------
+
+    /** Dernier `versionCode` connu du serveur. Initialisé depuis les préférences, donc la pastille
+     * est juste dès la première image affichée, sans attendre le réseau. */
+    private val _versionDisponible = MutableStateFlow(appPreferences.derniereVersionDisponible)
+
+    /** Vrai quand une version plus récente que celle installée est connue. Lu par la pastille des
+     * icônes de Paramètres (accueil et barre supérieure). */
+    val miseAJourDisponible: StateFlow<Boolean> = _versionDisponible
+        .map { UpdateManager.badgeMiseAJourVisible(it, com.example.BuildConfig.VERSION_CODE) }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            UpdateManager.badgeMiseAJourVisible(
+                appPreferences.derniereVersionDisponible,
+                com.example.BuildConfig.VERSION_CODE
+            )
+        )
+
+    /** Détail de la mise à jour trouvée au démarrage, s'il y en a une. Sert à pré-remplir la carte
+     * de Paramètres : le gérant arrive sur un écran qui annonce déjà la version disponible, au lieu
+     * de devoir relancer à la main une vérification qui vient d'avoir lieu. */
+    private val _infoMiseAJour = MutableStateFlow<InfoMiseAJour?>(null)
+    val infoMiseAJour: StateFlow<InfoMiseAJour?> = _infoMiseAJour.asStateFlow()
+
+    /**
+     * Interroge le manifeste de version au plus une fois par jour civil, et seulement si l'appareil
+     * est en ligne.
+     *
+     * Trois garde-fous, chacun pour une raison concrète :
+     *  - le contrôle de connectivité AVANT l'appel évite une requête vouée à l'échec et une attente
+     *    inutile sur un réseau malgache souvent absent ;
+     *  - la limitation quotidienne respecte des données mobiles payées au mégaoctet, pour une
+     *    réponse qui ne change pas d'une heure à l'autre ;
+     *  - l'absence totale de remontée d'erreur : un échec de vérification n'est PAS un incident
+     *    pour le gérant, qui n'a rien demandé. Le signaler n'aurait aucune action associée.
+     */
+    private suspend fun verifierMiseAJourAuDemarrage() {
+        val aujourdhui = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+        if (appPreferences.lastUpdateCheckDate == aujourdhui) return
+        if (!com.example.util.NetworkMonitor.isOnline(context)) return
+
+        val resultat = UpdateManager.verifierMiseAJourDisponible(com.example.BuildConfig.VERSION_CODE)
+        resultat.onSuccess { info ->
+            // La date n'est écrite qu'en cas de SUCCÈS : après un échec réseau, le prochain
+            // lancement doit pouvoir réessayer. L'écrire dans tous les cas ferait perdre une
+            // journée entière à cause d'une coupure de quelques secondes.
+            appPreferences.lastUpdateCheckDate = aujourdhui
+            if (info != null) {
+                appPreferences.derniereVersionDisponible = info.versionCode
+                _versionDisponible.value = info.versionCode
+                _infoMiseAJour.value = info
+            }
+            // Volontairement, on n'efface RIEN quand `info` est null : le serveur répondant
+            // « à jour » est déjà traité par la comparaison de `badgeMiseAJourVisible`, puisque le
+            // versionCode installé a alors dépassé la valeur mémorisée.
+        }
     }
 
     fun changeLanguage(lang: String) {

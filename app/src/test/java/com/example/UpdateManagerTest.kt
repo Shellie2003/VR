@@ -1,8 +1,12 @@
 package com.example
 
+import androidx.test.core.app.ApplicationProvider
+import com.example.util.AppPreferences
 import com.example.util.UpdateManager
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -68,5 +72,66 @@ class UpdateManagerTest {
         } finally {
             fichier.delete()
         }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Pastille « nouvelle version » : la règle qui décide si le gérant apprend un jour qu'une
+    // version existe. Une erreur ici ne planterait rien et ne se verrait nulle part — elle
+    // laisserait simplement une épicerie sur une version ancienne indéfiniment.
+    // ---------------------------------------------------------------------------------------------
+
+    @Test
+    fun `une version serveur plus recente allume la pastille`() {
+        assertTrue(UpdateManager.badgeMiseAJourVisible(versionConnue = 118, versionInstallee = 116))
+    }
+
+    @Test
+    fun `la pastille s'eteint d'elle-meme une fois la mise a jour installee`() {
+        // Propriété décisive : aucun code de nettoyage n'est nécessaire. Après installation, le
+        // versionCode installé rattrape puis dépasse la valeur mémorisée, et la pastille disparaît.
+        assertFalse(UpdateManager.badgeMiseAJourVisible(versionConnue = 118, versionInstallee = 118))
+        assertFalse(UpdateManager.badgeMiseAJourVisible(versionConnue = 118, versionInstallee = 120))
+    }
+
+    @Test
+    fun `aucune verification aboutie -- aucune pastille`() {
+        // 0 est la valeur par défaut de la préférence : tant qu'aucune vérification n'a réussi,
+        // rien ne doit être annoncé. Afficher une pastille « au cas où » apprendrait au gérant à
+        // l'ignorer, et donc à ignorer la vraie.
+        assertFalse(UpdateManager.badgeMiseAJourVisible(versionConnue = 0, versionInstallee = 116))
+    }
+
+    @Test
+    fun `une valeur memorisee plus ancienne que l'installee n'allume rien`() {
+        // Cas d'un retour à une version antérieure, ou d'une préférence restaurée depuis une
+        // sauvegarde ancienne : la comparaison stricte suffit à l'absorber.
+        assertFalse(UpdateManager.badgeMiseAJourVisible(versionConnue = 100, versionInstallee = 116))
+    }
+
+    /**
+     * Le vrai point faible d'une pastille calculée au démarrage : survivre au redémarrage suivant.
+     *
+     * La vérification n'a lieu qu'une fois par jour civil et seulement en ligne. Si l'état n'était
+     * gardé qu'en mémoire, le gérant verrait l'avertissement une fois, puis plus rien — relance de
+     * l'application, vérification du jour déjà faite, pastille éteinte. Et un épicier relance son
+     * application des dizaines de fois par jour, souvent hors ligne.
+     *
+     * Ce test reproduit exactement ce redémarrage : il écrit la version trouvée, puis construit une
+     * NOUVELLE instance d'AppPreferences sur le même contexte, comme le ferait un nouveau processus.
+     */
+    @Test
+    fun `la version trouvee survit au redemarrage de l'application`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        AppPreferences(context).derniereVersionDisponible = 118
+
+        val apresRedemarrage = AppPreferences(context)
+        assertEquals(118, apresRedemarrage.derniereVersionDisponible)
+        assertTrue(
+            UpdateManager.badgeMiseAJourVisible(
+                versionConnue = apresRedemarrage.derniereVersionDisponible,
+                versionInstallee = 116
+            )
+        )
     }
 }

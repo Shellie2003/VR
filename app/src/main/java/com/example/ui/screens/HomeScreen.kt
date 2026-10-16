@@ -59,6 +59,7 @@ fun HomeScreen(
 
     val groceryNameVal by viewModel.groceryName.collectAsState()
     val themeColor by viewModel.themeColor.collectAsState()
+    val miseAJourDisponible by viewModel.miseAJourDisponible.collectAsState()
 
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
@@ -77,6 +78,7 @@ fun HomeScreen(
                 groceryName = groceryNameVal,
                 themeColor = themeColor,
                 searchQuery = searchQuery,
+                miseAJourDisponible = miseAJourDisponible,
                 onSearchQueryChange = { viewModel.searchQuery.value = it },
                 onNavigateToSettings = onNavigateToSettings,
                 onNavigateToList = onNavigateToList
@@ -209,6 +211,7 @@ fun HomeScreen(
                     groceryName = groceryNameVal,
                     themeColor = themeColor,
                     searchQuery = searchQuery,
+                    miseAJourDisponible = miseAJourDisponible,
                     onSearchQueryChange = { viewModel.searchQuery.value = it },
                     onNavigateToSettings = onNavigateToSettings,
                     onNavigateToList = onNavigateToList
@@ -231,6 +234,7 @@ private fun HomeHeaderContent(
     groceryName: String,
     themeColor: Color,
     searchQuery: String,
+    miseAJourDisponible: Boolean,
     onSearchQueryChange: (String) -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToList: () -> Unit
@@ -274,20 +278,34 @@ private fun HomeHeaderContent(
             )
         }
 
-        IconButton(
-            onClick = onNavigateToSettings,
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(themeColor.copy(alpha = 0.12f))
-                .testTag("home_settings_button")
-        ) {
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = "Fikirakirana / Settings",
-                tint = themeColor,
-                modifier = Modifier.size(22.dp)
-            )
+        // Pastille identique à celle de la barre supérieure : une nouvelle version est
+        // disponible, et la carte de mise à jour se trouve derrière cette icône.
+        Box {
+            IconButton(
+                onClick = onNavigateToSettings,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(themeColor.copy(alpha = 0.12f))
+                    .testTag("home_settings_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Fikirakirana / Settings",
+                    tint = themeColor,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            if (miseAJourDisponible) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFF57C00))
+                        .testTag("home_update_badge")
+                )
+            }
         }
     }
 
