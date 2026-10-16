@@ -1,6 +1,6 @@
 package com.example.util
 
-import com.example.ui.viewmodel.InventoryViewModel.EtagereAvecNiveaux
+import com.example.data.model.EtagereAvecNiveaux
 
 /**
  * Un produit retrouvé dans le plan d'étagères, avec tout ce qu'il faut pour y conduire le gérant.

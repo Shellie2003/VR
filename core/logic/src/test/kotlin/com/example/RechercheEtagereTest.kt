@@ -3,8 +3,8 @@ package com.example
 import com.example.data.model.Etagere
 import com.example.data.model.NiveauEtagere
 import com.example.data.model.Product
-import com.example.ui.viewmodel.InventoryViewModel.EtagereAvecNiveaux
-import com.example.ui.viewmodel.InventoryViewModel.NiveauAvecProduits
+import com.example.data.model.EtagereAvecNiveaux
+import com.example.data.model.NiveauAvecProduits
 import com.example.util.RechercheEtagere
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.Etagere
 import com.example.data.model.Product
 import com.example.data.model.ProduitNiveau
+import com.example.data.model.EtagereAvecNiveaux
+import com.example.data.model.NiveauAvecProduits
 import com.example.ui.viewmodel.InventoryViewModel
 import com.example.util.EmplacementProduit
 import com.example.util.EtagereColors
@@ -417,10 +419,10 @@ private const val HAUTEUR_NIVEAU_DP = 84
 
 @Composable
 private fun ColonneEtagere(
-    etagereAvecNiveaux: InventoryViewModel.EtagereAvecNiveaux,
+    etagereAvecNiveaux: EtagereAvecNiveaux,
     activeLang: String,
     niveauMisEnEvidenceId: Long?,
-    onClickNiveau: (InventoryViewModel.NiveauAvecProduits) -> Unit,
+    onClickNiveau: (NiveauAvecProduits) -> Unit,
     onAjouterNiveau: (EtagereLayout.Cote) -> Unit,
     onRenommer: () -> Unit,
     onSupprimer: () -> Unit,
@@ -605,7 +607,7 @@ private fun ResultatEmplacement(
 
 @Composable
 private fun CelluleNiveau(
-    niveauAvecProduits: InventoryViewModel.NiveauAvecProduits,
+    niveauAvecProduits: NiveauAvecProduits,
     numeroAffiche: Int,
     activeLang: String,
     estMisEnEvidence: Boolean = false,
@@ -821,8 +823,8 @@ private fun ColorPickerDialog(
 @Composable
 private fun NiveauDetailDialog(
     etagere: Etagere,
-    niveauAvecProduits: InventoryViewModel.NiveauAvecProduits,
-    plan: List<InventoryViewModel.EtagereAvecNiveaux>,
+    niveauAvecProduits: NiveauAvecProduits,
+    plan: List<EtagereAvecNiveaux>,
     activeLang: String,
     allProducts: List<Product>,
     onRenommerNiveau: (String) -> Unit,

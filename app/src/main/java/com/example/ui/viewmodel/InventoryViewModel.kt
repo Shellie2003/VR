@@ -22,6 +22,8 @@ import com.example.data.model.AuditLog
 import com.example.data.model.Etagere
 import com.example.data.model.NiveauEtagere
 import com.example.data.model.ProduitNiveau
+import com.example.data.model.EtagereAvecNiveaux
+import com.example.data.model.NiveauAvecProduits
 import com.example.data.repository.InventoryRepository
 import com.example.util.AppPreferences
 import com.example.util.FormatUtil
@@ -2067,18 +2069,6 @@ class InventoryViewModel(
     // ------------------------------------------------------------------------------------------
     // Plan d'étagères interactif (écran Paramètres > Étagère)
     // ------------------------------------------------------------------------------------------
-
-    /** Un niveau (case cliquable) avec les produits qui y sont rangés, déjà résolus. */
-    data class NiveauAvecProduits(
-        val niveau: NiveauEtagere,
-        val liens: List<ProduitNiveau>,
-        val produits: List<Product>
-    )
-
-    data class EtagereAvecNiveaux(
-        val etagere: Etagere,
-        val niveaux: List<NiveauAvecProduits>
-    )
 
     /**
      * Reconstruit l'arbre étagères -> niveaux -> produits à chaque changement de l'une des

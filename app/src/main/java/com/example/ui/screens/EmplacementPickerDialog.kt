@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.data.model.EtagereAvecNiveaux
 import com.example.ui.viewmodel.InventoryViewModel
 
 /**
@@ -33,7 +34,7 @@ import com.example.ui.viewmodel.InventoryViewModel
  */
 @Composable
 fun EmplacementPickerDialog(
-    plan: List<InventoryViewModel.EtagereAvecNiveaux>,
+    plan: List<EtagereAvecNiveaux>,
     niveauChoisiId: Long?,
     activeLang: String,
     autoriserAucun: Boolean = true,
