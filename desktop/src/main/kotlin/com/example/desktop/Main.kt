@@ -40,7 +40,9 @@ import com.example.ui.partage.accueil.AccueilEcran
 import com.example.ui.partage.coquille.CoquilleBureau
 import com.example.ui.partage.coquille.SectionAVenir
 import com.example.ui.partage.coquille.SectionBureau
+import com.example.ui.partage.stock.StockEcran
 import com.example.ui.partage.theme.VarotraTheme
+import com.example.util.CatalogueFiltre
 import com.example.util.PanierSimple
 import com.example.util.ShopMode
 import com.example.util.enDecimal
@@ -122,7 +124,19 @@ private fun FenetreVarotra(
     var langue by remember { mutableStateOf("fr") }
     var modeBoutique by remember { mutableStateOf(ShopMode.DETAIL) }
     var section by remember { mutableStateOf(SectionBureau.CATALOGUE) }
+    // La recherche est COMMUNE au catalogue et au stock, et c'est fidèle au téléphone : sur Android
+    // `searchQuery` vit dans le ViewModel, donc chercher « riz » à l'accueil puis ouvrir le stock
+    // garde le filtre. Deux champs indépendants seraient une invention, pas un portage.
     var recherche by remember { mutableStateOf("") }
+    var categorie by remember { mutableStateOf(CatalogueFiltre.TOUTES_CATEGORIES) }
+    var stockFaibleSeulement by remember { mutableStateOf(false) }
+
+    // Le catalogue de démonstration devient un ÉTAT et non une constante lue : sans cela les
+    // boutons `+`/`-` de la carte Stock seraient décoratifs, et c'est précisément la règle
+    // (`AjustementStock`, partagée avec Android) qu'il faut pouvoir constater à l'écran. La même
+    // liste sert les deux sections, donc un ajustement fait dans le stock se voit aussitôt sur le
+    // badge de l'accueil — comme sur le téléphone, où les deux écrans lisent la même source.
+    var produits by remember { mutableStateOf(DonneesDemo.catalogue) }
 
     // Panier LOCAL à la fenêtre, et volontairement non enregistré : il n'existe que pour que le
     // badge de quantité et son bouton « - » de la carte produit soient réellement fonctionnels
@@ -136,7 +150,10 @@ private fun FenetreVarotra(
     // un raccourci clavier ne doit jamais pouvoir fermer l'application.
     LaunchedEffect(demandeRecherche) {
         if (demandeRecherche) {
-            section = SectionBureau.CATALOGUE
+            // Ctrl+F depuis une section SANS champ de recherche ouvre le catalogue ; depuis le
+            // stock, on reste sur place — déplacer l'utilisateur hors de l'écran qu'il consulte
+            // serait une surprise, et les deux écrans partagent de toute façon la même recherche.
+            if (section != SectionBureau.STOCK) section = SectionBureau.CATALOGUE
             runCatching { focusRecherche.requestFocus() }
             onDemandeRechercheTraitee()
         }
@@ -174,7 +191,7 @@ private fun FenetreVarotra(
                 SectionBureau.CATALOGUE -> Column(modifier = Modifier.fillMaxSize()) {
                     BandeauDemonstration(langue = langue)
                     AccueilEcran(
-                        produits = DonneesDemo.catalogue,
+                        produits = produits,
                         // Sur Android ce nom vient des préférences (écran Épicerie). Le bureau n'a
                         // pas encore de préférences partagées, donc le nom de l'application tient
                         // la place — jamais un faux nom de boutique, qui ferait croire à une donnée.
@@ -193,6 +210,36 @@ private fun FenetreVarotra(
                         // côté Android (MainActivity passe l'une comme surcharge de l'autre) : la
                         // carte reçoit donc ici exactement la teinte qu'elle a sur le téléphone.
                         couleurTheme = MaterialTheme.colorScheme.primary,
+                        // Comme sur Android, où ce lien ouvre l'écran Stock.
+                        onVoirTout = { section = SectionBureau.STOCK },
+                        focusRecherche = focusRecherche
+                    )
+                }
+
+                SectionBureau.STOCK -> Column(modifier = Modifier.fillMaxSize()) {
+                    BandeauDemonstration(langue = langue)
+                    StockEcran(
+                        produits = produits,
+                        recherche = recherche,
+                        onRechercheChange = { recherche = it },
+                        categorieChoisie = categorie,
+                        onCategorieChange = { categorie = it },
+                        stockFaibleSeulement = stockFaibleSeulement,
+                        onStockFaibleChange = { stockFaibleSeulement = it },
+                        modeBoutique = modeBoutique,
+                        langue = langue,
+                        // Pas de bouton d'édition : la fiche produit n'est pas portée, et un bouton
+                        // qui ne mène nulle part est pire que son absence. La suppression, elle,
+                        // fonctionne réellement sur la liste affichée.
+                        onEditer = null,
+                        onSupprimer = { produit ->
+                            produits = produits.filterNot { it.id == produit.id }
+                        },
+                        onAjusterStock = { produit, nouveauStock ->
+                            produits = produits.map {
+                                if (it.id == produit.id) it.copy(stock = nouveauStock) else it
+                            }
+                        },
                         focusRecherche = focusRecherche
                     )
                 }

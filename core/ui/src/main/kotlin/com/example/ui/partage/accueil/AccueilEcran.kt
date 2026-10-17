@@ -61,6 +61,12 @@ fun AccueilEcran(
     langue: String,
     couleurTheme: Color,
     modifier: Modifier = Modifier,
+    /**
+     * Ce que fait le lien « Izy rehetra / Voir tout ». Sur Android il ouvre l'écran Stock ;
+     * l'appelant branche donc sa navigation ici. À défaut, il efface la recherche — la chose la
+     * plus proche de son libellé, plutôt qu'un lien inerte.
+     */
+    onVoirTout: (() -> Unit)? = null,
     /** Voir `EnteteAccueil` : donne le focus au champ de recherche pour un lecteur de code-barres. */
     focusRecherche: FocusRequester? = null
 ) {
@@ -76,6 +82,10 @@ fun AccueilEcran(
     // téléphone le scan passe par la caméra et ne demande aucun focus.
     // `runCatching` : `requestFocus()` lève si le champ n'est pas encore attaché.
     LaunchedEffect(Unit) { runCatching { focusRecherche?.requestFocus() } }
+
+    // Type annoté explicitement : `EnteteAccueil` attend un `() -> Unit` non nul, et une valeur de
+    // secours écrite directement à l'appel se lirait moins bien qu'ici, où le repli est nommé.
+    val actionVoirTout: () -> Unit = onVoirTout ?: { onRechercheChange("") }
 
     Column(modifier = modifier.fillMaxSize().padding(horizontal = 24.dp)) {
         EnteteAccueil(
@@ -96,9 +106,7 @@ fun AccueilEcran(
                 "fr" -> "Voir tout"
                 else -> "See all"
             },
-            // Sur Android ce lien ouvre l'écran Stock, qui n'est pas encore porté. En attendant, il
-            // fait la chose la plus proche de son libellé : effacer la recherche pour tout montrer.
-            onVoirTout = { onRechercheChange("") },
+            onVoirTout = actionVoirTout,
             focusRequester = focusRecherche
         )
 

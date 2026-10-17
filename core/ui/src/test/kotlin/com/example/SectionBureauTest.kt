@@ -59,6 +59,7 @@ class SectionBureauTest {
         // échouera — c'est précisément ce qu'on veut : il faudra alors mettre à jour l'annonce
         // faite à l'utilisateur, au lieu de lui laisser lire « à venir » sur une section servie.
         assertTrue(SectionBureau.CATALOGUE.disponible)
+        assertTrue(SectionBureau.STOCK.disponible)
         assertTrue(SectionBureau.A_PROPOS.disponible)
         assertTrue(!SectionBureau.CAISSE.disponible)
         assertTrue(!SectionBureau.DETTES.disponible)

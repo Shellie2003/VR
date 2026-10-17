@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.Product
 import com.example.ui.components.SelectionExportToolbar
 import com.example.ui.viewmodel.InventoryViewModel
+import com.example.util.AjustementStock
 import com.example.util.ExportFormat
 import com.example.util.ExportUtil
 import com.example.util.FormatUtil
@@ -556,9 +557,14 @@ fun ProductInventoryCard(
                 ) {
                     IconButton(
                         onClick = {
-                            val step = if (product.unit.lowercase() == "litre" || product.unit.lowercase() == "kilogramme") 0.25 else 1.0
-                            val newVal = (product.stock - step).coerceAtLeast(0.0)
-                            viewModel.adjustStock(product, newVal)
+                            // Le pas vit dans `AjustementStock` (:core:logic) : il était écrit deux
+                            // fois ici, et deux copies pouvaient diverger sans rien signaler — un
+                            // `+` qui ajoute 1 kg quand le `-` en retire 0,25 ne lève aucune
+                            // erreur, il fausse le stock jusqu'à l'inventaire suivant.
+                            viewModel.adjustStock(
+                                product,
+                                AjustementStock.apresRetrait(product.stock, product.unit)
+                            )
                         },
                         enabled = product.stock > 0,
                         modifier = Modifier
@@ -578,8 +584,10 @@ fun ProductInventoryCard(
 
                     IconButton(
                         onClick = {
-                            val step = if (product.unit.lowercase() == "litre" || product.unit.lowercase() == "kilogramme") 0.25 else 1.0
-                            viewModel.adjustStock(product, product.stock + step)
+                            viewModel.adjustStock(
+                                product,
+                                AjustementStock.apresAjout(product.stock, product.unit)
+                            )
                         },
                         modifier = Modifier
                             .size(32.dp)

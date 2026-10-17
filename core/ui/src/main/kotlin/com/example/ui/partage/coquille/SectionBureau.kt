@@ -21,6 +21,7 @@ package com.example.ui.partage.coquille
 enum class SectionBureau {
     CAISSE,
     CATALOGUE,
+    STOCK,
     DETTES,
     RAPPORTS,
     A_PROPOS;
@@ -40,6 +41,11 @@ enum class SectionBureau {
             "fr" -> "Catalogue"
             else -> "Catalogue"
         }
+        STOCK -> when (langue) {
+            "mg" -> "Tahiry"
+            "fr" -> "Stock"
+            else -> "Stock"
+        }
         DETTES -> when (langue) {
             "mg" -> "Trosa"
             "fr" -> "Dettes"
@@ -58,5 +64,6 @@ enum class SectionBureau {
     }
 
     /** `true` quand la section a un véritable contenu ; sinon le menu l'annonce comme à venir. */
-    val disponible: Boolean get() = this == CATALOGUE || this == A_PROPOS
+    val disponible: Boolean
+        get() = this == CATALOGUE || this == STOCK || this == A_PROPOS
 }
