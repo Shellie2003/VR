@@ -54,4 +54,58 @@ class AjustementStockTest {
         assertEquals(0.0, AjustementStock.apresRetrait(0.5, "Pièce"), 1e-9)
         assertEquals(0.0, AjustementStock.apresRetrait(0.1, "Kilogramme"), 1e-9)
     }
+
+    @Test
+    fun `les abreviations kg et L se comptent au quart comme les libelles complets`() {
+        // La divergence réelle corrigée en section 91 : la ligne de panier de la caisse acceptait
+        // déjà ces abréviations, l'écran Stock non — donc le même produit montait par quarts dans
+        // le panier et par kilos entiers dans le stock.
+        assertEquals(0.25, AjustementStock.pas("kg"), 1e-9)
+        assertEquals(0.25, AjustementStock.pas("KG"), 1e-9)
+        assertEquals(0.25, AjustementStock.pas("l"), 1e-9)
+        assertEquals(0.25, AjustementStock.pas("L"), 1e-9)
+    }
+
+    @Test
+    fun `un libelle qui contient kilo ou litre est fractionnable`() {
+        // Un gérant écrit « Kilo », « kilos », « Demi-litre » : l'intention est la même, et c'est
+        // la variante que la caisse appliquait déjà.
+        assertEquals(0.25, AjustementStock.pas("Kilo"), 1e-9)
+        assertEquals(0.25, AjustementStock.pas("kilos"), 1e-9)
+        assertEquals(0.25, AjustementStock.pas("Demi-litre"), 1e-9)
+    }
+
+    @Test
+    fun `une seule lettre l n'est reconnue qu'exactement et jamais par inclusion`() {
+        // Le piège de la règle élargie : `contains("l")` rendrait fractionnables « Plaquette »,
+        // « Bouteille », « Litre » compris — soit presque tout le catalogue, et des stocks montant
+        // par quarts de plaquette.
+        assertEquals(1.0, AjustementStock.pas("Plaquette"), 1e-9)
+        assertEquals(1.0, AjustementStock.pas("Bouteille"), 1e-9)
+        assertEquals(1.0, AjustementStock.pas("Sac"), 1e-9)
+        assertEquals(1.0, AjustementStock.pas("Flacon"), 1e-9)
+    }
+
+    @Test
+    fun `le type d'unite choisit le bon vocabulaire de saisie rapide`() {
+        // C'est ce qui décide si le vendeur lit « 1/4 L » ou « 1/4 kg ». Se tromper lui ferait lire
+        // une unité qui n'est pas celle du produit qu'il encaisse.
+        assertEquals(AjustementStock.TypeUnite.LIQUIDE, AjustementStock.typeUnite("Litre"))
+        assertEquals(AjustementStock.TypeUnite.LIQUIDE, AjustementStock.typeUnite("L"))
+        assertEquals(AjustementStock.TypeUnite.POIDS, AjustementStock.typeUnite("Kilogramme"))
+        assertEquals(AjustementStock.TypeUnite.POIDS, AjustementStock.typeUnite("kg"))
+        assertEquals(AjustementStock.TypeUnite.AUTRE, AjustementStock.typeUnite("Pièce"))
+        assertEquals(AjustementStock.TypeUnite.AUTRE, AjustementStock.typeUnite("Casier"))
+    }
+
+    @Test
+    fun `le pas et le type d'unite ne peuvent plus se contredire`() {
+        // L'invariant qui justifie d'avoir une seule classification : toute unité fractionnable
+        // porte un pas de 0,25, et aucune autre. Les cinq copies d'avant ne le garantissaient pas.
+        listOf("Litre", "L", "Kilogramme", "kg", "Kilo", "Demi-litre", "Pièce", "Carton",
+            "Plaquette", "Casier", "Bouteille", "Flacon", "Sac", "").forEach { unite ->
+            val attendu = if (AjustementStock.estFractionnable(unite)) 0.25 else 1.0
+            assertEquals("Unité « $unite »", attendu, AjustementStock.pas(unite), 1e-9)
+        }
+    }
 }

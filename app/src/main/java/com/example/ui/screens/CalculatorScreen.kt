@@ -40,6 +40,7 @@ import com.example.data.model.Debt
 import com.example.ui.components.BarcodeScannerView
 import com.example.data.model.CartItem
 import com.example.ui.viewmodel.InventoryViewModel
+import com.example.util.AjustementStock
 import com.example.util.FormatUtil
 import com.example.util.Monnaie
 import com.example.util.LanguageManager
@@ -2700,10 +2701,11 @@ private fun CartItemRow(
     onEdit: (CartItem) -> Unit
 ) {
     val maxStock = item.maxStock
-    val step = if (item.unit.lowercase().contains("litre") ||
-                   item.unit.lowercase().contains("kilo") ||
-                   item.unit == "L" ||
-                   item.unit == "kg") 0.25 else 1.0
+    // `AjustementStock.pas` : quatrième copie de cette règle, et la seule qui divergeait — elle
+    // reconnaissait `kg`/`L` que l'écran Stock ignorait, donc le même produit montait par quarts
+    // ici et par unités entières là-bas. La règle unique retient la variante la plus large, celle
+    // qui était déjà appliquée ici.
+    val step = AjustementStock.pas(item.unit)
 
     Row(
         modifier = Modifier
@@ -2881,10 +2883,12 @@ fun CashRegisterProductCard(
     modifier: Modifier = Modifier
 ) {
     val isOutOfStock = product.stock <= 0
-    val isLiquid = product.unit.lowercase().contains("litre") || 
-                   product.unit == "L"
-    val isWeight = product.unit.lowercase().contains("kilo") || 
-                   product.unit.lowercase().contains("kg")
+    // Cinquième et dernière copie de la détection d'unité fractionnable, celle qui choisit entre
+    // « 1/4 L » et « 1/4 kg ». La classification vit désormais dans `AjustementStock.typeUnite`,
+    // donc le libellé lu par le vendeur et le pas d'ajustement ne peuvent plus se contredire.
+    val typeUnite = AjustementStock.typeUnite(product.unit)
+    val isLiquid = typeUnite == AjustementStock.TypeUnite.LIQUIDE
+    val isWeight = typeUnite == AjustementStock.TypeUnite.POIDS
 
     Card(
         modifier = modifier,
