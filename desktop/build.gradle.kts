@@ -76,10 +76,16 @@ compose.desktop {
     mainClass = "com.example.desktop.MainKt"
 
     nativeDistributions {
-      // Les trois formats sont déclarés ensemble, mais `packageDistributionForCurrentOS` ne
-      // fabrique que celui du système sur lequel il tourne — d'où la matrice à trois systèmes
-      // dans le workflow. Aucune machine ne peut produire les trois.
-      targetFormats(TargetFormat.Deb, TargetFormat.Dmg, TargetFormat.Msi)
+      // Les formats sont déclarés ensemble, mais `packageDistributionForCurrentOS` ne fabrique
+      // que celui du système sur lequel il tourne — d'où la matrice dans le workflow. Aucune
+      // machine ne peut produire ceux des autres systèmes.
+      //
+      // `Exe` est ajouté à côté de `Msi` parce que c'est le fichier que l'utilisateur attend quand
+      // il demande « un .exe » : un installateur qu'on double-clique. Les deux sortent du même
+      // `jpackage` et dépendent tous deux de WiX, donc l'un ne sauve pas l'autre si l'outil manque
+      // sur l'image GitHub du moment — c'est l'archive portable produite par le workflow qui joue
+      // ce rôle de secours, puisqu'elle ne dépend de rien d'autre que du JDK.
+      targetFormats(TargetFormat.Deb, TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Exe)
 
       packageName = "Varotra"
       // Contrainte héritée de Windows : MSI impose un numéro de version dont le premier nombre

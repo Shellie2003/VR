@@ -22,9 +22,14 @@ on:
   workflow_dispatch:
     inputs:
       paquets_natifs:
-        description: "Fabriquer aussi les paquets natifs (Linux, Windows, macOS)"
+        # Défaut à `true` : un déclenchement manuel EST la demande de paquet. Laisser `false`
+        # obligeait à cocher une case pour obtenir la seule chose qu'on vient chercher ici.
+        # Le libellé disait « Linux, Windows, macOS » alors que la matrice est réduite à Windows
+        # depuis la section 77 — un libellé faux est pire qu'absent, il fait attendre des fichiers
+        # qui ne viendront pas.
+        description: "Fabriquer le paquet Windows (archive portable + installateur)"
         type: boolean
-        default: false
+        default: true
 
 concurrency:
   group: desktop-${{ github.ref }}
@@ -179,6 +184,16 @@ jobs:
         run: touch local.properties
         shell: bash
 
+      # Même formule que Gradle et que release.yml : le nombre de commits. Calculé ici une seule
+      # fois et partagé par $GITHUB_ENV, pour que le nom de l'archive, celui de la pré-version et
+      # celui du paquet ne puissent pas diverger d'une étape à l'autre.
+      #
+      # `fetch-depth: 0` plus haut est la condition de ce calcul : un clone superficiel renvoie
+      # toujours 1, et toutes les versions porteraient alors le même numéro.
+      - name: Calculer la version
+        shell: bash
+        run: echo "VERSION=1.0.$(git rev-list --count HEAD)" >> $GITHUB_ENV
+
       # Deux étapes, et c'est le choix important de ce job.
       #
       # `createDistributable` ne produit qu'une arborescence exécutable : il ne dépend d'aucun
@@ -192,6 +207,31 @@ jobs:
       - name: Assemblage de l'application (barrière)
         run: ./gradlew :desktop:createDistributable --no-daemon
         shell: bash
+
+      # L'ARCHIVE PORTABLE, et c'est elle qui compte pour essayer l'application.
+      #
+      # Elle ne dépend QUE de l'étape précédente, donc du seul JDK : pas de WiX, pas
+      # d'installateur, pas de droits administrateur sur le poste de l'utilisateur. On décompresse,
+      # on double-clique `Varotra.exe`, et l'application s'ouvre. C'est aussi ce qui la rend
+      # utilisable sur un poste d'épicerie où personne n'a le mot de passe administrateur.
+      #
+      # Le dossier est découvert au lieu d'être écrit en dur : son nom vient de `packageName` dans
+      # `build.gradle.kts`, et un renommage là-bas casserait silencieusement un chemin figé ici.
+      - name: Archive portable Windows (sans installation)
+        id: portable
+        shell: pwsh
+        run: |
+          $racine = "desktop/build/compose/binaries/main/app"
+          $dossier = Get-ChildItem $racine -Directory | Select-Object -First 1
+          if (-not $dossier) { throw "Aucune arborescence produite sous $racine" }
+          # Accolades obligatoires : `$env:VERSION-windows` est ambigu pour l'analyseur
+          # PowerShell, qui peut absorber le tiret dans le nom de variable. L'échec serait
+          # SILENCIEUX — un nom tronqué que le filtre de publication ne ramasserait pas, donc une
+          # Release sans l'archive, sans aucune erreur nulle part.
+          $archive = "varotra-bureau-${env:VERSION}-windows-portable.zip"
+          Compress-Archive -Path "$($dossier.FullName)/*" -DestinationPath $archive -Force
+          Write-Host "Archive : $archive ($([math]::Round((Get-Item $archive).Length / 1MB, 1)) Mo)"
+          Write-Host "Lanceur attendu dedans : $($dossier.Name).exe"
 
       - name: Installateur natif (meilleur effort)
         id: installateur
@@ -217,18 +257,54 @@ jobs:
             -exec ls -lh {} \; 2>/dev/null || true
           echo "--- Arborescence exécutable ---"
           du -sh desktop/build/compose/binaries/main/app/* 2>/dev/null || true
+          echo "--- Archive portable (toujours produite) ---"
+          ls -lh varotra-bureau-*-windows-portable.zip 2>/dev/null || echo "ABSENTE - anormal, elle ne depend que du JDK"
 
       # Sur étiquette de version uniquement : les installateurs rejoignent la Release GitHub, à
       # côté de l'APK Android. Même mécanisme que release.yml, pour la même raison — c'est le seul
       # stockage durable et public du dépôt qui ne consomme pas le quota d'artefacts.
-      - name: Attacher à la Release
-        if: startsWith(github.ref, 'refs/tags/')
+      # Publication, et c'est le changement qui rend la version de bureau RÉELLEMENT essayable.
+      #
+      # Auparavant cette étape n'existait que sur étiquette de version : un déclenchement manuel
+      # fabriquait donc les fichiers, affichait leur taille dans le journal... et les jetait avec la
+      # machine. Il n'y avait aucun moyen de récupérer l'application pour l'essayer, et l'envoi en
+      # artefact n'en est pas un (quota séparé, déjà saturé sur ce compte — voir le commentaire de
+      # l'étape précédente et la section 76).
+      #
+      # Une seule étape pour les deux cas, avec l'étiquette calculée, plutôt que deux étapes qui
+      # répéteraient la liste des fichiers : une liste recopiée finit toujours par diverger.
+      #  - sur étiquette de version : la Release normale, à côté de l'APK ;
+      #  - sur déclenchement manuel : une PRÉ-version `bureau-v<version>`, marquée comme telle pour
+      #    qu'elle ne se confonde pas avec une livraison client, et dont le nom est volontairement
+      #    distinct des `v1.0.<n>` de l'APK Android.
+      - name: Publier pour essai (Release GitHub)
         uses: softprops/action-gh-release@v2
         with:
-          # Les trois chemins sont conservés alors que seul le .msi est produit aujourd'hui :
-          # `fail_on_unmatched_files: false` rend les deux autres inoffensifs, et ils évitent
-          # d'oublier cette étape le jour où Linux ou macOS sont rétablis dans la matrice.
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('bureau-v{0}', env.VERSION) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('Varotra bureau {0} (essai)', env.VERSION) }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          body: |
+            Version de bureau de Varotra — ${{ env.VERSION }}, pour Windows.
+
+            **Pour essayer sans rien installer** (le plus simple, et sans droits administrateur) :
+            télécharger `varotra-bureau-${{ env.VERSION }}-windows-portable.zip`, le décompresser,
+            puis double-cliquer `Varotra.exe` à l'intérieur.
+
+            **Pour installer** : `Varotra-${{ env.VERSION }}.exe` (ou le `.msi`). Ces deux fichiers
+            ne sont présents que si l'outil WiX était disponible sur la machine de construction ;
+            l'archive portable, elle, est toujours produite.
+
+            Ce que cette version fait aujourd'hui : l'écran Catalogue, calculé par le même code que
+            la caisse Android (prix, prix de gros, mise en forme, filtrage). La caisse, les dettes
+            et les rapports sont annoncés « à venir » dans le menu — ils attendent le partage de la
+            base de données avec le téléphone. Les produits affichés sont des données de
+            démonstration, ce que l'écran dit explicitement.
+          # Les chemins des deux autres systèmes sont conservés bien que la matrice soit réduite à
+          # Windows : `fail_on_unmatched_files: false` les rend inoffensifs, et ils évitent d'oublier
+          # cette étape le jour où Linux ou macOS sont rétablis.
           files: |
+            varotra-bureau-*-windows-portable.zip
+            desktop/build/compose/binaries/main/exe/*.exe
             desktop/build/compose/binaries/main/msi/*.msi
             desktop/build/compose/binaries/main/deb/*.deb
             desktop/build/compose/binaries/main/dmg/*.dmg
