@@ -1,5 +1,3 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 /**
  * `:core:logic` — les règles de calcul de l'application, en Kotlin pur.
  *
@@ -27,26 +25,9 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
  * bureau — ce qui ne se découvrirait qu'au moment de le partager.
  */
 plugins {
-  alias(libs.plugins.kotlin.jvm)
-  // Explicite plutôt que supposé fourni par le plugin Kotlin : la configuration `api` utilisée
-  // plus bas vient de `java-library`.
-  `java-library`
-}
-
-// Java 11 et non 21, et c'est la contrainte à ne pas rater : `:app` compile en Java 11, et un
-// module Android ne peut pas lire des classes compilées pour une version supérieure. Le code est
-// donc compilé PAR le JDK de la machine (21 en CI) mais POUR Java 11 — plutôt que via
-// `jvmToolchain(11)`, qui ferait télécharger un second JDK à chaque build.
-// `:desktop`, en 21, lit sans difficulté des classes Java 11.
-kotlin {
-  compilerOptions {
-    jvmTarget.set(JvmTarget.JVM_11)
-  }
-}
-
-java {
-  sourceCompatibility = JavaVersion.VERSION_11
-  targetCompatibility = JavaVersion.VERSION_11
+  // Convention partagée (buildSrc) : Kotlin/JVM, `java-library` et surtout la cible Java 11, sans
+  // laquelle `:app` ne pourrait pas lire les classes produites ici. Voir le KDoc du plugin.
+  id("varotra.module-jvm")
 }
 
 dependencies {

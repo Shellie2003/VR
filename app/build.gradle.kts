@@ -6,26 +6,9 @@ plugins {
   alias(libs.plugins.secrets)
 }
 
-// Le nombre de commits sur la branche sert de versionCode : il n'augmente jamais qu'entre deux
-// releases (chaque commit ne peut arriver qu'après le précédent), contrairement à un compteur
-// codé en dur qu'on oublie facilement d'incrémenter. Google Play — et le mécanisme de mise à jour
-// interne (voir UpdateManager) — refusent une "mise à jour" dont le versionCode n'est pas
-// STRICTEMENT supérieur à celui déjà installé.
-//
-// providers.exec (Provider API), pas ProcessBuilder/Runtime.exec direct : le cache de
-// configuration de Gradle (activé par défaut depuis Gradle 9) interdit tout processus externe lancé
-// à la volée pendant la configuration et fait échouer le build entier ("Starting an external
-// process ... is unsupported") si on ne passe pas par cette API, qui sait l'enregistrer proprement
-// comme entrée du cache.
-fun gitCommitCount(): Int = try {
-  providers.exec {
-    commandLine("git", "rev-list", "--count", "HEAD")
-  }.standardOutput.asText.get().trim().toIntOrNull() ?: 1
-} catch (e: Exception) {
-  1
-}
-
-val gitVersionCode = gitCommitCount()
+// Fourni par buildSrc (voir VersionGit.kt) : la formule et le piège `providers.exec` y sont
+// expliqués une seule fois, au lieu d'être recopiés dans chaque module qui en a besoin.
+val gitVersionCode = nombreDeCommitsGit()
 
 android {
   namespace = "com.example"

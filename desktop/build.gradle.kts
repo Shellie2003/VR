@@ -24,22 +24,9 @@ plugins {
   alias(libs.plugins.jetbrains.compose)
 }
 
-// Même formule que `app/build.gradle.kts` : le nombre de commits sert de numéro de version, parce
-// qu'il ne peut que croître. Dupliquée ici volontairement — la factoriser demanderait un plugin de
-// convention (`buildSrc`), qui sera écrit au moment du découpage en modules et pas avant, pour ne
-// pas introduire deux chantiers à la fois.
-//
-// `providers.exec` et non `ProcessBuilder` : le cache de configuration de Gradle refuse tout
-// processus externe lancé à la volée pendant la configuration et ferait échouer le build entier.
-fun gitCommitCount(): Int = try {
-  providers.exec {
-    commandLine("git", "rev-list", "--count", "HEAD")
-  }.standardOutput.asText.get().trim().toIntOrNull() ?: 1
-} catch (e: Exception) {
-  1
-}
-
-val gitVersionCode = gitCommitCount()
+// Fourni par buildSrc (voir VersionGit.kt) : la formule et le piège `providers.exec` y sont
+// expliqués une seule fois, au lieu d'être recopiés dans chaque module qui en a besoin.
+val gitVersionCode = nombreDeCommitsGit()
 
 kotlin {
   // 21 et non 11 comme côté Android : `jpackage`, l'outil du JDK qui fabrique les paquets natifs,

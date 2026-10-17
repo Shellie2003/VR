@@ -1,5 +1,3 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 /**
  * `:core:model` — les entités de données de l'application.
  *
@@ -21,24 +19,9 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
  * ne peut pas compiler localement.
  */
 plugins {
-  alias(libs.plugins.kotlin.jvm)
-  // Explicite, et non supposé fourni par le plugin Kotlin : la configuration `api` utilisée plus
-  // bas vient de `java-library`. Compter sur le plugin Kotlin pour l'apporter serait un pari
-  // qu'on ne peut pas vérifier sans compiler, ce qui est impossible dans cet environnement.
-  `java-library`
-}
-
-// Java 11, même contrainte qu'en section 78 : `:app` compile en Java 11 et un module Android ne
-// peut pas lire des classes compilées pour une version supérieure.
-kotlin {
-  compilerOptions {
-    jvmTarget.set(JvmTarget.JVM_11)
-  }
-}
-
-java {
-  sourceCompatibility = JavaVersion.VERSION_11
-  targetCompatibility = JavaVersion.VERSION_11
+  // Convention partagée (buildSrc) : Kotlin/JVM, `java-library` et surtout la cible Java 11, sans
+  // laquelle `:app` ne pourrait pas lire les classes produites ici. Voir le KDoc du plugin.
+  id("varotra.module-jvm")
 }
 
 dependencies {
