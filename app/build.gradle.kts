@@ -148,5 +148,6 @@ dependencies {
   implementation(project(":sync"))
   implementation(project(":core:model"))
   implementation(project(":core:logic"))
+  implementation(project(":core:network"))
   implementation(libs.zxing.core)
 }

@@ -41,4 +41,9 @@ include(":core:model")
 
 include(":core:logic")
 
+// Clients REST. Séparés de :core:logic à dessein : y faire entrer OkHttp et Retrofit ferait perdre
+// à ce dernier la garantie qui en fait l'intérêt — ne contenir que des fonctions sans effet de
+// bord, vérifiables sans serveur ni appareil.
+include(":core:network")
+
 include(":desktop")

@@ -78,10 +78,13 @@ jobs:
       # `:core:logic:test` est indispensable EN PLUS de `testDebugUnitTest`, et c'est un piège dont
       # il faut se souvenir à chaque nouveau module : `testDebugUnitTest` est une tâche de variante
       # ANDROID, elle n'existe pas dans un module `kotlin("jvm")`. Sans cette mention explicite, les
-      # tests déplacés dans :core:logic (section 78) cesseraient tout simplement d'être exécutés —
-      # sans aucune erreur, la CI resterait verte en vérifiant moins de choses qu'avant.
+      # tests des modules JVM (:core:logic, :core:network) cesseraient tout simplement d'être
+      # exécutés — sans aucune erreur, la CI resterait verte en vérifiant moins qu'avant.
+      #
+      # RÈGLE : tout nouveau module `kotlin("jvm")` doit être ajouté ICI et à la liste des
+      # emplacements de rapports ci-dessous, sinon ses tests ne tourneront jamais.
       - name: Tests unitaires
-        run: ./gradlew testDebugUnitTest :core:logic:test --no-daemon
+        run: ./gradlew testDebugUnitTest :core:logic:test :core:network:test --no-daemon
 
       # Gradle ne dit que « des tests ont échoué ». La première version de cette étape déversait
       # 4 000 caractères de XML par fichier : illisible, et surtout la ligne qui compte se
@@ -102,6 +105,7 @@ jobs:
           fichiers = sorted(
               glob.glob('app/build/test-results/testDebugUnitTest/*.xml')
               + glob.glob('core/logic/build/test-results/test/*.xml')
+              + glob.glob('core/network/build/test-results/test/*.xml')
           )
           if not fichiers:
               print("Aucun résultat de test : la tâche n'est pas allée jusque-là.")

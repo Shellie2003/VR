@@ -9,9 +9,13 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
  * modèles extraits dans `:core:model`, les cinq calculs qui en dépendaient : `PriceUtil`,
  * `FefoAllocator`, `DebtAllocation`, `EtagereLayout`, `AnomalyDetector`.
  *
- * Reste dans `:app` : `RechercheEtagere`, seul utilitaire encore couplé à une classe imbriquée
- * dans `InventoryViewModel`. Le sortir demande d'abord d'en extraire cette classe — un chantier
- * distinct, qui touche au ViewModel et non aux calculs.
+ * Puis, l'étape qui a débloqué le dernier verrou : les classes du plan d'étagères sorties
+ * d'`InventoryViewModel` vers `:core:model` ont permis à `RechercheEtagere` de suivre, et
+ * `LanguageManager` (table de traductions sans aucun import) les a rejoints.
+ *
+ * **Le module est autonome** : aucune référence à une classe restée dans `:app`, et aucun import
+ * `android.*` ni `androidx.*`. Les clients REST vivent dans `:core:network`, séparément, pour que
+ * cette garantie tienne.
  *
  * **Le package reste `com.example.util`.** Un module Gradle n'impose aucun changement de package,
  * et le conserver rend l'extraction invisible pour les ~100 sites d'appel : aucun import à
