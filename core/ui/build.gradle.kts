@@ -52,5 +52,15 @@ dependencies {
   // plutôt que de compter sur la transitivité de `foundation`.
   api(compose.ui)
 
+  // Le jeu d'icônes ÉTENDU, et c'est une exigence de fidélité, pas un confort.
+  // `AGENTS.md` section 2 impose `Icons.Rounded.ShoppingBasket` pour l'icône de la marque, afin
+  // qu'accueil, splash et historique ne divergent jamais — or cette icône n'est pas dans le jeu
+  // réduit livré avec Material. Sans cette dépendance, le bureau afficherait une AUTRE icône que
+  // le téléphone, ce qui est précisément ce qu'on nous demande de ne pas faire.
+  //
+  // Coût assumé : l'artefact pèse une dizaine de mégaoctets et le paquet de bureau n'a pas de R8
+  // pour l'élaguer. Sur un installateur déjà à ~57 Mo, c'est le prix d'une interface identique.
+  implementation(compose.materialIconsExtended)
+
   testImplementation(libs.junit)
 }

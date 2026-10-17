@@ -513,28 +513,9 @@ private fun ProductGridCard(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 horizontalAlignment = Alignment.Start
             ) {
-                // Stock/Total
-                val (stockValue, stockUnit) = when (product.unit.lowercase()) {
-                    "kilogramme", "kg" -> product.stock.toInt().toString() to "kg"
-                    "litre", "l" -> product.stock.toInt().toString() to "L"
-                    "pièce", "piece", "pcs" -> product.stock.toInt().toString() to "pcs"
-                    "paquet" -> product.stock.toInt().toString() to "paq"
-                    "carton" -> product.stock.toInt().toString() to "ctn"
-                    "sac" -> product.stock.toInt().toString() to "sac"
-                    "boîte", "boite" -> product.stock.toInt().toString() to "bt"
-                    "bouteille" -> product.stock.toInt().toString() to "btl"
-                    "tasse", "kapoaka" -> product.stock.toInt().toString() to "kap"
-                    else -> {
-                        if (product.unit.isEmpty()) {
-                            "Tahir" to "y"
-                        } else {
-                            product.stock.toInt().toString() to product.unit
-                        }
-                    }
-                }
-
-                val stockLabel = if (product.unit.isEmpty()) "$stockValue" else "$stockValue $stockUnit"
-
+                // Stock/Total — la table d'abréviations vit dans `UniteAbrege` (:core:logic)
+                // depuis que la version de bureau affiche la même carte : deux copies d'une table
+                // de libellés finiraient par dire « kap » d'un côté et autre chose de l'autre.
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
@@ -542,11 +523,11 @@ private fun ProductGridCard(
                         .padding(horizontal = 6.dp, vertical = 3.dp)
                 ) {
                     Text(
-                        text = when (activeLang) {
-                            "mg" -> "Tahiry: $stockLabel"
-                            "fr" -> "Total: $stockLabel"
-                            else -> "Total: $stockLabel"
-                        },
+                        text = com.example.util.UniteAbrege.libelleBadgeStock(
+                            product.stock,
+                            product.unit,
+                            activeLang
+                        ),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFFD35400)

@@ -28,12 +28,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import com.example.ui.partage.catalogue.CatalogueEcran
+import com.example.ui.partage.accueil.AccueilEcran
 import com.example.ui.partage.coquille.CoquilleBureau
 import com.example.ui.partage.coquille.SectionAVenir
 import com.example.ui.partage.coquille.SectionBureau
 import com.example.ui.partage.theme.VarotraTheme
-import com.example.util.CatalogueFiltre
 import com.example.util.ShopMode
 import com.example.util.enDecimal
 
@@ -72,8 +71,12 @@ private fun FenetreVarotra(version: String?) {
     var modeBoutique by remember { mutableStateOf(ShopMode.DETAIL) }
     var section by remember { mutableStateOf(SectionBureau.CATALOGUE) }
     var recherche by remember { mutableStateOf("") }
-    var categorie by remember { mutableStateOf(CatalogueFiltre.TOUTES_CATEGORIES) }
-    var stockFaibleSeulement by remember { mutableStateOf(false) }
+
+    // Panier LOCAL à la fenêtre, et volontairement non enregistré : il n'existe que pour que le
+    // badge de quantité et son bouton « - » de la carte produit soient réellement fonctionnels
+    // plutôt que décoratifs. Sans base de données partagée, une vente ne peut aller nulle part —
+    // afficher un panier qui prétendrait encaisser serait pire que de ne pas en avoir.
+    var panier by remember { mutableStateOf<Map<Int, Double>>(emptyMap()) }
 
     VarotraTheme(sombre = sombre) {
         CoquilleBureau(
@@ -100,16 +103,33 @@ private fun FenetreVarotra(version: String?) {
             when (sectionActive) {
                 SectionBureau.CATALOGUE -> Column(modifier = Modifier.fillMaxSize()) {
                     BandeauDemonstration(langue = langue)
-                    CatalogueEcran(
+                    AccueilEcran(
                         produits = DonneesDemo.catalogue,
+                        // Sur Android ce nom vient des préférences (écran Épicerie). Le bureau n'a
+                        // pas encore de préférences partagées, donc le nom de l'application tient
+                        // la place — jamais un faux nom de boutique, qui ferait croire à une donnée.
+                        nomEpicerie = DesktopBuildInfo.NOM_APPLICATION,
                         recherche = recherche,
                         onRechercheChange = { recherche = it },
-                        categorieChoisie = categorie,
-                        onCategorieChange = { categorie = it },
-                        stockFaibleSeulement = stockFaibleSeulement,
-                        onStockFaibleChange = { stockFaibleSeulement = it },
+                        quantitesPanier = panier,
+                        onAjouter = { produit ->
+                            val actuel = panier[produit.id] ?: 0.0
+                            panier = panier + (produit.id to actuel + 1.0)
+                        },
+                        onRetirer = { produit ->
+                            val actuel = panier[produit.id] ?: 0.0
+                            // En dessous de 1, la ligne disparaît du panier : c'est ce que fait le
+                            // bouton « - » d'Android, et non un passage à zéro qui laisserait un
+                            // badge « 0 » affiché sur la carte.
+                            panier = if (actuel <= 1.0) panier - produit.id
+                            else panier + (produit.id to actuel - 1.0)
+                        },
                         modeBoutique = modeBoutique,
-                        langue = langue
+                        langue = langue,
+                        // `themeColor` et `colorScheme.primary` sont la même couleur à l'exécution
+                        // côté Android (MainActivity passe l'une comme surcharge de l'autre) : la
+                        // carte reçoit donc ici exactement la teinte qu'elle a sur le téléphone.
+                        couleurTheme = MaterialTheme.colorScheme.primary
                     )
                 }
 
