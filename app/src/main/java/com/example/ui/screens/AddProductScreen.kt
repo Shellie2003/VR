@@ -1936,15 +1936,17 @@ fun AddProductScreen(
                                                     maxLines = 2,
                                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                                 )
-                                                if (!p.brands.isNullOrBlank()) {
+                                                val marque = p.brands
+                                                if (!marque.isNullOrBlank()) {
                                                     Text(
-                                                        text = p.brands,
+                                                        text = marque,
                                                         style = MaterialTheme.typography.bodySmall,
                                                         color = MaterialTheme.colorScheme.primary,
                                                         fontWeight = FontWeight.SemiBold
                                                     )
                                                 }
-                                                if (!p.code.isNullOrBlank()) {
+                                                val codeBarreTrouve = p.code
+                                                if (!codeBarreTrouve.isNullOrBlank()) {
                                                     Row(
                                                         verticalAlignment = Alignment.CenterVertically,
                                                         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -1957,7 +1959,7 @@ fun AddProductScreen(
                                                             modifier = Modifier.size(12.dp)
                                                         )
                                                         Text(
-                                                            text = p.code,
+                                                            text = codeBarreTrouve,
                                                             style = MaterialTheme.typography.bodySmall,
                                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                                         )
