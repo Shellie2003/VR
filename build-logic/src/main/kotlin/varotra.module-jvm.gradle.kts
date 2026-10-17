@@ -22,11 +22,18 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
  * (annotations exposées dans leurs signatures publiques : `room-common` pour les entités, Retrofit
  * et Moshi pour les clients REST). Le plugin Kotlin ne l'apporte pas de façon garantie.
  *
- * Ce qui n'est PAS factorisé, volontairement : les dépendances propres à chaque module, y compris
- * `testImplementation(libs.junit)`. Le catalogue (`libs`) n'est pas accessible depuis un plugin de
- * convention précompilé ; le contourner demanderait de passer par `VersionCatalogsExtension`, soit
- * plus de machinerie que la ligne qu'on éviterait — et les dépendances de test diffèrent de toute
- * façon d'un module à l'autre (`:core:network` a besoin d'`org.json`).
+ * Ce qui n'est PAS factorisé, volontairement, et pour deux raisons distinctes :
+ *  - **les dépendances de chaque module**, `testImplementation(libs.junit)` comprise : le catalogue
+ *    (`libs`) n'est pas accessible depuis un plugin de convention précompilé, et le contourner par
+ *    `VersionCatalogsExtension` demanderait plus de machinerie que la ligne qu'on éviterait. Les
+ *    dépendances de test diffèrent de toute façon d'un module à l'autre (`:core:network` a besoin
+ *    d'`org.json`) ;
+ *  - **le calcul du `versionCode`** (`gitCommitCount`), resté dupliqué entre `:app` et `:desktop` :
+ *    les classes d'un build inclus ne sont pas sur le classpath des scripts du build principal,
+ *    donc une fonction partagée n'y serait pas appelable. La rendre accessible demanderait un
+ *    plugin écrivant une propriété `extra`, soit une indirection moins lisible que dix lignes
+ *    recopiées. La contrainte Java 11, elle, valait l'effort : elle provoque une panne qu'on ne
+ *    sait pas diagnostiquer, alors qu'un `versionCode` dupliqué se lit à côté de son usage.
  */
 plugins {
   id("org.jetbrains.kotlin.jvm")

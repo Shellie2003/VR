@@ -1,4 +1,11 @@
 pluginManagement {
+  // Build INCLUS et non `buildSrc`, et la distinction est tout sauf cosmétique : les dépendances
+  // de `buildSrc` fuient sur le classpath du build principal, ce qui rend impossible de déclarer
+  // ensuite un plugin Kotlin AVEC sa version — Gradle refuse alors avec « the plugin is already on
+  // the classpath with an unknown version ». Un build inclus garde son classpath pour lui, donc la
+  // racine et les modules continuent de déclarer leurs plugins normalement.
+  includeBuild("build-logic")
+
   repositories {
     google {
       content {

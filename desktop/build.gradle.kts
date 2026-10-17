@@ -24,9 +24,28 @@ plugins {
   alias(libs.plugins.jetbrains.compose)
 }
 
-// Fourni par buildSrc (voir VersionGit.kt) : la formule et le piège `providers.exec` y sont
-// expliqués une seule fois, au lieu d'être recopiés dans chaque module qui en a besoin.
-val gitVersionCode = nombreDeCommitsGit()
+// Le nombre de commits sur la branche sert de versionCode : il n'augmente jamais qu'entre deux
+// releases (chaque commit ne peut arriver qu'après le précédent), contrairement à un compteur
+// codé en dur qu'on oublie facilement d'incrémenter. Android refuse un versionCode qui n'est pas
+// STRICTEMENT supérieur à celui déjà installé.
+//
+// providers.exec (Provider API) et jamais ProcessBuilder/Runtime.exec : le cache de configuration
+// de Gradle interdit tout processus externe lancé à la volée pendant la configuration et fait
+// échouer le build entier (voir AGENTS.md section 58bis).
+//
+// Volontairement DUPLIQUÉ entre :app et :desktop plutôt que partagé. Les classes d'un build inclus
+// (build-logic) ne sont pas sur le classpath des scripts du build principal, donc une fonction
+// commune ne serait pas appelable ici ; la rendre accessible demanderait de passer par un plugin
+// qui écrit une propriété `extra`, soit une indirection moins lisible que ces dix lignes.
+fun gitCommitCount(): Int = try {
+  providers.exec {
+    commandLine("git", "rev-list", "--count", "HEAD")
+  }.standardOutput.asText.get().trim().toIntOrNull() ?: 1
+} catch (e: Exception) {
+  1
+}
+
+val gitVersionCode = gitCommitCount()
 
 kotlin {
   // 21 et non 11 comme côté Android : `jpackage`, l'outil du JDK qui fabrique les paquets natifs,

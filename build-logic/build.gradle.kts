@@ -8,9 +8,9 @@ plugins {
 }
 
 dependencies {
-  // Le plugin Kotlin sur le classpath de buildSrc, ce qui autorise les plugins de convention à
+  // Le plugin Kotlin sur le classpath de ce build inclus, ce qui autorise les plugins de convention à
   // écrire `id("org.jetbrains.kotlin.jvm")` SANS numéro de version. La version vient du catalogue
-  // partagé (voir settings.gradle.kts de ce dossier), donc elle ne peut pas dériver de celle du
+  // partagé (voir le settings.gradle.kts de ce dossier), donc elle ne peut pas dériver de celle du
   // projet.
   implementation(libs.kotlin.gradle.plugin)
 }
