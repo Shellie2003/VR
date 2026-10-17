@@ -51,6 +51,9 @@ dependencies {
   // `Modifier`, `Color` et `dp` apparaissent dans les signatures publiques ; déclaré explicitement
   // plutôt que de compter sur la transitivité de `foundation`.
   api(compose.ui)
+  // `animateDpAsState` (élévation au survol) vient d'`animation-core`. `foundation` en dépend,
+  // mais on le déclare : une dépendance utilisée doit être déclarée, pas héritée par chance.
+  api(compose.animation)
 
   // Le jeu d'icônes ÉTENDU, et c'est une exigence de fidélité, pas un confort.
   // `AGENTS.md` section 2 impose `Icons.Rounded.ShoppingBasket` pour l'icône de la marque, afin

@@ -1,7 +1,11 @@
 package com.example.ui.partage.accueil
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,10 +26,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -69,13 +77,29 @@ fun CarteProduitGrille(
     onDecrement: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // CE QUI EST PROPRE AU BUREAU, et qui n'a pas d'équivalent mobile : il y a un curseur.
+    //
+    // Sur un téléphone, le retour d'un appui est le ripple au moment du contact — il n'existe
+    // aucun état « le doigt est au-dessus sans toucher ». Sur un PC, la souris survole en
+    // permanence, et une carte qui ne réagit pas au survol se lit comme une image, pas comme un
+    // bouton : l'utilisateur ne sait pas qu'elle est cliquable avant d'avoir cliqué. L'élévation
+    // monte donc de 1dp à 6dp au survol, et le curseur devient une main.
+    //
+    // Le design au repos est INCHANGÉ : 1dp, exactement comme sur Android. C'est un état
+    // supplémentaire qui n'existe pas sur mobile, pas une retouche de la carte.
+    val interactions = remember { MutableInteractionSource() }
+    val survole by interactions.collectIsHoveredAsState()
+    val elevation by animateDpAsState(if (survole) 6.dp else 1.dp)
+
     Card(
         modifier = modifier
             .fillMaxWidth()
+            .hoverable(interactions)
+            .pointerHoverIcon(PointerIcon.Hand)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation)
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
             // Zone d'image

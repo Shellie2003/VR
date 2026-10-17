@@ -18,11 +18,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -33,6 +41,7 @@ import com.example.ui.partage.coquille.CoquilleBureau
 import com.example.ui.partage.coquille.SectionAVenir
 import com.example.ui.partage.coquille.SectionBureau
 import com.example.ui.partage.theme.VarotraTheme
+import com.example.util.PanierSimple
 import com.example.util.ShopMode
 import com.example.util.enDecimal
 
@@ -49,20 +58,63 @@ import com.example.util.enDecimal
  * service), la caisse, les dettes et les rapports n'ont rien à lire. Le catalogue affiche donc un
  * jeu de démonstration, et le dit.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 fun main() = application {
     val version = DesktopBuildInfo.versionCourante()
+
+    // Les raccourcis sont posés sur la FENÊTRE, et c'est le seul endroit correct : un
+    // `onPreviewKeyEvent` sur un composable ne reçoit les touches que si lui ou un de ses enfants
+    // a le focus. Un raccourci d'application doit répondre même quand le focus est dans une carte
+    // produit ou nulle part. C'est une notion qui n'a pas d'équivalent mobile — il n'y a pas de
+    // clavier physique en permanence, donc pas de raccourci global.
+    val focusRecherche = remember { FocusRequester() }
+    var demandeRecherche by remember { mutableStateOf(false) }
+    var demandeEffacer by remember { mutableStateOf(false) }
 
     Window(
         onCloseRequest = ::exitApplication,
         title = DesktopBuildInfo.titreFenetre(version),
-        state = rememberWindowState(width = 1200.dp, height = 760.dp)
+        state = rememberWindowState(width = 1200.dp, height = 760.dp),
+        onPreviewKeyEvent = { evenement ->
+            if (evenement.type != KeyEventType.KeyDown) {
+                false
+            } else when {
+                // Ctrl+F : le raccourci de recherche que tout logiciel de bureau honore.
+                evenement.isCtrlPressed && evenement.key == Key.F -> {
+                    demandeRecherche = true
+                    true
+                }
+                // Échap efface la recherche, mais la touche n'est PAS consommée : la fenêtre ne
+                // sait pas si un dialogue ou un menu en a besoin au même instant, et le lui voler
+                // casserait un geste que tout utilisateur de PC considère comme acquis.
+                evenement.key == Key.Escape -> {
+                    demandeEffacer = true
+                    false
+                }
+                else -> false
+            }
+        }
     ) {
-        FenetreVarotra(version = version)
+        FenetreVarotra(
+            version = version,
+            focusRecherche = focusRecherche,
+            demandeRecherche = demandeRecherche,
+            onDemandeRechercheTraitee = { demandeRecherche = false },
+            demandeEffacer = demandeEffacer,
+            onDemandeEffacerTraitee = { demandeEffacer = false }
+        )
     }
 }
 
 @Composable
-private fun FenetreVarotra(version: String?) {
+private fun FenetreVarotra(
+    version: String?,
+    focusRecherche: FocusRequester,
+    demandeRecherche: Boolean,
+    onDemandeRechercheTraitee: () -> Unit,
+    demandeEffacer: Boolean,
+    onDemandeEffacerTraitee: () -> Unit
+) {
     // Tout l'état de la fenêtre est ici, en un seul endroit : la version de bureau n'a pas encore
     // de ViewModel parce qu'elle n'a pas encore de source de données à observer. Le jour où elle en
     // aura une, les écrans n'auront pas à changer — ils reçoivent déjà leur état en paramètres.
@@ -77,6 +129,24 @@ private fun FenetreVarotra(version: String?) {
     // plutôt que décoratifs. Sans base de données partagée, une vente ne peut aller nulle part —
     // afficher un panier qui prétendrait encaisser serait pire que de ne pas en avoir.
     var panier by remember { mutableStateOf<Map<Int, Double>>(emptyMap()) }
+
+    // Les demandes venues des raccourcis de la fenêtre sont traitées ici, parce que c'est ici que
+    // vit l'état qu'elles modifient. `runCatching` autour du focus : `requestFocus()` lève si le
+    // champ n'est pas encore attaché à l'arbre (section non affichée au moment du raccourci), et
+    // un raccourci clavier ne doit jamais pouvoir fermer l'application.
+    LaunchedEffect(demandeRecherche) {
+        if (demandeRecherche) {
+            section = SectionBureau.CATALOGUE
+            runCatching { focusRecherche.requestFocus() }
+            onDemandeRechercheTraitee()
+        }
+    }
+    LaunchedEffect(demandeEffacer) {
+        if (demandeEffacer) {
+            if (recherche.isNotEmpty()) recherche = ""
+            onDemandeEffacerTraitee()
+        }
+    }
 
     VarotraTheme(sombre = sombre) {
         CoquilleBureau(
@@ -112,24 +182,18 @@ private fun FenetreVarotra(version: String?) {
                         recherche = recherche,
                         onRechercheChange = { recherche = it },
                         quantitesPanier = panier,
-                        onAjouter = { produit ->
-                            val actuel = panier[produit.id] ?: 0.0
-                            panier = panier + (produit.id to actuel + 1.0)
-                        },
-                        onRetirer = { produit ->
-                            val actuel = panier[produit.id] ?: 0.0
-                            // En dessous de 1, la ligne disparaît du panier : c'est ce que fait le
-                            // bouton « - » d'Android, et non un passage à zéro qui laisserait un
-                            // badge « 0 » affiché sur la carte.
-                            panier = if (actuel <= 1.0) panier - produit.id
-                            else panier + (produit.id to actuel - 1.0)
-                        },
+                        // La règle du panier vit dans `PanierSimple` (:core:logic), testée : c'est
+                        // le seul endroit de cet écran où une erreur se traduirait par un mauvais
+                        // chiffre devant le client.
+                        onAjouter = { produit -> panier = PanierSimple.ajouter(panier, produit.id) },
+                        onRetirer = { produit -> panier = PanierSimple.retirer(panier, produit.id) },
                         modeBoutique = modeBoutique,
                         langue = langue,
                         // `themeColor` et `colorScheme.primary` sont la même couleur à l'exécution
                         // côté Android (MainActivity passe l'une comme surcharge de l'autre) : la
                         // carte reçoit donc ici exactement la teinte qu'elle a sur le téléphone.
-                        couleurTheme = MaterialTheme.colorScheme.primary
+                        couleurTheme = MaterialTheme.colorScheme.primary,
+                        focusRecherche = focusRecherche
                     )
                 }
 

@@ -1,19 +1,26 @@
 package com.example.ui.partage.accueil
 
+import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.data.model.Product
@@ -53,13 +60,22 @@ fun AccueilEcran(
     modeBoutique: ShopMode,
     langue: String,
     couleurTheme: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Voir `EnteteAccueil` : donne le focus au champ de recherche pour un lecteur de code-barres. */
+    focusRecherche: FocusRequester? = null
 ) {
     // Mémorisé sur ses entrées : le filtrage traverse tout le catalogue, le refaire à chaque
     // recomposition sans rapport serait gratuit.
     val visibles = remember(produits, recherche) {
         CatalogueFiltre.filtrer(produits = produits, recherche = recherche)
     }
+
+    // Le champ de recherche prend le focus à l'ouverture de l'écran. Ce n'est pas un confort :
+    // sur un PC, un lecteur de code-barres USB TAPE le code puis valide, exactement comme un
+    // clavier. Sans champ déjà actif, le vendeur scanne et rien ne se passe — alors que sur
+    // téléphone le scan passe par la caméra et ne demande aucun focus.
+    // `runCatching` : `requestFocus()` lève si le champ n'est pas encore attaché.
+    LaunchedEffect(Unit) { runCatching { focusRecherche?.requestFocus() } }
 
     Column(modifier = modifier.fillMaxSize().padding(horizontal = 24.dp)) {
         EnteteAccueil(
@@ -82,7 +98,8 @@ fun AccueilEcran(
             },
             // Sur Android ce lien ouvre l'écran Stock, qui n'est pas encore porté. En attendant, il
             // fait la chose la plus proche de son libellé : effacer la recherche pour tout montrer.
-            onVoirTout = { onRechercheChange("") }
+            onVoirTout = { onRechercheChange("") },
+            focusRequester = focusRecherche
         )
 
         if (visibles.isEmpty()) {
@@ -97,9 +114,23 @@ fun AccueilEcran(
                 modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
             )
         } else {
+            // L'ASCENSEUR VISIBLE, second réflexe de bureau absent du mobile.
+            //
+            // Sur un téléphone, on sait qu'une liste défile parce qu'on la touche : l'indicateur
+            // n'apparaît que pendant le geste, et c'est la bonne convention là-bas. Sur un PC, rien
+            // ne dit qu'il reste du contenu plus bas avant d'avoir tenté la molette — et un gérant
+            // qui ne voit pas d'ascenseur conclut que son catalogue s'arrête là. C'est la même
+            // famille de défaut que le `LIMIT 100` de la section 42 : des produits invisibles sans
+            // le moindre message.
+            //
+            // L'ascenseur est à DROITE de la grille, pas par-dessus : il ne doit pas recouvrir la
+            // carte de la dernière colonne, que la souris doit pouvoir atteindre.
+            val etatGrille = rememberLazyGridState()
+            Row(modifier = Modifier.fillMaxSize()) {
             LazyVerticalGrid(
+                state = etatGrille,
                 columns = GridCells.Adaptive(minSize = 240.dp),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.weight(1f).fillMaxSize(),
                 contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -118,6 +149,11 @@ fun AccueilEcran(
                         onDecrement = { onRetirer(produit) }
                     )
                 }
+            }
+            VerticalScrollbar(
+                adapter = rememberScrollbarAdapter(etatGrille),
+                modifier = Modifier.fillMaxHeight().padding(start = 8.dp)
+            )
             }
         }
     }

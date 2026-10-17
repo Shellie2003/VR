@@ -29,6 +29,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,7 +64,14 @@ fun EnteteAccueil(
     titreSection: String,
     libelleVoirTout: String,
     onVoirTout: () -> Unit,
-    onOuvrirReglages: (() -> Unit)? = null
+    onOuvrirReglages: (() -> Unit)? = null,
+    /**
+     * Permet à l'appelant de donner le focus au champ de recherche. **Propre au bureau** : sur un
+     * PC, un lecteur de code-barres USB se comporte comme un clavier — il tape les chiffres puis
+     * valide. Sans un champ qui a déjà le focus, le scan part dans le vide. Sur un téléphone la
+     * question ne se pose pas : la saisie passe par la caméra, pas par le clavier.
+     */
+    focusRequester: FocusRequester? = null
 ) {
     Row(
         modifier = Modifier
@@ -150,7 +159,12 @@ fun EnteteAccueil(
                 }
             }
         },
-        modifier = Modifier.fillMaxWidth().height(56.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .then(
+                if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier
+            ),
         shape = RoundedCornerShape(24.dp),
         singleLine = true,
         colors = OutlinedTextFieldDefaults.colors(
