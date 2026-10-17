@@ -14,14 +14,16 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
  * classe restée dans `:app` et ne prennent **aucun `Context`** — ce sont des clients HTTP purs,
  * rangés à côté d'Android sans en dépendre.
  *
- * **`LicenceManager` reste dans `:app`, et pour une raison précise :** il utilise
- * `org.json.JSONObject`, fourni par la plateforme Android mais **absent du JDK**. Le chemin
- * identifié pour l'amener ici un jour est `compileOnly("org.json:json")` — l'annotation `compileOnly`
- * étant la clé : elle permet de compiler sans rien empaqueter, donc Android continue d'utiliser sa
- * version de plateforme (aucune classe en double, ce qu'une dépendance ordinaire provoquerait) et
- * seul le bureau aurait à fournir l'implémentation en `runtimeOnly`. Non fait dans ce lot : c'est
- * un changement de configuration invérifiable sans compiler, et le grouper avec la création du
- * module rendrait un échec de CI indiagnosticable.
+ * **`LicenceManager` a rejoint le module dans un second temps**, une fois la création de celui-ci
+ * validée par la CI. Il utilise `org.json.JSONObject`, fourni par la plateforme Android mais
+ * **absent du JDK** — d'où le `compileOnly` déclaré plus bas, qui est la clé de l'affaire : il
+ * permet de compiler sans rien empaqueter, donc le téléphone continue d'utiliser la version de la
+ * plateforme (aucune classe en double, ce qu'une dépendance ordinaire provoquerait sous R8) et seul
+ * un consommateur hors Android aurait à fournir une implémentation à l'exécution.
+ *
+ * Effet secondaire bienvenu : `DeviceMatchingTest` devient un test **JVM pur** au lieu de dépendre
+ * du harnais Android, parce que les tests de ce module disposent d'une vraie implémentation
+ * `org.json` en `testImplementation`.
  *
  * Intérêt concret pour la suite : la sauvegarde cloud est exactement ce dont la version de bureau
  * a besoin pour servir à quelque chose — elle pourra restaurer les données d'une boutique sans
@@ -60,5 +62,17 @@ dependencies {
   implementation(libs.converter.moshi)
   implementation(libs.kotlinx.coroutines.core)
 
+  // `compileOnly` et c'est TOUT L'INTÉRÊT de cette ligne : `LicenceManager` a besoin de
+  // `org.json.JSONObject` pour compiler, mais Android fournit déjà cette classe depuis sa
+  // plateforme. Une dépendance ordinaire l'empaquetterait en double et ferait échouer R8 sur
+  // « Duplicate class org.json.* ». En `compileOnly`, rien n'est livré : le téléphone continue
+  // d'utiliser la version de la plateforme — donc le comportement en production ne change pas —
+  // et seul un consommateur hors Android (le bureau) aurait à fournir une implémentation en
+  // `runtimeOnly`.
+  compileOnly(libs.org.json)
+
   testImplementation(libs.junit)
+  // Les tests tournent sur une JVM nue, sans plateforme Android pour fournir org.json : ici il
+  // faut donc une vraie implémentation, pas seulement de quoi compiler.
+  testImplementation(libs.org.json)
 }

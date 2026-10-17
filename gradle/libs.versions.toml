@@ -43,6 +43,9 @@ roborazzi = "1.59.0"
 firebaseBom = "34.12.0"
 secretsGradlePlugin = "2.0.1"
 barcodeScanning = "17.3.0"
+# org.json de référence. Utilisée UNIQUEMENT pour compiler et tester hors Android : sur un
+# téléphone, c'est la version de la plateforme qui sert (voir le `compileOnly` de :core:network).
+orgJson = "20260814"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -90,6 +93,7 @@ androidx-camera-view = { group = "androidx.camera", name = "camera-view", versio
 androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "cameraCore" }
 logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "loggingInterceptor" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
 moshi-kotlin = { group = "com.squareup.moshi", name = "moshi-kotlin", version.ref = "moshiKotlin" }
 moshi-kotlin-codegen = { group = "com.squareup.moshi", name = "moshi-kotlin-codegen", version.ref = "moshiKotlinCodegen" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastorePreferences" }
