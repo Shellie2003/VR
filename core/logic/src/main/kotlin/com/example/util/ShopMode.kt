@@ -29,6 +29,37 @@ enum class ShopMode(val cle: String) {
     /** Bar / débit de boissons. */
     BAR("bar");
 
+    /**
+     * Le libellé affiché dans un sélecteur de métier, dans la langue active.
+     *
+     * Porté par l'énumération et non par l'écran : le sélecteur existe désormais des deux côtés
+     * (les paramètres Android et le menu de la version de bureau), et deux listes de libellés
+     * finiraient par désigner le même métier sous deux noms différents selon l'écran. Les termes
+     * malgaches gardent leur équivalent entre parenthèses, comme les gérants les connaissent.
+     */
+    fun libelle(langue: String): String = when (this) {
+        DETAIL -> when (langue) {
+            "mg" -> "Mpaninjara (Retail/Détail)"
+            "fr" -> "Détail / Épicerie"
+            else -> "Retail (Grocery/Small)"
+        }
+        GROSSISTE -> when (langue) {
+            "mg" -> "Ambongadiny (Grossiste/Bulk)"
+            "fr" -> "Gros / Grossiste"
+            else -> "Wholesale (Bulk/Gros)"
+        }
+        PHARMACIE -> when (langue) {
+            "mg" -> "Farmasia (Pharmacie)"
+            "fr" -> "Pharmacie"
+            else -> "Pharmacy"
+        }
+        BAR -> when (langue) {
+            "mg" -> "Bara (Bar)"
+            "fr" -> "Bar / Boissons"
+            else -> "Bar / Drinks"
+        }
+    }
+
     companion object {
         val PAR_DEFAUT = DETAIL
 

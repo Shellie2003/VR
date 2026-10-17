@@ -55,9 +55,13 @@ kotlin {
 }
 
 dependencies {
-  // Le code de calcul partagé avec Android. C'est la première dépendance qui donne au module
-  // desktop autre chose à faire que s'ouvrir : les mêmes règles de lecture des montants et la
-  // même liste de métiers tournent désormais des deux côtés, à partir d'une seule source.
+  // Les écrans. Ce module expose `:core:logic` en `api`, donc les modèles et les calculs sont
+  // disponibles de toute façon ; `:core:logic` reste déclaré explicitement parce que cette fenêtre
+  // l'utilise directement (lecture de montant, mode de boutique) et qu'une dépendance utilisée
+  // doit être déclarée, pas héritée par chance.
+  implementation(project(":core:ui"))
+  // Le code de calcul partagé avec Android : les mêmes règles de lecture des montants, de prix et
+  // de mise en forme tournent des deux côtés, à partir d'une seule source.
   implementation(project(":core:logic"))
   implementation(compose.desktop.currentOs)
   // Material 3 est à demander EXPLICITEMENT : `compose.desktop.currentOs` n'embarque que

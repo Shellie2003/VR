@@ -78,8 +78,12 @@ jobs:
       - name: Compilation du module desktop
         run: ./gradlew :desktop:compileKotlin --no-daemon
 
+      # `:core:ui:test` tourne aussi dans verification.yml, et c'est voulu : les écrans de bureau
+      # vivent dans ce module, donc la chaîne desktop doit pouvoir se juger seule sans dépendre du
+      # workflow Android — les deux tournent en parallèle, et chacun doit dire la vérité sur son
+      # propre périmètre.
       - name: Tests du module desktop
-        run: ./gradlew :desktop:test --no-daemon
+        run: ./gradlew :desktop:test :core:ui:test --no-daemon
 
       - name: Résumé des tests
         if: always()
@@ -87,7 +91,10 @@ jobs:
           python3 - <<'PYTHON'
           import glob, xml.etree.ElementTree as ET
           total = echecs = 0
-          fichiers = sorted(glob.glob('desktop/build/test-results/test/*.xml'))
+          fichiers = sorted(
+              glob.glob('desktop/build/test-results/test/*.xml')
+              + glob.glob('core/ui/build/test-results/test/*.xml')
+          )
           if not fichiers:
               print("Aucun résultat de test : la tâche n'est pas allée jusque-là.")
           for chemin in fichiers:

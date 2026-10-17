@@ -85,4 +85,43 @@ class ShopModeTest {
         assertFalse(PriceUtil.isWholesaleActive(produit, ShopMode.GROSSISTE))
         assertEquals(100.0, PriceUtil.displayPrice(produit, ShopMode.GROSSISTE), 1e-9)
     }
+
+    // --- Libellés du sélecteur de métier --------------------------------------------------------
+    // Les libellés viennent de rejoindre l'énumération parce que le sélecteur existe désormais sur
+    // les deux plateformes. Un libellé vide laisserait une case de choix anonyme dans les
+    // paramètres, et un doublon rendrait deux métiers indiscernables — deux défauts qu'aucun test
+    // d'interface ne remarquerait.
+
+    @Test
+    fun `chaque metier a un libelle dans les trois langues`() {
+        for (langue in listOf("mg", "fr", "en")) {
+            for (mode in ShopMode.entries) {
+                assertTrue(
+                    "Libellé vide pour $mode en $langue",
+                    mode.libelle(langue).isNotBlank()
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `les libelles d'une meme langue sont tous distincts`() {
+        for (langue in listOf("mg", "fr", "en")) {
+            val libelles = ShopMode.entries.map { it.libelle(langue) }
+            assertEquals(
+                "Libellés dupliqués en $langue : $libelles",
+                libelles.size,
+                libelles.distinct().size
+            )
+        }
+    }
+
+    @Test
+    fun `une langue inconnue retombe sur l'anglais`() {
+        // Même règle de secours que partout ailleurs : une préférence corrompue ou restaurée d'une
+        // version plus récente ne doit pas vider l'interface.
+        for (mode in ShopMode.entries) {
+            assertEquals(mode.libelle("en"), mode.libelle("xx"))
+        }
+    }
 }

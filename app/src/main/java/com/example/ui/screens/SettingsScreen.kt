@@ -126,38 +126,11 @@ fun SettingsScreen(
         else -> "Shop Scale / Pricing Mode"
     }
 
-    val retailLabel = when (activeLang) {
-        "mg" -> "Mpaninjara (Retail/Détail)"
-        "fr" -> "Détail / Épicerie"
-        else -> "Retail (Grocery/Small)"
-    }
-
-    val wholesaleLabel = when (activeLang) {
-        "mg" -> "Ambongadiny (Grossiste/Bulk)"
-        "fr" -> "Gros / Grossiste"
-        else -> "Wholesale (Bulk/Gros)"
-    }
-
-    val pharmacieLabel = when (activeLang) {
-        "mg" -> "Farmasia (Pharmacie)"
-        "fr" -> "Pharmacie"
-        else -> "Pharmacy"
-    }
-
-    val barLabel = when (activeLang) {
-        "mg" -> "Bara (Bar)"
-        "fr" -> "Bar / Boissons"
-        else -> "Bar / Drinks"
-    }
-
-    // Un seul endroit décrit les modes et leur libellé : ajouter un métier plus tard ne demandera
-    // pas de retoucher la mise en page du sélecteur.
-    val modesDisponibles = listOf(
-        com.example.util.ShopMode.DETAIL to retailLabel,
-        com.example.util.ShopMode.GROSSISTE to wholesaleLabel,
-        com.example.util.ShopMode.PHARMACIE to pharmacieLabel,
-        com.example.util.ShopMode.BAR to barLabel
-    )
+    // Un seul endroit décrit les modes et leur libellé : l'énumération elle-même. Les quatre
+    // libellés étaient écrits ici ; le sélecteur de métier existant désormais aussi sur la version
+    // de bureau, deux listes finiraient par désigner le même métier sous deux noms selon l'écran.
+    // Ajouter un métier ne demande plus de retoucher ni cette liste ni la mise en page.
+    val modesDisponibles = com.example.util.ShopMode.entries.map { it to it.libelle(activeLang) }
 
     val themeLabel = when (activeLang) {
         "mg" -> "Loko Fototra (Thème)"

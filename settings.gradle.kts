@@ -53,4 +53,10 @@ include(":core:logic")
 // bord, vérifiables sans serveur ni appareil.
 include(":core:network")
 
+// Écrans Compose de la version de bureau. Kotlin/JVM pur et consommé par :desktop SEUL : un module
+// d'interface partagé avec :app exigerait une cible Android sur Compose Multiplatform, dont la
+// résolution ferait monter le Compose runtime de l'application de production de deux versions
+// mineures — un risque à traiter pour lui-même, pas en passant. Voir le KDoc du module.
+include(":core:ui")
+
 include(":desktop")
