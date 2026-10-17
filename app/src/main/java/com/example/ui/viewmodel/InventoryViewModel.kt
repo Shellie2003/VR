@@ -2294,6 +2294,15 @@ class InventoryViewModel(
                 obj.put("gerePeremption", it.gerePeremption)
                 obj.put("taxable", it.taxable)
                 obj.put("tauxTaxe", it.tauxTaxe)
+                // `wholesalePrice` manquait ici alors qu'il est bien porté par la sauvegarde
+                // complète, et l'effet n'est pas cosmétique : un produit qui arrive NEUF sur
+                // l'autre poste par ce chemin y était créé sans prix de gros, donc facturé au
+                // prix de détail en mode Grossiste — une erreur de caisse silencieuse.
+                obj.put("wholesalePrice", it.wholesalePrice ?: 0.0)
+                obj.put("dci", it.dci ?: "")
+                obj.put("dosage", it.dosage ?: "")
+                obj.put("formeGalenique", it.formeGalenique ?: "")
+                obj.put("surOrdonnance", it.surOrdonnance)
                 arr.put(obj)
             }
         }
@@ -2332,6 +2341,14 @@ class InventoryViewModel(
                     val gerePeremption = obj.optBoolean("gerePeremption", false)
                     val taxable = obj.optBoolean("taxable", false)
                     val tauxTaxe = obj.optDouble("tauxTaxe", 0.0)
+                    // 0.0 est traité comme « pas de prix de gros », exactement comme le fait
+                    // `PriceUtil.isWholesaleActive` (qui exige `> 0.0`) : la valeur sérialisée pour
+                    // un produit sans tarif de gros ne doit pas devenir un tarif de gros à zéro.
+                    val wholesalePrice = obj.optDouble("wholesalePrice", 0.0).takeIf { it > 0.0 }
+                    val dci = obj.optString("dci", "").ifBlank { null }
+                    val dosage = obj.optString("dosage", "").ifBlank { null }
+                    val formeGalenique = obj.optString("formeGalenique", "").ifBlank { null }
+                    val surOrdonnance = obj.optBoolean("surOrdonnance", false)
 
                     val existing = if (barcode.isNotEmpty()) {
                         repository.getProductByBarcode(barcode)
@@ -2363,7 +2380,14 @@ class InventoryViewModel(
                             fournisseurId = fournisseurId,
                             gerePeremption = gerePeremption,
                             taxable = taxable,
-                            tauxTaxe = tauxTaxe
+                            tauxTaxe = tauxTaxe,
+                            // Même règle non destructive que dans la restauration complète : une
+                            // valeur absente côté émetteur ne doit pas effacer celle de ce poste.
+                            wholesalePrice = wholesalePrice ?: existing.wholesalePrice,
+                            dci = dci ?: existing.dci,
+                            dosage = dosage ?: existing.dosage,
+                            formeGalenique = formeGalenique ?: existing.formeGalenique,
+                            surOrdonnance = surOrdonnance || existing.surOrdonnance
                         )
                         repository.insertProduct(updated)
                     } else {
@@ -2389,7 +2413,15 @@ class InventoryViewModel(
                             fournisseurId = fournisseurId,
                             gerePeremption = gerePeremption,
                             taxable = taxable,
-                            tauxTaxe = tauxTaxe
+                            tauxTaxe = tauxTaxe,
+                            // Le produit est NEUF sur ce poste : rien à préserver, et c'est
+                            // précisément le cas où l'omission coûtait cher (prix de gros absent,
+                            // donc facturation au prix de détail en mode Grossiste).
+                            wholesalePrice = wholesalePrice,
+                            dci = dci,
+                            dosage = dosage,
+                            formeGalenique = formeGalenique,
+                            surOrdonnance = surOrdonnance
                         )
                         repository.insertProduct(newProd)
                     }
@@ -2469,6 +2501,16 @@ class InventoryViewModel(
                         obj.put("gerePeremption", prod.gerePeremption)
                         obj.put("taxable", prod.taxable)
                         obj.put("tauxTaxe", prod.tauxTaxe)
+                        // Mode pharmacie : ces quatre champs existaient dans l'entité et dans le
+                        // formulaire, mais n'étaient portés par AUCUNE sauvegarde ni synchronisation.
+                        // Une pharmacie qui restaurait ses données sur un nouveau téléphone perdait
+                        // donc toutes ses molécules — et avec elles la recherche par principe actif,
+                        // qui est la raison d'être du champ. Chaîne vide pour un champ absent, lue en
+                        // retour comme `null` : les sauvegardes antérieures restent restaurables.
+                        obj.put("dci", prod.dci ?: "")
+                        obj.put("dosage", prod.dosage ?: "")
+                        obj.put("formeGalenique", prod.formeGalenique ?: "")
+                        obj.put("surOrdonnance", prod.surOrdonnance)
                         productsArr.put(obj)
                     }
                 }
@@ -2836,7 +2878,15 @@ class InventoryViewModel(
                             fournisseurId = if (obj.has("fournisseurId") && obj.getLong("fournisseurId") != -1L) obj.getLong("fournisseurId") else null,
                             gerePeremption = obj.optBoolean("gerePeremption", false),
                             taxable = obj.optBoolean("taxable", false),
-                            tauxTaxe = obj.optDouble("tauxTaxe", 0.0)
+                            tauxTaxe = obj.optDouble("tauxTaxe", 0.0),
+                            // `ifBlank { null }` et non la chaîne vide : c'est exactement ce
+                            // qu'enregistre le formulaire (`dci.trim().ifEmpty { null }`), donc une
+                            // sauvegarde ancienne — où la clé est absente — rend `null` et non un
+                            // principe actif vide, qui s'afficherait comme un séparateur orphelin.
+                            dci = obj.optString("dci", "").ifBlank { null },
+                            dosage = obj.optString("dosage", "").ifBlank { null },
+                            formeGalenique = obj.optString("formeGalenique", "").ifBlank { null },
+                            surOrdonnance = obj.optBoolean("surOrdonnance", false)
                         )
                     )
                 }
@@ -2878,7 +2928,26 @@ class InventoryViewModel(
                             fournisseurId = prod.fournisseurId,
                             gerePeremption = prod.gerePeremption,
                             taxable = prod.taxable,
-                            tauxTaxe = prod.tauxTaxe
+                            tauxTaxe = prod.tauxTaxe,
+                            // Indispensable en plus de la construction ci-dessus : `copy()` ne
+                            // touche que les champs nommés, donc sans ces quatre lignes un produit
+                            // DÉJÀ présent sur l'appareil ne recevrait jamais la molécule saisie sur
+                            // l'autre poste — la donnée arriverait dans le JSON pour être ignorée.
+                            //
+                            // MAIS une valeur absente ne doit jamais écraser une valeur présente, et
+                            // ce n'est pas une précaution théorique : la sauvegarde locale est
+                            // rejouée à CHAQUE démarrage, donc un fichier écrit avant cette version
+                            // — sans ces clés — effacerait au premier lancement toutes les molécules
+                            // déjà saisies. Le correctif aurait causé la perte qu'il vient réparer.
+                            //
+                            // Conséquence assumée : retirer une molécule ou lever une mention
+                            // « sur ordonnance » ne se propage pas d'un poste à l'autre, le gérant
+                            // doit le faire sur chacun. Perdre une saisie en silence est bien pire
+                            // qu'un champ à effacer deux fois.
+                            dci = prod.dci ?: existing.dci,
+                            dosage = prod.dosage ?: existing.dosage,
+                            formeGalenique = prod.formeGalenique ?: existing.formeGalenique,
+                            surOrdonnance = prod.surOrdonnance || existing.surOrdonnance
                         )
                         repository.insertProduct(updated)
                     }
