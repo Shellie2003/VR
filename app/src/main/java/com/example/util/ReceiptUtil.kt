@@ -5,7 +5,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
 import android.util.Log
-import com.example.ui.viewmodel.CartItem
+import com.example.data.model.CartItem
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat

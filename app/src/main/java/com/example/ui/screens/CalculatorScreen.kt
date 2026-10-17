@@ -38,9 +38,10 @@ import coil.compose.AsyncImage
 import com.example.data.model.Product
 import com.example.data.model.Debt
 import com.example.ui.components.BarcodeScannerView
-import com.example.ui.viewmodel.CartItem
+import com.example.data.model.CartItem
 import com.example.ui.viewmodel.InventoryViewModel
 import com.example.util.FormatUtil
+import com.example.util.Monnaie
 import com.example.util.LanguageManager
 import kotlinx.coroutines.launch
 
@@ -366,7 +367,7 @@ fun CalculatorScreen(
                                     modifier = Modifier.weight(1f),
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    val notes = listOf(1000, 2000, 5000, 10000, 20000)
+                                    val notes = Monnaie.coupuresRapides
                                     items(notes) { note ->
                                         OutlinedButton(
                                             onClick = {
@@ -424,7 +425,7 @@ fun CalculatorScreen(
                                 )
 
                                 if (amountReceived > 0.0) {
-                                    val isSufficient = changeToReturn >= 0.0
+                                    val isSufficient = Monnaie.suffisant(totalAmount, amountReceived)
                                     val boxColor = if (isSufficient) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
                                     val boxBgColor = boxColor.copy(alpha = 0.1f)
 
@@ -446,19 +447,8 @@ fun CalculatorScreen(
                                                 tint = boxColor,
                                                 modifier = Modifier.size(12.dp)
                                             )
-                                            val statusText = if (isSufficient) {
-                                                when (activeLang) {
-                                                    "mg" -> "Famerenana: Ar ${FormatUtil.formatPrice(changeToReturn)}"
-                                                    "fr" -> "Rendu: Ar ${FormatUtil.formatPrice(changeToReturn)}"
-                                                    else -> "Change: Ar ${FormatUtil.formatPrice(changeToReturn)}"
-                                                }
-                                            } else {
-                                                when (activeLang) {
-                                                    "mg" -> "Tsy ampy Ar ${FormatUtil.formatPrice(-changeToReturn)}"
-                                                    "fr" -> "Manque Ar ${FormatUtil.formatPrice(-changeToReturn)}"
-                                                    else -> "Short Ar ${FormatUtil.formatPrice(-changeToReturn)}"
-                                                }
-                                            }
+                                            val statusText =
+                                                Monnaie.libelleRendu(totalAmount, amountReceived, activeLang)
                                             Text(
                                                 text = statusText,
                                                 fontSize = 10.sp,
@@ -880,7 +870,7 @@ fun CalculatorScreen(
                             modifier = Modifier.weight(1f),
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            val notes = listOf(1000, 2000, 5000, 10000, 20000)
+                            val notes = Monnaie.coupuresRapides
                             items(notes) { note ->
                                 OutlinedButton(
                                     onClick = {
@@ -940,7 +930,7 @@ fun CalculatorScreen(
                         )
 
                         if (amountReceived > 0.0) {
-                            val isSufficient = changeToReturn >= 0.0
+                            val isSufficient = Monnaie.suffisant(totalAmount, amountReceived)
                             val boxColor = if (isSufficient) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
                             val boxBgColor = boxColor.copy(alpha = 0.1f)
 
@@ -962,19 +952,8 @@ fun CalculatorScreen(
                                         tint = boxColor,
                                         modifier = Modifier.size(12.dp)
                                     )
-                                    val statusText = if (isSufficient) {
-                                        when (activeLang) {
-                                            "mg" -> "Famerenana: Ar ${FormatUtil.formatPrice(changeToReturn)}"
-                                            "fr" -> "Rendu: Ar ${FormatUtil.formatPrice(changeToReturn)}"
-                                            else -> "Change: Ar ${FormatUtil.formatPrice(changeToReturn)}"
-                                        }
-                                    } else {
-                                        when (activeLang) {
-                                            "mg" -> "Tsy ampy Ar ${FormatUtil.formatPrice(-changeToReturn)}"
-                                            "fr" -> "Manque Ar ${FormatUtil.formatPrice(-changeToReturn)}"
-                                            else -> "Short Ar ${FormatUtil.formatPrice(-changeToReturn)}"
-                                        }
-                                    }
+                                    val statusText =
+                                        Monnaie.libelleRendu(totalAmount, amountReceived, activeLang)
                                     Text(
                                         text = statusText,
                                         fontSize = 10.sp,
@@ -1291,7 +1270,7 @@ fun CalculatorScreen(
                             }
 
                             if (amountReceived > 0.0) {
-                                val isSufficient = changeToReturn >= 0.0
+                                val isSufficient = Monnaie.suffisant(totalAmount, amountReceived)
                                 val boxColor = if (isSufficient) Color(0xFF81C784) else Color(0xFFE57373)
                                 val boxBgColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f)
 
@@ -1405,7 +1384,7 @@ fun CalculatorScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            val notes = listOf(1000, 2000, 5000, 10000, 20000)
+                            val notes = Monnaie.coupuresRapides
                             items(notes) { note ->
                                 Button(
                                     onClick = {

@@ -6,6 +6,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.data.model.CartItem
 import com.example.data.model.Product
 import com.example.data.model.Sale
 import com.example.data.model.SoldItem
@@ -30,6 +31,7 @@ import com.example.util.FormatUtil
 import com.example.util.NotificationHelper
 import com.example.util.RecoveryCode
 import com.example.util.ShopMode
+import com.example.util.Monnaie
 import com.example.util.PriceUtil
 import com.example.util.InfoMiseAJour
 import com.example.util.UpdateManager
@@ -72,27 +74,6 @@ private data class DonneesSurveillance(
     val sessions: List<CaisseSession>,
     val logs: List<AuditLog>
 )
-
-data class CartItem(
-    val id: String, // "product_<id>" or "misc_<uuid>"
-    val name: String,
-    val price: Double, // active price
-    val quantity: Double,
-    val unit: String,
-    val productId: Int? = null, // null for misc items
-    val maxStock: Double = 99999.0,
-    val regularPrice: Double = price,
-    val wholesalePrice: Double? = null,
-    // B.2: price is always tax-inclusive (what the customer pays); taxable/tauxTaxe are used only
-    // to break out the VAT portion already contained in `price` for receipts and reporting.
-    val taxable: Boolean = false,
-    val tauxTaxe: Double = 0.0
-) {
-    val totalPrice: Double get() = price * quantity
-
-    // Portion of totalPrice that is tax (0.0 when not taxable), assuming tax-inclusive pricing.
-    val taxAmount: Double get() = if (taxable && tauxTaxe > 0.0) totalPrice * tauxTaxe / (100.0 + tauxTaxe) else 0.0
-}
 
 class InventoryViewModel(
     private val repository: InventoryRepository,
@@ -292,20 +273,12 @@ class InventoryViewModel(
     fun updateShopMode(mode: ShopMode) {
         appPreferences.shopMode = mode
         shopMode.value = mode
-        // Recalculate cart item prices based on the new mode
-        val current = _cart.value.map { item ->
-            if (item.productId != null) {
-                val activePrice = if (mode == ShopMode.GROSSISTE && item.wholesalePrice != null && item.wholesalePrice > 0.0) {
-                    item.wholesalePrice
-                } else {
-                    item.regularPrice
-                }
-                item.copy(price = activePrice)
-            } else {
-                item
-            }
+        // Le prix actif est calculé par `PriceUtil.prixActif` : la règle du prix de gros était
+        // réécrite ici à la main, ce qui en faisait une troisième copie — et sur le panier, donc
+        // là où un écart ne se voit pas à l'écran mais change le montant encaissé.
+        _cart.value = _cart.value.map { item ->
+            item.copy(price = PriceUtil.prixActif(item, mode))
         }
-        _cart.value = current
     }
 
     // Real-time trial remaining updates
@@ -1576,9 +1549,10 @@ class InventoryViewModel(
     val cart: StateFlow<List<CartItem>> = _cart.asStateFlow()
 
     // Calculated fields from Cart
-    val cartTotal: Flow<Double> = _cart.map { items ->
-        items.sumOf { it.totalPrice }
-    }
+    // `Monnaie.total` (:core:logic) : le total encaissé a une seule définition, partagée avec la
+    // caisse de bureau et testée. La somme était écrite ici, et le même panier totalisé ailleurs
+    // aurait pu diverger sans que rien ne le signale.
+    val cartTotal: Flow<Double> = _cart.map { items -> Monnaie.total(items) }
 
     fun addToCart(product: Product, quantity: Double) {
         val current = _cart.value.toMutableList()
@@ -1786,8 +1760,12 @@ class InventoryViewModel(
 
                 // 2. Alert if any product fell into low-stock state
                 for (cartItem in cartSnapshot) {
-                    if (cartItem.productId != null) {
-                        val matchingProduct = repository.getProductById(cartItem.productId)
+                    // Lu dans un `val` local : `CartItem` vient désormais de `:core:model`, et
+                    // Kotlin refuse de requalifier une propriété publique déclarée dans un autre
+                    // module (contrainte documentée en section 79).
+                    val produitId = cartItem.productId
+                    if (produitId != null) {
+                        val matchingProduct = repository.getProductById(produitId)
                         if (matchingProduct != null && matchingProduct.isLowStock) {
                             try {
                                 NotificationHelper.showLowStockNotification(context, matchingProduct)

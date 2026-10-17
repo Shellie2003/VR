@@ -4,6 +4,7 @@
 
 package com.example.ui.components
 
+import com.example.data.model.CartItem
 import com.example.util.enDecimal
 import com.example.util.enEntier
 import android.Manifest
@@ -111,7 +112,7 @@ fun BarcodeScannerView(
     val coroutineScope = rememberCoroutineScope()
     var manualBarcodeValue by remember { mutableStateOf("") }
     var sessionScannedProductIds by remember { mutableStateOf(setOf<Int>()) }
-    var editingCartItem by remember { mutableStateOf<com.example.ui.viewmodel.CartItem?>(null) }
+    var editingCartItem by remember { mutableStateOf<CartItem?>(null) }
     var editingQuantityStr by remember { mutableStateOf("") }
 
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
@@ -612,15 +613,15 @@ fun BarcodeScannerView(
 
             // Continuous Bottom Basket summary sheet
             if (continuousMode) {
-                val cartState = viewModel?.cart?.collectAsState(initial = emptyList<com.example.ui.viewmodel.CartItem>())
-                val cart = cartState?.value ?: remember { emptyList<com.example.ui.viewmodel.CartItem>() }
+                val cartState = viewModel?.cart?.collectAsState(initial = emptyList<CartItem>())
+                val cart = cartState?.value ?: remember { emptyList<CartItem>() }
 
                 val cartTotalState = viewModel?.cartTotal?.collectAsState(initial = 0.0)
                 val cartTotal = cartTotalState?.value ?: 0.0
 
                 val sessionProductsTotal = remember(cart, sessionScannedProductIds) {
                     cart.filter { item ->
-                        item.productId != null && sessionScannedProductIds.contains(item.productId)
+                        item.productId?.let { sessionScannedProductIds.contains(it) } == true
                     }.sumOf { it.price * it.quantity }
                 }
 
@@ -658,7 +659,7 @@ fun BarcodeScannerView(
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
-                                val sessionCount = cart.count { it.productId != null && sessionScannedProductIds.contains(it.productId) }
+                                val sessionCount = cart.count { it.productId?.let { id -> sessionScannedProductIds.contains(id) } == true }
                                 Text(
                                     text = when (language) {
                                         "mg" -> "Nisafidy entana $sessionCount tamin'ity session ity"
@@ -749,7 +750,7 @@ fun BarcodeScannerView(
                                     key = { index -> cart[index].id }
                                 ) { index ->
                                     val item = cart[index]
-                                    val isScannedInSession = item.productId != null && sessionScannedProductIds.contains(item.productId)
+                                    val isScannedInSession = item.productId?.let { sessionScannedProductIds.contains(it) } == true
                                     val backgroundColor = if (isScannedInSession) {
                                         themeColor.copy(alpha = 0.08f)
                                     } else {
