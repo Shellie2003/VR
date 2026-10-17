@@ -32,12 +32,12 @@ import com.example.util.NotificationHelper
 import com.example.util.RecoveryCode
 import com.example.util.ShopMode
 import com.example.util.Monnaie
+import com.example.util.PanierCaisse
 import com.example.util.PriceUtil
 import com.example.util.InfoMiseAJour
 import com.example.util.UpdateManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 // C.4: a lot within this many days of its expiry date counts as "expiring soon".
 private const val EXPIRY_WARNING_WINDOW_MS = 7L * 24 * 60 * 60 * 1000
@@ -1554,110 +1554,34 @@ class InventoryViewModel(
     // aurait pu diverger sans que rien ne le signale.
     val cartTotal: Flow<Double> = _cart.map { items -> Monnaie.total(items) }
 
+    // Toutes les opérations du panier passent par `PanierCaisse` (:core:logic). Elles vivaient ici,
+    // donc dans un module Android, et la caisse de bureau en avait besoin : la seule autre issue
+    // aurait été de les réécrire là-bas, c'est-à-dire de recommencer exactement ce que les sections
+    // 89 à 91 ont défait, et sur le panier — là où un écart ne s'affiche pas mais change le montant
+    // encaissé. Les règles sont reprises à l'identique, y compris la différence volontaire entre
+    // `fixerQuantite` (borne basse 0,01) et `deplacerQuantite` (retire la ligne à zéro).
     fun addToCart(product: Product, quantity: Double) {
-        val current = _cart.value.toMutableList()
-        val itemId = "product_${product.id}"
-        val existingIndex = current.indexOfFirst { it.id == itemId }
-        
-        // Passe par `PriceUtil` au lieu de redécider ici, et le détour n'est pas gratuit : cette
-        // ligne dupliquait mot pour mot la règle du prix de gros que la section 32 avait justement
-        // centralisée pour empêcher deux écrans d'afficher deux prix différents. La duplication
-        // s'était glissée dans le PANIER, donc à l'endroit où un écart ne se voit pas à l'écran
-        // mais fausse le montant encaissé. Les deux expressions sont strictement équivalentes —
-        // vérifié avant substitution, car remplacer un calcul de prix n'est sans risque qu'à cette
-        // condition.
-        //
-        // L'extraction des modèles (section 79) a rendu ce doublon visible : Kotlin refuse le
-        // smart cast d'une propriété mutable publique venue d'un AUTRE module, donc
-        // `product.wholesalePrice > 0.0` après un test de nullité ne compilait plus.
-        val activePrice = PriceUtil.displayPrice(product, shopMode.value)
-        
-        if (existingIndex != -1) {
-            val updatedQty = current[existingIndex].quantity + quantity
-            val cappedQty = updatedQty.coerceAtMost(product.stock)
-            if (cappedQty > 0) {
-                current[existingIndex] = current[existingIndex].copy(
-                    quantity = cappedQty,
-                    price = activePrice,
-                    taxable = product.taxable,
-                    tauxTaxe = product.tauxTaxe
-                )
-            }
-        } else {
-            val cappedQty = quantity.coerceAtMost(product.stock)
-            if (cappedQty > 0) {
-                current.add(
-                    CartItem(
-                        id = itemId,
-                        name = product.name,
-                        price = activePrice,
-                        quantity = cappedQty,
-                        unit = product.unit,
-                        productId = product.id,
-                        maxStock = product.stock,
-                        regularPrice = product.price,
-                        wholesalePrice = product.wholesalePrice,
-                        taxable = product.taxable,
-                        tauxTaxe = product.tauxTaxe
-                    )
-                )
-            }
-        }
-        _cart.value = current
+        _cart.value = PanierCaisse.ajouterProduit(_cart.value, product, quantity, shopMode.value)
     }
 
     fun addMiscToCart(name: String, price: Double, quantity: Double) {
-        val current = _cart.value.toMutableList()
-        val uniqueId = "misc_${UUID.randomUUID()}"
-        current.add(
-            CartItem(
-                id = uniqueId,
-                name = name,
-                price = price,
-                quantity = quantity,
-                unit = "Pièce",
-                productId = null
-            )
-        )
-        _cart.value = current
+        _cart.value = PanierCaisse.ajouterDivers(_cart.value, name, price, quantity)
     }
 
     fun updateCartQuantity(itemId: String, quantity: Double) {
-        val current = _cart.value.toMutableList()
-        val index = current.indexOfFirst { it.id == itemId }
-        if (index != -1) {
-            val item = current[index]
-            val capped = quantity.coerceIn(0.01, item.maxStock)
-            current[index] = item.copy(quantity = capped)
-            _cart.value = current
-        }
+        _cart.value = PanierCaisse.fixerQuantite(_cart.value, itemId, quantity)
     }
 
     fun changeCartQuantityByDelta(itemId: String, delta: Double) {
-        val current = _cart.value.toMutableList()
-        val index = current.indexOfFirst { it.id == itemId }
-        if (index != -1) {
-            val item = current[index]
-            val updatedQty = item.quantity + delta
-            if (updatedQty <= 0.0) {
-                current.removeAt(index)
-            } else {
-                val capped = updatedQty.coerceAtMost(item.maxStock)
-                current[index] = item.copy(quantity = capped)
-            }
-            _cart.value = current
-        }
+        _cart.value = PanierCaisse.deplacerQuantite(_cart.value, itemId, delta)
     }
 
     fun removeFromCart(itemId: String) {
-        _cart.value = _cart.value.filter { it.id != itemId }
+        _cart.value = PanierCaisse.retirer(_cart.value, itemId)
     }
 
     fun undoLastCartItem() {
-        val current = _cart.value
-        if (current.isNotEmpty()) {
-            _cart.value = current.dropLast(1)
-        }
+        _cart.value = PanierCaisse.annulerDernier(_cart.value)
     }
 
     fun clearCart() {

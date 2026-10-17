@@ -36,14 +36,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.example.data.model.CartItem
 import com.example.ui.partage.accueil.AccueilEcran
+import com.example.ui.partage.caisse.CaisseEcran
 import com.example.ui.partage.coquille.CoquilleBureau
 import com.example.ui.partage.coquille.SectionAVenir
 import com.example.ui.partage.coquille.SectionBureau
 import com.example.ui.partage.stock.StockEcran
 import com.example.ui.partage.theme.VarotraTheme
 import com.example.util.CatalogueFiltre
-import com.example.util.PanierSimple
+import com.example.util.PanierCaisse
 import com.example.util.ShopMode
 import com.example.util.enDecimal
 
@@ -138,11 +140,21 @@ private fun FenetreVarotra(
     // badge de l'accueil — comme sur le téléphone, où les deux écrans lisent la même source.
     var produits by remember { mutableStateOf(DonneesDemo.catalogue) }
 
-    // Panier LOCAL à la fenêtre, et volontairement non enregistré : il n'existe que pour que le
-    // badge de quantité et son bouton « - » de la carte produit soient réellement fonctionnels
-    // plutôt que décoratifs. Sans base de données partagée, une vente ne peut aller nulle part —
-    // afficher un panier qui prétendrait encaisser serait pire que de ne pas en avoir.
-    var panier by remember { mutableStateOf<Map<Int, Double>>(emptyMap()) }
+    // Un SEUL panier pour le catalogue et la caisse, et c'est le point important : le badge de
+    // quantité de l'accueil et la ligne de la caisse montrent désormais le même panier, géré par
+    // `PanierCaisse` — exactement la règle qu'applique le ViewModel Android. Deux paniers séparés
+    // auraient fini par afficher deux quantités différentes du même article.
+    //
+    // Volontairement non enregistré : sans base de données partagée, une vente ne peut aller nulle
+    // part, et un panier qui prétendrait encaisser serait pire que pas de panier du tout. C'est
+    // dit à l'écran, sous le bouton « Valider ».
+    var panier by remember { mutableStateOf<List<CartItem>>(emptyList()) }
+
+    // Les quantités par produit, pour le badge des cartes de l'accueil : dérivées du panier réel
+    // plutôt que tenues à part, donc toujours d'accord avec la caisse.
+    val quantitesParProduit = remember(panier) {
+        panier.mapNotNull { ligne -> ligne.productId?.let { it to ligne.quantity } }.toMap()
+    }
 
     // Les demandes venues des raccourcis de la fenêtre sont traitées ici, parce que c'est ici que
     // vit l'état qu'elles modifient. `runCatching` autour du focus : `requestFocus()` lève si le
@@ -153,7 +165,9 @@ private fun FenetreVarotra(
             // Ctrl+F depuis une section SANS champ de recherche ouvre le catalogue ; depuis le
             // stock, on reste sur place — déplacer l'utilisateur hors de l'écran qu'il consulte
             // serait une surprise, et les deux écrans partagent de toute façon la même recherche.
-            if (section != SectionBureau.STOCK) section = SectionBureau.CATALOGUE
+            if (section != SectionBureau.STOCK && section != SectionBureau.CAISSE) {
+                section = SectionBureau.CATALOGUE
+            }
             runCatching { focusRecherche.requestFocus() }
             onDemandeRechercheTraitee()
         }
@@ -198,12 +212,18 @@ private fun FenetreVarotra(
                         nomEpicerie = DesktopBuildInfo.NOM_APPLICATION,
                         recherche = recherche,
                         onRechercheChange = { recherche = it },
-                        quantitesPanier = panier,
-                        // La règle du panier vit dans `PanierSimple` (:core:logic), testée : c'est
-                        // le seul endroit de cet écran où une erreur se traduirait par un mauvais
-                        // chiffre devant le client.
-                        onAjouter = { produit -> panier = PanierSimple.ajouter(panier, produit.id) },
-                        onRetirer = { produit -> panier = PanierSimple.retirer(panier, produit.id) },
+                        quantitesPanier = quantitesParProduit,
+                        // La règle du panier vit dans `PanierCaisse` (:core:logic), partagée avec
+                        // le ViewModel Android et testée : c'est le seul endroit de cet écran où
+                        // une erreur se traduirait par un mauvais chiffre devant le client.
+                        onAjouter = { produit ->
+                            panier = PanierCaisse.ajouterProduit(panier, produit, 1.0, modeBoutique)
+                        },
+                        onRetirer = { produit ->
+                            panier = PanierCaisse.deplacerQuantite(
+                                panier, PanierCaisse.idLigneProduit(produit.id), -1.0
+                            )
+                        },
                         modeBoutique = modeBoutique,
                         langue = langue,
                         // `themeColor` et `colorScheme.primary` sont la même couleur à l'exécution
@@ -212,6 +232,52 @@ private fun FenetreVarotra(
                         couleurTheme = MaterialTheme.colorScheme.primary,
                         // Comme sur Android, où ce lien ouvre l'écran Stock.
                         onVoirTout = { section = SectionBureau.STOCK },
+                        focusRecherche = focusRecherche
+                    )
+                }
+
+                SectionBureau.CAISSE -> Column(modifier = Modifier.fillMaxSize()) {
+                    BandeauDemonstration(langue = langue)
+                    CaisseEcran(
+                        produits = produits,
+                        panier = panier,
+                        recherche = recherche,
+                        onRechercheChange = { recherche = it },
+                        onAjouterProduit = { produit, quantite ->
+                            panier = PanierCaisse.ajouterProduit(panier, produit, quantite, modeBoutique)
+                        },
+                        onAjouterDivers = { montant ->
+                            panier = PanierCaisse.ajouterDivers(
+                                panier,
+                                when (langue) {
+                                    "mg" -> "Entana hafa"
+                                    "fr" -> "Divers"
+                                    else -> "Miscellaneous"
+                                },
+                                montant,
+                                1.0
+                            )
+                        },
+                        onQuantiteDelta = { ligne, delta ->
+                            panier = PanierCaisse.deplacerQuantite(panier, ligne.id, delta)
+                        },
+                        onFixerQuantite = { ligne, quantite ->
+                            panier = PanierCaisse.fixerQuantite(panier, ligne.id, quantite)
+                        },
+                        onViderPanier = { panier = emptyList() },
+                        modeBoutique = modeBoutique,
+                        langue = langue,
+                        couleurTheme = MaterialTheme.colorScheme.primary,
+                        // La raison exacte, affichée sous le bouton gris : un bouton désactivé sans
+                        // explication se lit comme une panne.
+                        messageValidationImpossible = when (langue) {
+                            "mg" -> "Mbola tsy azo raketina ny varotra eto an-ordinatera : " +
+                                "tsy mbola mifandray amin'ny tahiry iombonana."
+                            "fr" -> "L'enregistrement de la vente n'est pas encore disponible sur " +
+                                "ordinateur : la base de données partagée n'est pas en place."
+                            else -> "Recording a sale is not available on desktop yet: the shared " +
+                                "database is not in place."
+                        },
                         focusRecherche = focusRecherche
                     )
                 }
@@ -246,7 +312,6 @@ private fun FenetreVarotra(
 
                 SectionBureau.A_PROPOS -> SectionAPropos(version = version, langue = langue)
 
-                SectionBureau.CAISSE,
                 SectionBureau.DETTES,
                 SectionBureau.RAPPORTS ->
                     SectionAVenir(titre = sectionActive.libelle(langue), langue = langue)
