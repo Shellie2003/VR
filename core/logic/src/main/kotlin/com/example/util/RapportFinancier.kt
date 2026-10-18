@@ -36,6 +36,24 @@ import java.util.Calendar
 object RapportFinancier {
 
     /**
+     * Le taux de marge en dessous duquel la tarification est signalée comme faible.
+     *
+     * **Pourquoi une constante et pas un `15.0` écrit sur place.** Ce seuil était en dur à QUATRE
+     * endroits : deux fois dans le calculateur de marges (le libellé « Marge faible » et sa couleur
+     * ambre), une fois dans le Tableau de bord et une fois dans l'écran Rapports de bureau. Les
+     * quatre valaient 15, donc rien ne divergeait — mais c'est un seuil **commercial**, que le
+     * gérant peut vouloir déplacer. Le porter à 20 dans un seul écran ferait dire au calculateur
+     * « marge faible » sur un produit que le tableau de bord colore en vert : deux conseils
+     * contradictoires sur le même article, sans qu'aucune erreur n'apparaisse.
+     *
+     * Le seuil est volontairement le seul élément extrait des trois classifications. Elles ne sont
+     * **pas** identiques — le calculateur distingue en plus la perte et la marge nulle, les deux
+     * écrans de rapport non — et les unifier changerait le comportement d'écrans en production pour
+     * un gain cosmétique.
+     */
+    const val SEUIL_MARGE_FAIBLE = 15.0
+
+    /**
      * Le coût d'achat unitaire d'un produit, ou 0 s'il n'a jamais été renseigné (ou si le produit
      * a été supprimé depuis la vente). Strictement équivalent à ce que les écrans calculaient —
      * voir le KDoc de l'objet sur le repli mort vers `wholesalePrice`.
