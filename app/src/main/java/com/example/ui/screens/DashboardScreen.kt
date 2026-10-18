@@ -221,7 +221,7 @@ fun DashboardScreen(
                 value = "${FormatUtil.formatPrice(marginPct)} %",
                 color = when {
                     marginPct < 0 -> Color(0xFFC62828)
-                    marginPct < 15 -> Color(0xFFF57C00)
+                    marginPct < RapportFinancier.SEUIL_MARGE_FAIBLE -> Color(0xFFF57C00)
                     else -> Color(0xFF2E7D32)
                 }
             )

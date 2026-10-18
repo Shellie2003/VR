@@ -181,7 +181,7 @@ fun RapportsEcran(
                 valeur = "${FormatUtil.formatPrice(tauxMarge)} %",
                 couleur = when {
                     tauxMarge < 0 -> ROUGE_NEGATIF
-                    tauxMarge < 15 -> ORANGE_FAIBLE
+                    tauxMarge < RapportFinancier.SEUIL_MARGE_FAIBLE -> ORANGE_FAIBLE
                     else -> VERT_POSITIF
                 }
             )

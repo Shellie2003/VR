@@ -34,6 +34,7 @@ import com.example.data.model.Product
 import com.example.data.model.Fournisseur
 import com.example.ui.viewmodel.InventoryViewModel
 import com.example.util.FormatUtil
+import com.example.util.RapportFinancier
 import com.example.util.LanguageManager
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -524,7 +525,10 @@ fun CommissionScreen(
                     val totalProfit = totalRevenue - totalCostVal
                     val profitPerCarton = if (qVal > 0.0) totalProfit / qVal else 0.0
                     val profitPerUnit = if (totalUnits > 0.0) sellPriceVal - costPerUnit else 0.0
-                    val marginPct = if (totalCostVal > 0.0) (totalProfit / totalCostVal) * 100.0 else 0.0
+                    // `RapportFinancier.tauxMarge` : cinquième copie de cette formule dans l'app,
+                    // et la dernière. Elle rend 0 sur un coût nul au lieu d'`Infinity`, ce que le
+                    // test de ce module épingle.
+                    val marginPct = RapportFinancier.tauxMarge(totalProfit, totalCostVal)
 
                     // Dynamic Margin Health Badge values
                     val isCalculationActive = totalCostVal > 0.0 && sellPriceVal > 0.0 && totalUnits > 0.0
@@ -540,7 +544,7 @@ fun CommissionScreen(
                             "fr" -> "Marge nulle"
                             else -> "Zero margin"
                         }
-                        marginPct < 15.0 -> when (activeLang) {
+                        marginPct < RapportFinancier.SEUIL_MARGE_FAIBLE -> when (activeLang) {
                             "mg" -> "Tombony kely (Marge faible) ⚠️"
                             "fr" -> "Marge faible ⚠️"
                             else -> "Low margin ⚠️"
@@ -555,7 +559,7 @@ fun CommissionScreen(
                     val marginStatusColor = when {
                         totalProfit < 0.0 -> MaterialTheme.colorScheme.error
                         totalProfit == 0.0 -> MaterialTheme.colorScheme.onSurfaceVariant // Slate
-                        marginPct < 15.0 -> Color(0xFFF59E0B) // Amber/Yellow
+                        marginPct < RapportFinancier.SEUIL_MARGE_FAIBLE -> Color(0xFFF59E0B) // Amber/Yellow
                         else -> Color(0xFF10B981) // Emerald Green
                     }
 

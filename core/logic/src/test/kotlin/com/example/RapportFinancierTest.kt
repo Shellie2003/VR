@@ -6,6 +6,7 @@ import com.example.data.model.SoldItem
 import com.example.util.RapportFinancier
 import java.util.Calendar
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -280,6 +281,26 @@ class RapportFinancierTest {
         val periode = RapportFinancier.periode(7, maintenant = instant(2026, Calendar.MARCH, 15))
         val parJour = RapportFinancier.chiffreAffairesParJour(emptyList(), periode.debut, periode.nombreDeJours)
         assertEquals(7, parJour.size)
+    }
+
+    @Test
+    fun `le seuil de marge faible est unique et vaut 15 pourcent`() {
+        // Ce seuil était en dur à quatre endroits (calculateur de marges x2, Tableau de bord,
+        // Rapports de bureau). L'épingler ici rend un changement VISIBLE : le déplacer demande de
+        // toucher ce test, donc de constater qu'il s'applique aux trois écrans à la fois.
+        assertEquals(15.0, RapportFinancier.SEUIL_MARGE_FAIBLE, 1e-9)
+    }
+
+    @Test
+    fun `le seuil encadre bien les trois zones de tarification`() {
+        // La frontière est STRICTE : à 15 % exactement, la marge n'est plus « faible ». Les trois
+        // écrans écrivent `< SEUIL`, donc ce test fixe le sens de cette comparaison.
+        val sousLeSeuil = RapportFinancier.tauxMarge(benefice = 1400.0, cout = 10000.0)
+        val auSeuil = RapportFinancier.tauxMarge(benefice = 1500.0, cout = 10000.0)
+        assertEquals(14.0, sousLeSeuil, 1e-9)
+        assertEquals(15.0, auSeuil, 1e-9)
+        assertTrue(sousLeSeuil < RapportFinancier.SEUIL_MARGE_FAIBLE)
+        assertTrue(auSeuil >= RapportFinancier.SEUIL_MARGE_FAIBLE)
     }
 
     /** Un instant précis et reproductible, pour que ces tests ne dépendent pas du jour d'exécution. */
