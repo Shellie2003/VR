@@ -61,9 +61,23 @@ dependencies {
   // réduit livré avec Material. Sans cette dépendance, le bureau afficherait une AUTRE icône que
   // le téléphone, ce qui est précisément ce qu'on nous demande de ne pas faire.
   //
-  // Coût assumé : l'artefact pèse une dizaine de mégaoctets et le paquet de bureau n'a pas de R8
-  // pour l'élaguer. Sur un installateur déjà à ~57 Mo, c'est le prix d'une interface identique.
+  // Coût réel MESURÉ, et mon estimation initiale était fausse : le paquet est passé de 58 à 93 Mo,
+  // soit +35 Mo et non « une dizaine » — le paquet de bureau n'a pas de R8 pour élaguer les icônes
+  // inutilisées. C'est le prix d'une interface identique au téléphone, et la décision de le payer
+  // ou de définir ce seul vecteur localement appartient à l'utilisateur (AGENTS.md section 88).
   implementation(compose.materialIconsExtended)
 
   testImplementation(libs.junit)
+  // Rendu des écrans en test. Jusqu'ici la CI ne faisait que COMPILER ces ~2500 lignes de Compose :
+  // un plantage sur une liste vide (un `maxOf` sans garde, une division par zéro dans le
+  // graphique) n'aurait été découvert qu'à l'exécution, chez l'utilisateur.
+  testImplementation(compose.desktop.uiTestJUnit4)
+  // Le harnais de test lance une scène Skia hors écran, sans fenêtre — mais une machine de CI n'a
+  // pas d'affichage du tout, et une initialisation AWT en mode graphique y échouerait.
+  testImplementation(compose.desktop.currentOs)
+}
+
+tasks.withType<Test>().configureEach {
+  // Sans cela, l'initialisation d'AWT cherche un affichage et échoue sur une machine de CI.
+  systemProperty("java.awt.headless", "true")
 }
