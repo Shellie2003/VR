@@ -33,7 +33,10 @@ import com.example.ui.components.SelectionExportToolbar
 import com.example.ui.viewmodel.InventoryViewModel
 import com.example.util.ExportFormat
 import com.example.util.ExportUtil
+import com.example.data.model.DebtorGroup
 import com.example.util.FormatUtil
+import com.example.util.NoteTrosa
+import com.example.util.RegroupementDettes
 import com.example.util.LanguageManager
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -220,14 +223,11 @@ fun DebtsScreen(
             // Group debts by debtor name (trimmed, case-insensitive) so several Trosa entries for
             // the same person show as one consolidated card with the total owed, while still
             // keeping every individual transaction (its own date/amount/note) visible when expanded.
-            val debtorGroups = remember(debts) {
-                debts.groupBy { it.debtorName.trim().lowercase() }
-                    .map { (_, group) ->
-                        val sorted = group.sortedByDescending { it.date }
-                        DebtorGroup(displayName = sorted.first().debtorName, debts = sorted)
-                    }
-                    .sortedByDescending { g -> g.debts.maxOf { it.date } }
-            }
+            // `RegroupementDettes` (:core:logic) : la règle décide de ce que le gérant lit comme
+            // total dû par une personne, et l'écran Dettes de bureau en aurait fait une deuxième
+            // copie. Deux variantes qui normaliseraient le nom différemment sépareraient le même
+            // client en deux cartes sur un appareil et pas sur l'autre.
+            val debtorGroups = remember(debts) { RegroupementDettes.grouper(debts) }
 
             LazyColumn(
                 modifier = Modifier.weight(1f),
@@ -797,21 +797,6 @@ fun DebtCard(
     }
 }
 
-/**
- * Several Trosa entries can belong to the same debtor (case-insensitive, trimmed full-name
- * match). Grouping them here is purely a UI concern — each underlying Debt row (its own date,
- * amount and note) stays untouched in the database, so nothing is lost when a name is merged.
- */
-data class DebtorGroup(
-    val displayName: String,
-    val debts: List<Debt>
-) {
-    val totalBalance: Double get() = debts.sumOf { it.balance }
-    val totalAmount: Double get() = debts.sumOf { it.amount }
-    val isFullyPaid: Boolean get() = debts.all { it.isPaid }
-    val hasOverdue: Boolean get() = debts.any { it.isOverdue() }
-}
-
 @Composable
 fun DebtorGroupCard(
     group: DebtorGroup,
@@ -1005,15 +990,10 @@ fun DebtDetailDialog(
     val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.FRANCE) }
     val dueDateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE) }
 
-    val itemLines: List<String> = remember(debt.note) {
-        if (debt.note.isBlank()) {
-            emptyList()
-        } else {
-            debt.note.split(Regex("(?<=\\)),\\s*"))
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-        }
-    }
+    // `NoteTrosa` (:core:logic) : ce découpage décide de ce que le gérant lit comme liste
+    // d'articles, et l'écran Dettes de bureau en aurait fait une deuxième copie. Il est désormais
+    // testé, y compris le cas qui justifie la regex — un nom d'article contenant une virgule.
+    val itemLines: List<String> = remember(debt.note) { NoteTrosa.articles(debt.note) }
     val alreadyPaid = (debt.amount - debt.balance).coerceAtLeast(0.0)
 
     AlertDialog(

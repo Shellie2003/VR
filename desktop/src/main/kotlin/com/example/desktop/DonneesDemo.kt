@@ -1,5 +1,6 @@
 package com.example.desktop
 
+import com.example.data.model.Debt
 import com.example.data.model.Product
 
 /**
@@ -113,4 +114,67 @@ object DonneesDemo {
             isTemplate = true
         )
     )
+
+    /**
+     * Quelques trosa de démonstration, choisis pour exercer les règles plutôt que pour faire joli :
+     * un débiteur à **plusieurs** dettes (la carte de groupe et le règlement groupé de la
+     * section 51), un débiteur à une seule dette (la carte simple, qui doit rester inchangée), une
+     * dette déjà **partiellement** remboursée (la ligne « Initiale : »), une dette **soldée** et
+     * une dette **en retard**.
+     *
+     * Les dates sont relatives à l'instant de lancement : des horodatages figés afficheraient
+     * « 1970 » ou des dates anciennes qui n'exerceraient jamais le badge de retard.
+     */
+    val dettes: List<Debt> = run {
+        val jour = 24L * 60 * 60 * 1000
+        val maintenant = System.currentTimeMillis()
+        listOf(
+            // Trois trosa pour la même personne : c'est le cas qui a motivé le regroupement.
+            Debt(
+                id = 1,
+                debtorName = "Rasoa",
+                amount = 2300.0,
+                balance = 2300.0,
+                date = maintenant - 9 * jour,
+                note = "Riz Makalioka 1 kg (2 x 3 500), Savon de Marseille (1 x 1 500)"
+            ),
+            Debt(
+                id = 2,
+                debtorName = "rasoa",
+                amount = 1100.0,
+                balance = 1100.0,
+                date = maintenant - 4 * jour,
+                note = "Eau minérale 1,5 L (2 x 2 000)",
+                // Échéance dépassée : exerce le badge « EN RETARD » sur la carte ET sur le groupe.
+                dueDate = maintenant - jour
+            ),
+            Debt(
+                id = 3,
+                debtorName = "RASOA",
+                amount = 5000.0,
+                balance = 1200.0,
+                date = maintenant - 2 * jour,
+                note = "Lait concentré, sucré (1 x 4 000), Pain (2 x 500)"
+            ),
+            // Un seul trosa : la carte simple, qui doit rester identique à Android.
+            Debt(
+                id = 4,
+                debtorName = "Koto Jean",
+                amount = 7500.0,
+                balance = 7500.0,
+                date = maintenant - jour,
+                note = "Huile de tournesol 1 L (1 x 9 800)",
+                dueDate = maintenant + 6 * jour
+            ),
+            Debt(
+                id = 5,
+                debtorName = "Naivo",
+                amount = 3000.0,
+                balance = 0.0,
+                date = maintenant - 15 * jour,
+                note = "Ananas frais (2 x 2 500)",
+                isPaid = true
+            )
+        )
+    }
 }

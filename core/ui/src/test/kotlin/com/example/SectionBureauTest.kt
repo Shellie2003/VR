@@ -58,12 +58,12 @@ class SectionBureauTest {
         // Épingle l'état réel annoncé à l'écran. Le jour où les dettes ou les rapports seront
         // portés, ce test échouera — c'est précisément ce qu'on veut : il faudra alors mettre à
         // jour l'annonce faite à l'utilisateur, au lieu de lui laisser lire « à venir » sur une
-        // section servie. C'est ce qui s'est produit pour le stock, puis pour la caisse.
+        // section servie. C'est ce qui s'est produit pour le stock, la caisse, puis les dettes.
         assertTrue(SectionBureau.CAISSE.disponible)
         assertTrue(SectionBureau.CATALOGUE.disponible)
         assertTrue(SectionBureau.STOCK.disponible)
         assertTrue(SectionBureau.A_PROPOS.disponible)
-        assertTrue(!SectionBureau.DETTES.disponible)
+        assertTrue(SectionBureau.DETTES.disponible)
         assertTrue(!SectionBureau.RAPPORTS.disponible)
     }
 }

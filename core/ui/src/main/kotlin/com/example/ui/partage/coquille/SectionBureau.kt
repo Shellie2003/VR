@@ -13,10 +13,10 @@ package com.example.ui.partage.coquille
  * permet à `SectionBureauTest` de vérifier qu'aucune traduction ne manque. Une étiquette oubliée
  * afficherait un menu avec un trou, ce qu'aucun test d'interface ne remarquerait.
  *
- * `DETTES` et `RAPPORTS` sont annoncées mais pas encore servies : le bureau n'a pas de base de
- * données (voir le KDoc du module). Les déclarer tout de suite plutôt que les ajouter plus tard
- * donne la structure réelle du logiciel à l'écran, et montre honnêtement ce qui reste à faire au
- * lieu de laisser croire que le catalogue est tout.
+ * `RAPPORTS` est annoncée mais pas encore servie : le bureau n'a pas de base de données (voir le
+ * KDoc du module), et un tableau de bord sans historique réel n'aurait rien à dire. La déclarer
+ * tout de suite plutôt que l'ajouter plus tard donne la structure réelle du logiciel à l'écran, et
+ * montre honnêtement ce qui reste à faire.
  *
  * `CAISSE` est servie, mais ne peut pas encore ENREGISTRER une vente, pour la même raison : tout le
  * calcul y est réel et partagé avec Android, seul l'écriture manque. Le bouton « Valider » est
@@ -70,5 +70,5 @@ enum class SectionBureau {
 
     /** `true` quand la section a un véritable contenu ; sinon le menu l'annonce comme à venir. */
     val disponible: Boolean
-        get() = this == CAISSE || this == CATALOGUE || this == STOCK || this == A_PROPOS
+        get() = this != RAPPORTS
 }

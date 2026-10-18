@@ -37,17 +37,23 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.example.data.model.CartItem
+import com.example.data.model.Debt
 import com.example.ui.partage.accueil.AccueilEcran
 import com.example.ui.partage.caisse.CaisseEcran
 import com.example.ui.partage.coquille.CoquilleBureau
 import com.example.ui.partage.coquille.SectionAVenir
 import com.example.ui.partage.coquille.SectionBureau
+import com.example.ui.partage.dettes.DettesEcran
 import com.example.ui.partage.stock.StockEcran
 import com.example.ui.partage.theme.VarotraTheme
 import com.example.util.CatalogueFiltre
+import com.example.util.DebtAllocation
 import com.example.util.PanierCaisse
 import com.example.util.ShopMode
 import com.example.util.enDecimal
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Point d'entrée de la version de bureau.
@@ -139,6 +145,7 @@ private fun FenetreVarotra(
     // liste sert les deux sections, donc un ajustement fait dans le stock se voit aussitôt sur le
     // badge de l'accueil — comme sur le téléphone, où les deux écrans lisent la même source.
     var produits by remember { mutableStateOf(DonneesDemo.catalogue) }
+    var dettes by remember { mutableStateOf(DonneesDemo.dettes) }
 
     // Un SEUL panier pour le catalogue et la caisse, et c'est le point important : le badge de
     // quantité de l'accueil et la ligne de la caisse montrent désormais le même panier, géré par
@@ -165,9 +172,7 @@ private fun FenetreVarotra(
             // Ctrl+F depuis une section SANS champ de recherche ouvre le catalogue ; depuis le
             // stock, on reste sur place — déplacer l'utilisateur hors de l'écran qu'il consulte
             // serait une surprise, et les deux écrans partagent de toute façon la même recherche.
-            if (section != SectionBureau.STOCK && section != SectionBureau.CAISSE) {
-                section = SectionBureau.CATALOGUE
-            }
+            if (section !in SECTIONS_AVEC_RECHERCHE) section = SectionBureau.CATALOGUE
             runCatching { focusRecherche.requestFocus() }
             onDemandeRechercheTraitee()
         }
@@ -310,9 +315,51 @@ private fun FenetreVarotra(
                     )
                 }
 
+                SectionBureau.DETTES -> Column(modifier = Modifier.fillMaxSize()) {
+                    BandeauDemonstration(langue = langue)
+                    DettesEcran(
+                        dettes = dettes,
+                        recherche = recherche,
+                        onRechercheChange = { recherche = it },
+                        // Le formatage de date est fourni PAR LA FENÊTRE : `:core:ui` est sans
+                        // dépendance de plateforme, et la date se formate autrement sur Android.
+                        dateLisible = { dette -> FORMAT_DATE.format(Date(dette.date)) },
+                        echeanceLisible = { dette ->
+                            dette.dueDate?.let { FORMAT_DATE.format(Date(it)) }
+                        },
+                        onRembourser = { dette ->
+                            // Remboursement total de la ligne : la version de bureau n'a pas encore
+                            // le dialogue de montant partiel de l'écran Android, et un bouton qui
+                            // demanderait un montant sans pouvoir l'enregistrer serait un leurre.
+                            dettes = dettes.map {
+                                if (it.id == dette.id) it.copy(balance = 0.0, isPaid = true) else it
+                            }
+                        },
+                        onReglerGroupe = { dettesDuGroupe, montant ->
+                            // EXACTEMENT le calcul que le dialogue a montré en aperçu : une seconde
+                            // implémentation ici ferait diverger ce qu'on annonce et ce qu'on écrit.
+                            val plan = DebtAllocation.calculer(dettesDuGroupe, montant)
+                            val parId = plan.lignes.associate { it.debt.id to it.soldeApres }
+                            dettes = dettes.map { dette ->
+                                val nouveauSolde = parId[dette.id]
+                                if (nouveauSolde == null) {
+                                    dette
+                                } else {
+                                    dette.copy(
+                                        balance = nouveauSolde,
+                                        isPaid = nouveauSolde <= 0.0
+                                    )
+                                }
+                            }
+                        },
+                        onSupprimer = { dette -> dettes = dettes.filterNot { it.id == dette.id } },
+                        langue = langue,
+                        focusRecherche = focusRecherche
+                    )
+                }
+
                 SectionBureau.A_PROPOS -> SectionAPropos(version = version, langue = langue)
 
-                SectionBureau.DETTES,
                 SectionBureau.RAPPORTS ->
                     SectionAVenir(titre = sectionActive.libelle(langue), langue = langue)
             }
@@ -519,3 +566,21 @@ private fun DemoMontantPartage() {
         )
     }
 }
+
+/**
+ * Les sections qui portent leur propre champ de recherche. Ctrl+F y donne le focus sur place au
+ * lieu de basculer sur le catalogue : déplacer l'utilisateur hors de l'écran qu'il consulte serait
+ * une surprise, et les trois écrans partagent de toute façon la même recherche.
+ */
+private val SECTIONS_AVEC_RECHERCHE = setOf(
+    SectionBureau.CATALOGUE,
+    SectionBureau.STOCK,
+    SectionBureau.CAISSE,
+    SectionBureau.DETTES
+)
+
+/**
+ * `Locale.FRANCE` et le format `dd/MM/yyyy` sont ceux de l'écran Dettes Android : la date lue doit
+ * être la même d'un appareil à l'autre, pas celle de la configuration du PC.
+ */
+private val FORMAT_DATE = SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE)
