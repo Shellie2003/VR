@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.viewmodel.InventoryViewModel
 import com.example.util.FormatUtil
+import com.example.util.RapportFinancier
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -54,30 +55,13 @@ fun DashboardScreen(
     // 7 days, 30 days, or "this month"
     var selectedRange by remember { mutableStateOf(7) }
 
-    val rangeStart = remember(selectedRange) {
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, 0)
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        when (selectedRange) {
-            7 -> cal.add(Calendar.DAY_OF_YEAR, -6)
-            30 -> cal.add(Calendar.DAY_OF_YEAR, -29)
-            else -> cal.set(Calendar.DAY_OF_MONTH, 1)
-        }
-        cal.timeInMillis
-    }
+    // `RapportFinancier.periode` (:core:logic) : le calcul de la fenêtre d'analyse aurait été
+    // recopié par l'écran Rapports de bureau. Le début ramené à minuit et le recul de SIX jours
+    // pour « 7 jours » (aujourd'hui comptant comme le septième) y sont documentés et testés.
+    val periode = remember(selectedRange) { RapportFinancier.periode(selectedRange) }
+    val rangeStart = periode.debut
+    val dayCount = periode.nombreDeJours
 
-    val dayCount = remember(selectedRange, rangeStart) {
-        when (selectedRange) {
-            7 -> 7
-            30 -> 30
-            else -> {
-                val today = Calendar.getInstance()
-                today.get(Calendar.DAY_OF_MONTH)
-            }
-        }
-    }
 
     val filteredSales = remember(allSales, rangeStart) {
         allSales.filter { it.timestamp >= rangeStart }
@@ -89,46 +73,32 @@ fun DashboardScreen(
         allRetours.filter { it.timestamp >= rangeStart }
     }
     val totalReturns = remember(filteredRetours) { filteredRetours.sumOf { it.totalAmount } }
-    val totalReturnsCost = remember(filteredRetours, allProducts) {
+    // `RapportFinancier` (:core:logic) : la formule du coût d'achat était écrite quatre fois entre
+    // cet écran et le « Kajy momba ny Vola » de l'Historique. Ce sont les chiffres sur lesquels le
+    // gérant décide de ses prix — deux copies divergentes lui montreraient deux bénéfices pour la
+    // même journée. L'index par id remplace aussi un `find` par article, soit un parcours complet
+    // du catalogue pour chaque ligne de chaque vente.
+    val produitsParId = remember(allProducts) { allProducts.associateBy { it.id } }
+    val totalReturnsCost = remember(filteredRetours, produitsParId) {
         filteredRetours.sumOf { retour ->
-            retour.items.sumOf { item ->
-                val prod = allProducts.find { it.id == item.productId }
-                val unitCost = prod?.prixAchatUniteBase ?: prod?.wholesalePrice ?: 0.0
-                unitCost * item.quantity
-            }
+            RapportFinancier.coutMarchandises(retour.items, produitsParId)
         }
     }
 
-    val totalRevenue = remember(filteredSales, totalReturns) { filteredSales.sumOf { it.totalAmount } - totalReturns }
-    val totalCost = remember(filteredSales, allProducts, totalReturnsCost) {
-        filteredSales.sumOf { sale ->
-            sale.items.sumOf { item ->
-                val prod = allProducts.find { it.id == item.productId }
-                val unitCost = prod?.prixAchatUniteBase ?: prod?.wholesalePrice ?: 0.0
-                unitCost * item.quantity
-            }
-        } - totalReturnsCost
+    val totalRevenue = remember(filteredSales, totalReturns) {
+        RapportFinancier.chiffreAffaires(filteredSales) - totalReturns
+    }
+    val totalCost = remember(filteredSales, produitsParId, totalReturnsCost) {
+        RapportFinancier.coutDesVentes(filteredSales, produitsParId) - totalReturnsCost
     }
     val totalProfit = totalRevenue - totalCost
-    val marginPct = if (totalCost > 0.0) (totalProfit / totalCost) * 100.0 else 0.0
+    val marginPct = RapportFinancier.tauxMarge(totalProfit, totalCost)
     // B.2: VAT already included in totalRevenue (tax-inclusive pricing) — shown separately for reporting.
-    val totalTax = remember(filteredSales) {
-        filteredSales.sumOf { sale -> sale.items.sumOf { it.taxAmount } }
-    }
+    val totalTax = remember(filteredSales) { RapportFinancier.taxeCollectee(filteredSales) }
 
     // Daily revenue buckets for the bar chart
     val dailyRevenue = remember(filteredSales, rangeStart, dayCount) {
-        val values = mutableListOf<Double>()
-        val cal = Calendar.getInstance().apply { timeInMillis = rangeStart }
-        for (i in 0 until dayCount) {
-            val dayStartCal = cal.clone() as Calendar
-            dayStartCal.add(Calendar.DAY_OF_YEAR, i)
-            val dayStartMs = dayStartCal.timeInMillis
-            val dayEndMs = dayStartMs + 24 * 60 * 60 * 1000 - 1
-            val rev = filteredSales.filter { it.timestamp in dayStartMs..dayEndMs }.sumOf { it.totalAmount }
-            values.add(rev)
-        }
-        values
+        RapportFinancier.chiffreAffairesParJour(filteredSales, rangeStart, dayCount)
     }
 
     val rangeEndLabel = remember(dayCount, rangeStart) {
@@ -139,24 +109,7 @@ fun DashboardScreen(
     }
 
     // Top products by revenue within the range
-    data class TopProduct(val name: String, val quantity: Double, val revenue: Double, val unit: String)
-    val topProducts = remember(filteredSales) {
-        val map = LinkedHashMap<String, TopProduct>()
-        filteredSales.forEach { sale ->
-            sale.items.forEach { item ->
-                val existing = map[item.name]
-                if (existing != null) {
-                    map[item.name] = existing.copy(
-                        quantity = existing.quantity + item.quantity,
-                        revenue = existing.revenue + item.price * item.quantity
-                    )
-                } else {
-                    map[item.name] = TopProduct(item.name, item.quantity, item.price * item.quantity, "")
-                }
-            }
-        }
-        map.values.sortedByDescending { it.revenue }.take(8)
-    }
+    val topProducts = remember(filteredSales) { RapportFinancier.meilleuresVentes(filteredSales) }
 
     val screenTitle = when (activeLang) {
         "mg" -> "Kajy sy Tatitra"
@@ -358,7 +311,7 @@ fun DashboardScreen(
                     modifier = Modifier.padding(vertical = 12.dp)
                 )
             } else {
-                val maxRevenue = topProducts.maxOf { it.revenue }.coerceAtLeast(1.0)
+                val maxRevenue = topProducts.maxOf { it.chiffreAffaires }.coerceAtLeast(1.0)
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     topProducts.forEachIndexed { index, product ->
                         Card(
@@ -373,7 +326,7 @@ fun DashboardScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "${index + 1}. ${product.name}",
+                                        text = "${index + 1}. ${product.nom}",
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = mainTextColor,
@@ -382,7 +335,7 @@ fun DashboardScreen(
                                         modifier = Modifier.weight(1f)
                                     )
                                     Text(
-                                        text = "${FormatUtil.formatPrice(product.revenue)} Ar",
+                                        text = "${FormatUtil.formatPrice(product.chiffreAffaires)} Ar",
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Black,
                                         color = themeColor
@@ -390,14 +343,14 @@ fun DashboardScreen(
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))
                                 LinearProgressIndicator(
-                                    progress = (product.revenue / maxRevenue).toFloat(),
+                                    progress = (product.chiffreAffaires / maxRevenue).toFloat(),
                                     modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
                                     color = themeColor,
                                     trackColor = themeColor.copy(alpha = 0.12f)
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "${FormatUtil.formatQty(product.quantity, "").trim()} " + when (activeLang) {
+                                    text = "${FormatUtil.formatQty(product.quantite, "").trim()} " + when (activeLang) {
                                         "mg" -> "voavidy"
                                         "fr" -> "vendu(s)"
                                         else -> "sold"

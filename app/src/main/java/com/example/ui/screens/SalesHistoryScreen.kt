@@ -41,6 +41,7 @@ import com.example.data.model.SoldItem
 import com.example.data.model.Restock
 import com.example.ui.viewmodel.InventoryViewModel
 import com.example.util.FormatUtil
+import com.example.util.RapportFinancier
 import com.example.util.LanguageManager
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -200,21 +201,16 @@ fun SalesHistoryScreen(
     }
 
     // STATS DIALOG CALCULATIONS (For the BarChart icon)
-    val totalPurchaseCostForSelected = remember(salesFilteredByDate, allProducts) {
-        salesFilteredByDate.sumOf { sale ->
-            sale.items.sumOf { item ->
-                val prod = allProducts.find { it.id == item.productId }
-                val unitPurchase = prod?.prixAchatUniteBase ?: prod?.wholesalePrice ?: 0.0
-                unitPurchase * item.quantity
-            }
-        }
+    // `RapportFinancier` (:core:logic) : même formule que le Tableau de bord, et désormais la même
+    // définition — elle était recopiée ici, donc deux écrans pouvaient afficher deux bénéfices
+    // pour la même journée. L'index par id évite en prime un parcours du catalogue par article.
+    val produitsParId = remember(allProducts) { allProducts.associateBy { it.id } }
+    val totalPurchaseCostForSelected = remember(salesFilteredByDate, produitsParId) {
+        RapportFinancier.coutDesVentes(salesFilteredByDate, produitsParId)
     }
     val totalProfitForSelected = todayRevenue - totalPurchaseCostForSelected
-    val marginPercentageForSelected = if (totalPurchaseCostForSelected > 0.0) {
-        (totalProfitForSelected / totalPurchaseCostForSelected) * 100.0
-    } else {
-        0.0
-    }
+    val marginPercentageForSelected =
+        RapportFinancier.tauxMarge(totalProfitForSelected, totalPurchaseCostForSelected)
 
     Column(
         modifier = Modifier
