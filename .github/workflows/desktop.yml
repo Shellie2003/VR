@@ -30,6 +30,15 @@ on:
         description: "Fabriquer le paquet Windows (archive portable + installateur)"
         type: boolean
         default: true
+      publier_maj:
+        # Défaut à FALSE, et c'est l'inverse du réglage précédent pour une raison précise : publier
+        # sur R2 rend la version « la dernière » pour TOUS les postes déjà installés, qui la
+        # proposeront à leur prochaine vérification. Un essai de construction ne doit pas devenir
+        # une livraison par accident. Sur étiquette de version, la publication a lieu de toute
+        # façon ; cette case ne sert qu'à éprouver la mise à jour interne volontairement.
+        description: "Publier aussi comme mise à jour interne (R2) — attention : visible par tous les postes"
+        type: boolean
+        default: false
 
 concurrency:
   group: desktop-${{ github.ref }}
@@ -277,6 +286,79 @@ jobs:
       #  - sur déclenchement manuel : une PRÉ-version `bureau-v<version>`, marquée comme telle pour
       #    qu'elle ne se confonde pas avec une livraison client, et dont le nom est volontairement
       #    distinct des `v1.0.<n>` de l'APK Android.
+      # ---------------------------------------------------------------------------------------
+      # MISE À JOUR INTERNE : c'est cette étape qui permet au logiciel de se remplacer lui-même,
+      # sans que le gérant désinstalle puis réinstalle.
+      #
+      # Chemin `bureau/` distinct du `latest/` d'Android, et manifeste séparé : les deux
+      # plateformes ne publient ni la même chose ni au même rythme, et un manifeste partagé
+      # finirait par proposer un APK à un PC.
+      #
+      # L'adresse de l'archive est STABLE (toujours le même nom) : c'est elle qui est inscrite dans
+      # le manifeste, et le logiciel installé ne connaît rien d'autre.
+      # ---------------------------------------------------------------------------------------
+      - name: Publier la mise à jour interne sur Cloudflare R2
+        if: startsWith(github.ref, 'refs/tags/') || inputs.publier_maj
+        shell: bash
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+
+          # Facultatif, exactement comme dans release.yml : tant que les secrets ne sont pas
+          # configurés, on ne publie rien et on ne fait PAS échouer le job — l'archive reste
+          # disponible sur la Release GitHub, qui est le chemin manuel.
+          if [ -z "${R2_ACCOUNT_ID:-}" ] || [ -z "${R2_ACCESS_KEY_ID:-}" ] || [ -z "${R2_SECRET_ACCESS_KEY:-}" ]; then
+            echo "Secrets R2 non configures : publication de la mise a jour de bureau ignoree."
+            exit 0
+          fi
+
+          ARCHIVE="varotra-bureau-${VERSION}-windows-portable.zip"
+          if [ ! -f "$ARCHIVE" ]; then
+            echo "Archive portable introuvable ($ARCHIVE) : rien a publier."
+            exit 0
+          fi
+
+          if ! command -v aws >/dev/null 2>&1; then
+            pip install --quiet awscli
+          fi
+
+          # Le numero comparable est le TROISIEME segment de la version, la meme regle que
+          # MiseAJourBureau.versionCodeDepuisNom cote logiciel. Les deux doivent concorder : un
+          # ecart ferait soit ignorer une nouvelle version, soit en proposer une en boucle.
+          VERSION_CODE="$(echo "$VERSION" | cut -d. -f3)"
+          SHA256="$(sha256sum "$ARCHIVE" | cut -d ' ' -f1)"
+          CHEMIN="bureau/varotra-bureau-windows-portable.zip"
+          URL="https://pub-8562b104a83841e09966f730d5763b79.r2.dev/${CHEMIN}"
+
+          printf '{"versionCode": %s, "versionName": "%s", "archiveUrl": "%s", "sha256": "%s", "notes": ""}' \
+            "$VERSION_CODE" "$VERSION" "$URL" "$SHA256" > version-bureau.json
+
+          export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+          export AWS_DEFAULT_REGION="auto"
+          ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+          # `no-store` sur les deux objets, meme raison que pour l'APK : ils sont reecrits au meme
+          # chemin a chaque publication, et un cache en peripherie servirait sinon une ancienne
+          # archive sous une adresse qui annonce la nouvelle.
+          aws s3 cp "$ARCHIVE" "s3://varotra/${CHEMIN}" \
+            --endpoint-url "$ENDPOINT" \
+            --content-type "application/zip" \
+            --cache-control "no-store"
+
+          # Le manifeste EN DERNIER, et c'est volontaire : il est la seule chose que le logiciel
+          # lise. Publie avant l'archive, il annoncerait pendant quelques minutes une version dont
+          # le fichier n'est pas encore en place — donc un telechargement qui echoue.
+          aws s3 cp version-bureau.json "s3://varotra/bureau/version.json" \
+            --endpoint-url "$ENDPOINT" \
+            --content-type "application/json" \
+            --cache-control "no-store"
+
+          echo "Mise a jour de bureau publiee : versionCode=${VERSION_CODE} version=${VERSION} sha256=${SHA256}"
+
       - name: Publier pour essai (Release GitHub)
         uses: softprops/action-gh-release@v2
         with:
@@ -294,11 +376,17 @@ jobs:
             ne sont présents que si l'outil WiX était disponible sur la machine de construction ;
             l'archive portable, elle, est toujours produite.
 
-            Ce que cette version fait aujourd'hui : l'écran Catalogue, calculé par le même code que
-            la caisse Android (prix, prix de gros, mise en forme, filtrage). La caisse, les dettes
-            et les rapports sont annoncés « à venir » dans le menu — ils attendent le partage de la
-            base de données avec le téléphone. Les produits affichés sont des données de
-            démonstration, ce que l'écran dit explicitement.
+            Les six écrans sont là — Caisse, Catalogue, Stock, Dettes, Rapports, À propos —
+            calculés par le même code que l'application Android (prix, prix de gros, TVA, monnaie à
+            rendre, répartition des trosa, bénéfice). Les données affichées sont de
+            **démonstration** : la base de la boutique n'est pas encore partagée avec le téléphone,
+            ce que chaque écran dit explicitement, et la caisse ne peut donc pas encore enregistrer
+            une vente — son bouton « Valider » est désactivé avec sa raison affichée.
+
+            **Mise à jour sans réinstallation** : à partir de cette version, « À propos » porte un
+            bouton « Vérifier les mises à jour ». Le logiciel télécharge la nouvelle version,
+            vérifie son empreinte, se remplace et se relance tout seul. C'est donc le dernier
+            téléchargement manuel à faire.
           # Les chemins des deux autres systèmes sont conservés bien que la matrice soit réduite à
           # Windows : `fail_on_unmatched_files: false` les rend inoffensifs, et ils évitent d'oublier
           # cette étape le jour où Linux ou macOS sont rétablis.

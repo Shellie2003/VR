@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -36,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.example.desktop.maj.CarteMajBureau
+import com.example.desktop.maj.MiseAJourBureau
 import com.example.data.model.CartItem
 import com.example.data.model.Debt
 import com.example.ui.partage.accueil.AccueilEcran
@@ -486,7 +490,16 @@ private fun ReglagesMenu(
 
 @Composable
 private fun SectionAPropos(version: String?, langue: String) {
-    Column(modifier = Modifier.fillMaxSize().padding(32.dp)) {
+    // Défilement, et ce n'est pas une précaution de principe : cette section porte désormais le
+    // bouton « Installer et redémarrer », donc le bouton le plus bas de l'écran. Les sections 50 et
+    // 66 ont déjà payé deux fois le même défaut — un bouton poussé hors du champ sur une fenêtre
+    // réduite, et un gérant qui conclut à une panne.
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(32.dp)
+    ) {
         Text(
             text = SectionBureau.A_PROPOS.libelle(langue),
             style = MaterialTheme.typography.headlineMedium,
@@ -512,8 +525,38 @@ private fun SectionAPropos(version: String?, langue: String) {
                 DemoMontantPartage()
             }
         }
+
+        Spacer(Modifier.height(20.dp))
+
+        // La mise à jour vit ici et non dans les réglages du menu, pour une raison de sécurité
+        // d'usage : elle FERME et relance le logiciel. « À propos » est l'écran qu'on ouvre
+        // délibérément, jamais celui qu'on traverse en cherchant autre chose au milieu d'une vente.
+        CarteMajBureau(
+            langue = langue,
+            versionInstallee = DesktopBuildInfo.versionCodeCourant(),
+            // La racine est déduite de l'emplacement de notre propre code. `null` hors d'un paquet
+            // (IDE, `:desktop:run`), et la carte le dit alors au lieu de proposer une mise à jour
+            // qui s'installerait par-dessus un arbre de développement.
+            racineInstallation = remember { racineInstallationCourante() }
+        )
     }
 }
+
+/**
+ * Le dossier d'installation du logiciel, ou `null` quand il n'y en a pas.
+ *
+ * `ProtectionDomain.codeSource` désigne le jar qui contient cette classe, donc `…/app/x.jar` dans
+ * un paquet natif. La règle de remontée et sa garde sont dans [MiseAJourBureau.racineInstallation],
+ * où un test les vérifie ; ici il ne reste que la lecture, enveloppée parce qu'un gestionnaire de
+ * sécurité restrictif peut la refuser — et un écran « À propos » ne doit jamais faire tomber le
+ * logiciel.
+ */
+private fun racineInstallationCourante(): java.io.File? = runCatching {
+    // Pas de `return` ici : Kotlin l'interdit dans une fonction à corps d'expression. Un `?.let`
+    // dit la même chose et compile.
+    DesktopBuildInfo::class.java.protectionDomain?.codeSource?.location?.toURI()
+        ?.let { MiseAJourBureau.racineInstallation(java.io.File(it)) }
+}.getOrNull()
 
 @Composable
 private fun LigneInfo(libelle: String, valeur: String) {

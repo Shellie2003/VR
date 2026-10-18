@@ -1,5 +1,7 @@
 package com.example.desktop
 
+import com.example.desktop.maj.MiseAJourBureau
+
 /**
  * Les quelques informations que la fenêtre de bureau affiche sur elle-même.
  *
@@ -27,8 +29,30 @@ object DesktopBuildInfo {
     }
 
     /**
-     * Version lue depuis les propriétés système. `jpackage` la renseigne dans le lanceur du paquet
-     * natif ; ailleurs elle n'existe pas, et c'est un cas normal, pas une erreur.
+     * Version lue depuis les propriétés système, `null` hors d'un paquet natif — un cas **normal**
+     * (lancement depuis l'IDE ou `:desktop:run`), pas une erreur.
+     *
+     * Deux sources, dans cet ordre, et l'ordre compte. `varotra.versionName` est l'argument de JVM
+     * gravé par Gradle dans le lanceur (voir `desktop/build.gradle.kts`) : il ne dépend d'aucune
+     * hypothèse sur l'outil d'empaquetage. `jpackage.app-version` est conservé en second parce que
+     * c'était la seule source jusqu'ici — un paquet construit avant cette version continue donc
+     * d'afficher son numéro.
+     *
+     * Cette distinction est devenue importante avec la mise à jour interne : un logiciel qui ne
+     * connaît pas sa propre version ne peut pas savoir s'il en existe une plus récente.
      */
-    fun versionCourante(): String? = System.getProperty("jpackage.app-version")
+    fun versionCourante(): String? =
+        System.getProperty("varotra.versionName")?.takeIf { it.isNotBlank() }
+            ?: System.getProperty("jpackage.app-version")?.takeIf { it.isNotBlank() }
+
+    /**
+     * Le numéro comparable de la version installée, ou `null` hors d'un paquet.
+     *
+     * Lu directement depuis l'argument de JVM quand il existe, sinon **déduit du nom de version**
+     * — ce qui permet à un paquet antérieur à cette fonctionnalité de se mettre à jour quand même,
+     * puisqu'il porte bien `1.0.<n>` dans `jpackage.app-version`.
+     */
+    fun versionCodeCourant(): Int? =
+        System.getProperty("varotra.versionCode")?.trim()?.toIntOrNull()?.takeIf { it > 0 }
+            ?: MiseAJourBureau.versionCodeDepuisNom(versionCourante())
 }

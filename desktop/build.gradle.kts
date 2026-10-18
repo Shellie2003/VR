@@ -84,12 +84,40 @@ dependencies {
   // Material 2. Sans cette ligne, les imports `androidx.compose.material3.*` ne résolvent pas —
   // et l'erreur, un import introuvable, n'évoque en rien une dépendance manquante.
   implementation(compose.material3)
+
+  // Mise à jour interne du logiciel (voir `maj/`). Deux dépendances seulement, et aucune pour le
+  // réseau : `java.net.http.HttpClient` est fourni par le JDK depuis la version 11, et ce module
+  // tourne sous 21 — OkHttp n'apporterait ici qu'un mégaoctet de plus dans un paquet qui en pèse
+  // déjà 93.
+  //
+  // `org.json` en revanche est une VRAIE dépendance et non `compileOnly` comme dans
+  // `:core:network` : là-bas Android fournit la classe depuis sa plateforme, ici personne ne la
+  // fournit. Sans cette ligne le logiciel compilerait et tomberait sur `NoClassDefFoundError` à la
+  // première vérification de mise à jour — un échec qui ne se verrait qu'à l'exécution.
+  implementation(libs.org.json)
+  implementation(libs.kotlinx.coroutines.core)
+
   testImplementation(libs.junit)
 }
 
 compose.desktop {
   application {
     mainClass = "com.example.desktop.MainKt"
+
+    // Le numéro de version est GRAVÉ dans le lanceur du paquet, et c'est la mise à jour interne
+    // qui l'exige : pour savoir s'il existe une version plus récente, le logiciel doit d'abord
+    // connaître la sienne. Il la lisait jusqu'ici dans `jpackage.app-version`, une propriété que
+    // `jpackage` ne garantit pas — et une version inconnue ferait soit proposer une mise à jour en
+    // boucle sur une installation déjà à jour, soit n'en proposer aucune pour toujours. Un
+    // argument de JVM explicite ne dépend d'aucune hypothèse sur l'outil d'empaquetage.
+    //
+    // Ces arguments sont écrits dans le fichier de configuration du paquet : ils n'existent donc
+    // pas quand le logiciel est lancé depuis l'IDE ou `:desktop:run`, ce qui est exactement le
+    // comportement voulu — on ne met pas à jour un arbre de développement par-dessus lui-même.
+    jvmArgs += listOf(
+      "-Dvarotra.versionCode=$gitVersionCode",
+      "-Dvarotra.versionName=1.0.$gitVersionCode"
+    )
 
     nativeDistributions {
       // Les formats sont déclarés ensemble, mais `packageDistributionForCurrentOS` ne fabrique
