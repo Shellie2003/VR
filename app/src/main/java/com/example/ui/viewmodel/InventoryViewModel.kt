@@ -1615,7 +1615,7 @@ class InventoryViewModel(
                     tauxTaxe = it.tauxTaxe
                 )
             }
-            val total = cartSnapshot.sumOf { it.totalPrice }
+            val total = Monnaie.total(cartSnapshot)
             val newSale = Sale(
                 timestamp = System.currentTimeMillis(),
                 totalAmount = total,
@@ -1669,7 +1669,7 @@ class InventoryViewModel(
                         tauxTaxe = it.tauxTaxe
                     )
                 }
-                val total = cartSnapshot.sumOf { it.totalPrice }
+                val total = Monnaie.total(cartSnapshot)
                 val newSale = Sale(
                     timestamp = System.currentTimeMillis(),
                     totalAmount = total,
