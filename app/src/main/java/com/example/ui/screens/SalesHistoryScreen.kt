@@ -43,6 +43,7 @@ import com.example.ui.viewmodel.InventoryViewModel
 import com.example.util.FormatUtil
 import com.example.util.RapportFinancier
 import com.example.util.LanguageManager
+import com.example.util.UniteAbrege
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -1039,14 +1040,10 @@ fun SaleListItem(
     val productUnit = remember(firstItem, allProducts) {
         val prod = allProducts.find { it.id == firstItem?.productId }
         val rawUnit = prod?.unit ?: "pcs"
-        when (rawUnit.lowercase()) {
-            "kilogramme", "kg" -> "kg"
-            "litre", "l" -> "Litatra"
-            "pièce", "piece", "pcs" -> "pcs"
-            "paquet" -> "paq"
-            "tasse", "kapoaka" -> "Kapoaka"
-            else -> rawUnit
-        }
+        // Même table que la carte produit de l'accueil (`UniteAbrege`, :core:logic), en forme
+        // LONGUE : cette ligne a la largeur de l'écran, donc « Litatra » s'y lit mieux que « L ».
+        // Les deux vocabulaires étaient auparavant écrits séparément et avaient déjà divergé.
+        UniteAbrege.abreviation(rawUnit, UniteAbrege.Forme.LONGUE)
     }
 
     val qtyFormatted = remember(firstItem) {

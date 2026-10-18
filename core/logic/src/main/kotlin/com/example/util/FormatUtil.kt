@@ -18,14 +18,12 @@ object FormatUtil {
         } else {
             String.format(java.util.Locale.US, "%.2f", qty)
         }
-        val suffix = when (unit.lowercase()) {
-            "kilogramme", "kg" -> " kg"
-            "litre", "l" -> " L"
-            "pièce", "piece", "pcs" -> " pcs"
-            "paquet" -> " paq"
-            "tasse", "kapoaka" -> " kap"
-            else -> " $unit"
-        }
+        // La table d'abréviations vit dans `UniteAbrege` — c'était la TROISIÈME copie, et la seule
+        // qui divergeait dans un sens visible par le gérant : elle ne connaissait pas carton, sac,
+        // boîte ni bouteille, donc le même produit se lisait « 3 Carton » dans l'écran Stock et
+        // « Total: 3 ctn » sur sa carte d'accueil. Une omission, pas une intention : cette table
+        // abrège déjà « paquet » en « paq ».
+        val suffix = if (unit.isEmpty()) "" else " " + UniteAbrege.abreviation(unit)
         return numStr + suffix
     }
 }
