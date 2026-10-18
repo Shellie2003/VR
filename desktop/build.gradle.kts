@@ -3,17 +3,33 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 /**
  * Version desktop de Varotra — Compose Multiplatform sur JVM.
  *
- * Ce module est volontairement MINIMAL à ce stade. Il ne contient encore aucun écran métier : son
- * seul rôle est de prouver que la chaîne de build de bureau tient debout (compilation, tests,
- * fabrication d'un paquet natif) AVANT qu'on déplace le moindre morceau de code dans des modules
- * partagés. C'est l'ordre demandé, et c'est le bon : découper le code d'abord, puis découvrir que
- * la chaîne desktop ne construit pas, obligerait à défaire le découpage pour diagnostiquer.
+ * Ce module est la FENÊTRE et rien de plus : il assemble les écrans de `:core:ui`, tient leur état
+ * partagé (catalogue, panier, recherche) et porte les comportements propres à un PC — raccourcis
+ * clavier posés sur la fenêtre, focus initial pour un lecteur de code-barres USB. Les six sections
+ * du menu sont servies (accueil, stock, caisse, dettes, rapports, réglages).
+ *
+ * Il a d'abord été volontairement MINIMAL, sans aucun écran : son seul rôle était de prouver que la
+ * chaîne de build de bureau tenait debout (compilation, tests, paquet natif) AVANT qu'on déplace le
+ * moindre morceau de code dans des modules partagés. C'était l'ordre demandé, et c'était le bon :
+ * découper le code d'abord, puis découvrir que la chaîne desktop ne construit pas, aurait obligé à
+ * défaire le découpage pour diagnostiquer.
+ *
+ * **Ce qui manque encore, et qui est dit à l'écran plutôt que caché :** il n'y a pas de base de
+ * données partagée (Room KMP touche au fichier de base de CHAQUE boutique en service, donc c'est un
+ * chantier à mener pour lui-même). Les écrans tournent sur `DonneesDemo`, un bandeau le déclare
+ * franchement, et le bouton « Valider » de la caisse est désactivé AVEC sa raison affichée — un
+ * logiciel de caisse qui prétendrait encaisser sans rien enregistrer serait le pire des mensonges.
+ *
+ * `DonneesDemo` vit ici et NON dans `:core:ui` : un module d'interface qui embarque de fausses
+ * données finit toujours par en livrer en production.
  *
  * Trois plugins, et aucun n'est de trop :
  *  - `kotlin.jvm` et non `kotlin.android` : ce module n'est PAS un module Android. Il n'utilise ni
  *    AGP, ni le SDK Android — c'est précisément ce qui le rend capable de produire un exécutable
- *    de bureau, et ce qui le rendra incapable de compiler du code qui dépend d'Android par
- *    inadvertance. Ce garde-fou est l'intérêt principal du module aujourd'hui.
+ *    de bureau, et ce qui le rend incapable de compiler du code qui dépend d'Android par
+ *    inadvertance. C'est ce garde-fou qui a rendu le découpage vérifiable : si un utilitaire
+ *    extrait vers `:core:logic` ramenait une dépendance Android avec lui, ce module le dirait
+ *    immédiatement au lieu de laisser le problème se découvrir au moment de partager le code.
  *  - `kotlin.compose` : depuis Kotlin 2.0, le compilateur Compose est livré par Kotlin lui-même et
  *    non plus par Compose Multiplatform.
  *  - `jetbrains.compose` : apporte les artefacts `compose.desktop.*` et la tâche d'empaquetage.
