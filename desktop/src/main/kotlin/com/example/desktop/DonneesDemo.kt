@@ -2,6 +2,9 @@ package com.example.desktop
 
 import com.example.data.model.Debt
 import com.example.data.model.Product
+import com.example.data.model.Retour
+import com.example.data.model.Sale
+import com.example.data.model.SoldItem
 
 /**
  * Un petit catalogue de démonstration, et il est **volontairement dans `:desktop`** et non dans le
@@ -29,7 +32,8 @@ object DonneesDemo {
             stock = 42.0,
             unit = "Kilogramme",
             barcode = "6001234500011",
-            wholesalePrice = 3100.0
+            wholesalePrice = 3100.0,
+            prixAchatUniteBase = 2600.0
         ),
         Product(
             id = 2,
@@ -39,7 +43,8 @@ object DonneesDemo {
             stock = 3.0,
             lowStockThreshold = 6.0,
             unit = "Litre",
-            barcode = "6001234500028"
+            barcode = "6001234500028",
+            prixAchatUniteBase = 7900.0
         ),
         Product(
             id = 3,
@@ -49,7 +54,8 @@ object DonneesDemo {
             stock = 120.0,
             unit = "Pièce",
             barcode = "6001234500035",
-            wholesalePrice = 1700.0
+            wholesalePrice = 1700.0,
+            prixAchatUniteBase = 1450.0
         ),
         Product(
             id = 4,
@@ -58,7 +64,8 @@ object DonneesDemo {
             category = "Droguerie",
             stock = 18.0,
             unit = "Pièce",
-            barcode = "6001234500042"
+            barcode = "6001234500042",
+            prixAchatUniteBase = 1050.0
         ),
         Product(
             id = 5,
@@ -93,8 +100,12 @@ object DonneesDemo {
             category = "Alimentation",
             stock = 7.0,
             unit = "Paquet",
-            barcode = "6001234500059"
+            barcode = "6001234500059",
+            prixAchatUniteBase = 14000.0
         ),
+        // Volontairement SANS coût d'achat : c'est le cas documenté en section 94 — sa vente
+        // apparaît comme du bénéfice pur, ce qui gonfle la marge affichée. Le voir dans la
+        // démonstration vaut mieux que de le découvrir en production.
         Product(
             id = 8,
             name = "ananas frais",
@@ -174,6 +185,70 @@ object DonneesDemo {
                 date = maintenant - 15 * jour,
                 note = "Ananas frais (2 x 2 500)",
                 isPaid = true
+            )
+        )
+    }
+
+    /**
+     * Un historique de ventes de démonstration, pour que l'écran Rapports ait de quoi calculer.
+     *
+     * **Les horodatages sont relatifs au lancement**, comme les dettes : une période « 7 jours »
+     * calculée sur des dates figées ne contiendrait jamais rien, et l'écran paraîtrait cassé alors
+     * qu'il appliquerait correctement son filtre.
+     *
+     * Le contenu exerce les cas que les cartes de synthèse affichent conditionnellement : des
+     * articles **taxables** (la carte TVA), une marge réelle (coût d'achat renseigné sur une partie
+     * seulement des produits, donc le zéro de coût documenté en section 94 est visible), des jours
+     * **sans vente** (les barres atténuées du graphique) et un **retour** (la carte de retours et la
+     * déduction du chiffre d'affaires).
+     */
+    val ventes: List<Sale> = run {
+        val jour = 24L * 60 * 60 * 1000
+        val maintenant = System.currentTimeMillis()
+        fun article(produitId: Int, nom: String, prix: Double, quantite: Double, taxable: Boolean = false) =
+            SoldItem(
+                productId = produitId,
+                name = nom,
+                quantity = quantite,
+                price = prix,
+                taxable = taxable,
+                tauxTaxe = if (taxable) 20.0 else 0.0
+            )
+        fun vente(id: Int, decalageJours: Long, vararg articles: SoldItem) = Sale(
+            id = id,
+            timestamp = maintenant - decalageJours * jour,
+            items = articles.toList(),
+            totalAmount = articles.sumOf { it.price * it.quantity }
+        )
+        listOf(
+            vente(1, 0, article(1, "Riz Makalioka 1 kg", 3500.0, 4.0), article(3, "Eau minérale 1,5 L", 2000.0, 6.0)),
+            vente(2, 0, article(2, "Huile de tournesol 1 L", 9800.0, 1.0, taxable = true)),
+            vente(3, 1, article(1, "Riz Makalioka 1 kg", 3500.0, 10.0)),
+            vente(4, 1, article(4, "Savon de Marseille", 1500.0, 3.0, taxable = true)),
+            // Rien le jour -2 : exerce la barre atténuée du graphique.
+            vente(5, 3, article(7, "Zébu séché 500 g", 18000.0, 2.0)),
+            vente(6, 4, article(3, "Eau minérale 1,5 L", 2000.0, 12.0)),
+            vente(7, 6, article(8, "ananas frais", 2500.0, 5.0)),
+            vente(8, 12, article(1, "Riz Makalioka 1 kg", 3500.0, 20.0))
+        )
+    }
+
+    /**
+     * Un retour, pour que la carte « Retours/remboursements » et la déduction du chiffre d'affaires
+     * soient réellement exercées plutôt que toujours masquées.
+     */
+    val retours: List<Retour> = run {
+        val jour = 24L * 60 * 60 * 1000
+        listOf(
+            Retour(
+                id = 1,
+                saleId = 3,
+                timestamp = System.currentTimeMillis() - jour,
+                items = listOf(
+                    SoldItem(productId = 1, name = "Riz Makalioka 1 kg", quantity = 2.0, price = 3500.0)
+                ),
+                totalAmount = 7000.0,
+                motif = "Sac percé"
             )
         )
     }

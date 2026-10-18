@@ -13,15 +13,14 @@ package com.example.ui.partage.coquille
  * permet à `SectionBureauTest` de vérifier qu'aucune traduction ne manque. Une étiquette oubliée
  * afficherait un menu avec un trou, ce qu'aucun test d'interface ne remarquerait.
  *
- * `RAPPORTS` est annoncée mais pas encore servie : le bureau n'a pas de base de données (voir le
- * KDoc du module), et un tableau de bord sans historique réel n'aurait rien à dire. La déclarer
- * tout de suite plutôt que l'ajouter plus tard donne la structure réelle du logiciel à l'écran, et
- * montre honnêtement ce qui reste à faire.
+ * **Les six sections sont désormais servies.** Le mécanisme « à venir » qui grisait une entrée de
+ * menu et expliquait ce qu'elle attendait a donc été retiré : un drapeau toujours vrai est une
+ * documentation fausse. Il est dans l'historique git si une future section doit être annoncée avant
+ * d'être écrite.
  *
- * `CAISSE` est servie, mais ne peut pas encore ENREGISTRER une vente, pour la même raison : tout le
- * calcul y est réel et partagé avec Android, seul l'écriture manque. Le bouton « Valider » est
- * désactivé avec sa raison affichée, plutôt que de laisser croire à un encaissement qui n'aurait
- * lieu nulle part.
+ * Ce qui manque encore est dit **dans** les écrans, là où c'est utile : le bandeau de démonstration
+ * sur chacun, et la raison affichée sous le bouton « Valider » désactivé de la caisse — tout son
+ * calcul est réel et partagé avec Android, seule l'écriture en base manque.
  */
 enum class SectionBureau {
     CAISSE,
@@ -67,8 +66,4 @@ enum class SectionBureau {
             else -> "About"
         }
     }
-
-    /** `true` quand la section a un véritable contenu ; sinon le menu l'annonce comme à venir. */
-    val disponible: Boolean
-        get() = this != RAPPORTS
 }

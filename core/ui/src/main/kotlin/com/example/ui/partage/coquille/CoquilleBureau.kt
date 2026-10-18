@@ -98,8 +98,6 @@ private fun MenuLateral(
             EntreeMenu(
                 libelle = section.libelle(langue),
                 active = section == sectionActive,
-                disponible = section.disponible,
-                langue = langue,
                 onClick = { onSectionChange(section) }
             )
             Spacer(Modifier.height(4.dp))
@@ -116,16 +114,12 @@ private fun MenuLateral(
 private fun EntreeMenu(
     libelle: String,
     active: Boolean,
-    disponible: Boolean,
-    langue: String,
     onClick: () -> Unit
 ) {
-    val couleurTexte = when {
-        active -> MaterialTheme.colorScheme.primary
-        // Une section à venir reste cliquable — elle explique alors ce qu'elle attend. La griser
-        // sans rien dire laisserait l'utilisateur deviner si c'est une panne ou un chantier.
-        disponible -> MaterialTheme.colorScheme.onPrimary
-        else -> MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.55f)
+    val couleurTexte = if (active) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onPrimary
     }
 
     Row(
@@ -145,52 +139,6 @@ private fun EntreeMenu(
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
             color = couleurTexte
-        )
-        if (!disponible) {
-            Text(
-                text = when (langue) {
-                    "mg" -> "ho avy"
-                    "fr" -> "à venir"
-                    else -> "soon"
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = couleurTexte
-            )
-        }
-    }
-}
-
-/**
- * Le contenu d'une section qui n'est pas encore servie.
- *
- * Elle dit ce qui manque — la base de données partagée — plutôt que « bientôt disponible » : c'est
- * ce qui distingue un chantier annoncé d'une fonctionnalité qui semble cassée.
- */
-@Composable
-fun SectionAVenir(titre: String, langue: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.fillMaxSize().padding(40.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = titre,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = when (langue) {
-                "mg" -> "Mbola miandry ny fampitoviana ny tahiry (base de données) " +
-                    "amin'ny finday ity pejy ity."
-                "fr" -> "Cette section attend le partage de la base de données avec le téléphone. " +
-                    "Le catalogue, lui, fonctionne déjà avec le code de calcul commun."
-                else -> "This section is waiting for the database to be shared with the phone. " +
-                    "The catalogue already runs on the shared calculation code."
-            },
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

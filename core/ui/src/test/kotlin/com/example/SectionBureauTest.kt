@@ -54,16 +54,13 @@ class SectionBureauTest {
     }
 
     @Test
-    fun `les ecrans portes sont servis, ceux qui dependent de la base ne le sont pas encore`() {
-        // Épingle l'état réel annoncé à l'écran. Le jour où les dettes ou les rapports seront
-        // portés, ce test échouera — c'est précisément ce qu'on veut : il faudra alors mettre à
-        // jour l'annonce faite à l'utilisateur, au lieu de lui laisser lire « à venir » sur une
-        // section servie. C'est ce qui s'est produit pour le stock, la caisse, puis les dettes.
-        assertTrue(SectionBureau.CAISSE.disponible)
-        assertTrue(SectionBureau.CATALOGUE.disponible)
-        assertTrue(SectionBureau.STOCK.disponible)
-        assertTrue(SectionBureau.A_PROPOS.disponible)
-        assertTrue(SectionBureau.DETTES.disponible)
-        assertTrue(!SectionBureau.RAPPORTS.disponible)
+    fun `l'ordre du menu place la caisse en tete et les reglages a part`() {
+        // L'ordre de l'énumération EST l'ordre du menu latéral. L'épingler évite qu'un ajout de
+        // section se glisse au milieu et déplace sous le curseur des entrées que l'utilisateur
+        // a appris à viser sans lire.
+        assertEquals(
+            listOf("CAISSE", "CATALOGUE", "STOCK", "DETTES", "RAPPORTS", "A_PROPOS"),
+            SectionBureau.entries.map { it.name }
+        )
     }
 }

@@ -41,9 +41,9 @@ import com.example.data.model.Debt
 import com.example.ui.partage.accueil.AccueilEcran
 import com.example.ui.partage.caisse.CaisseEcran
 import com.example.ui.partage.coquille.CoquilleBureau
-import com.example.ui.partage.coquille.SectionAVenir
 import com.example.ui.partage.coquille.SectionBureau
 import com.example.ui.partage.dettes.DettesEcran
+import com.example.ui.partage.rapports.RapportsEcran
 import com.example.ui.partage.stock.StockEcran
 import com.example.ui.partage.theme.VarotraTheme
 import com.example.util.CatalogueFiltre
@@ -360,8 +360,19 @@ private fun FenetreVarotra(
 
                 SectionBureau.A_PROPOS -> SectionAPropos(version = version, langue = langue)
 
-                SectionBureau.RAPPORTS ->
-                    SectionAVenir(titre = sectionActive.libelle(langue), langue = langue)
+                SectionBureau.RAPPORTS -> Column(modifier = Modifier.fillMaxSize()) {
+                    BandeauDemonstration(langue = langue)
+                    RapportsEcran(
+                        ventes = DonneesDemo.ventes,
+                        retours = DonneesDemo.retours,
+                        // Le catalogue VIVANT et non la constante : un ajustement de stock ou une
+                        // suppression faite dans l'écran Stock doit se refléter ici, puisque c'est
+                        // la même boutique.
+                        produits = produits,
+                        langue = langue,
+                        couleurTheme = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
     }
