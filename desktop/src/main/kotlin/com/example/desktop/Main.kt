@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -38,6 +39,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.example.desktop.donnees.BandeauSourceDonnees
+import com.example.desktop.donnees.DialogueConnexionBoutique
+import com.example.desktop.donnees.ResultatChargement
+import com.example.desktop.donnees.ServiceDonneesBoutique
+import com.example.desktop.donnees.messageChargement
 import com.example.desktop.maj.CarteMajBureau
 import com.example.desktop.maj.MiseAJourBureau
 import com.example.data.model.CartItem
@@ -55,6 +61,8 @@ import com.example.util.DebtAllocation
 import com.example.util.PanierCaisse
 import com.example.util.ShopMode
 import com.example.util.enDecimal
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -150,6 +158,10 @@ private fun FenetreVarotra(
     // badge de l'accueil — comme sur le téléphone, où les deux écrans lisent la même source.
     var produits by remember { mutableStateOf(DonneesDemo.catalogue) }
     var dettes by remember { mutableStateOf(DonneesDemo.dettes) }
+    // Ventes et retours sont désormais un ÉTAT et non la constante de démonstration : ce sont eux
+    // que l'écran Rapports lit, donc ils doivent pouvoir être remplacés par ceux de la boutique.
+    var ventes by remember { mutableStateOf(DonneesDemo.ventes) }
+    var retours by remember { mutableStateOf(DonneesDemo.retours) }
 
     // Un SEUL panier pour le catalogue et la caisse, et c'est le point important : le badge de
     // quantité de l'accueil et la ligne de la caisse montrent désormais le même panier, géré par
@@ -160,6 +172,67 @@ private fun FenetreVarotra(
     // part, et un panier qui prétendrait encaisser serait pire que pas de panier du tout. C'est
     // dit à l'écran, sous le bouton « Valider ».
     var panier by remember { mutableStateOf<List<CartItem>>(emptyList()) }
+
+    // La source des données. `null` = jeu de démonstration ; sinon le code de récupération qui a
+    // permis de lire la sauvegarde réelle de la boutique.
+    val serviceDonnees = remember { ServiceDonneesBoutique() }
+    var codeRelie by remember { mutableStateOf<String?>(null) }
+    var chargementEnCours by remember { mutableStateOf(false) }
+    var dialogueConnexion by remember { mutableStateOf(false) }
+    var saisieCode by remember { mutableStateOf("") }
+    var messageConnexion by remember { mutableStateOf<String?>(null) }
+    val porteeChargement = rememberCoroutineScope()
+
+    // Une seule fonction de chargement pour les trois appels (reconnexion automatique au
+    // démarrage, saisie du code, bouton « Actualiser ») : trois copies finiraient par ne plus
+    // traiter les mêmes cas d'échec, et c'est précisément ce que la section 56 a eu à corriger.
+    fun chargerBoutique(code: String, depuisDialogue: Boolean) {
+        porteeChargement.launch {
+            chargementEnCours = true
+            try {
+                when (val resultat = serviceDonnees.charger(code)) {
+                    is ResultatChargement.Succes -> {
+                        produits = resultat.donnees.produits
+                        dettes = resultat.donnees.dettes
+                        ventes = resultat.donnees.ventes
+                        retours = resultat.donnees.retours
+                        codeRelie = resultat.codeNormalise
+                        messageConnexion = null
+                        dialogueConnexion = false
+                        // Le panier est vidé : ses lignes désignaient des produits du jeu de
+                        // démonstration, qui n'existent plus dans le catalogue chargé.
+                        panier = emptyList()
+                    }
+                    else -> {
+                        // Un échec de reconnexion AUTOMATIQUE au démarrage ne doit pas ouvrir une
+                        // fenêtre d'erreur devant quelqu'un qui n'a rien demandé : le bandeau dira
+                        // simplement « données de démonstration ». Un échec sur saisie explicite,
+                        // lui, doit s'expliquer.
+                        if (depuisDialogue) {
+                            messageConnexion = messageChargement(resultat, langue)
+                        }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (depuisDialogue) {
+                    messageConnexion = messageChargement(ResultatChargement.EchecReseau, langue)
+                }
+            } finally {
+                // `finally` : sans lui, une coroutine interrompue laisserait l'indicateur tourner
+                // pour toujours et le bouton inaccessible — le défaut des sections 55 et 77.
+                chargementEnCours = false
+            }
+        }
+    }
+
+    // Reconnexion silencieuse au lancement : le gérant ne doit saisir son code qu'UNE fois. Sans
+    // cela, un logiciel de caisse redemanderait un code à chaque ouverture de boutique.
+    LaunchedEffect(Unit) {
+        serviceDonnees.codeEnregistre()?.let { chargerBoutique(it, depuisDialogue = false) }
+    }
+
 
     // Les quantités par produit, pour le badge des cartes de l'accueil : dérivées du panier réel
     // plutôt que tenues à part, donc toujours d'accord avec la caisse.
@@ -212,7 +285,13 @@ private fun FenetreVarotra(
         ) { sectionActive ->
             when (sectionActive) {
                 SectionBureau.CATALOGUE -> Column(modifier = Modifier.fillMaxSize()) {
-                    BandeauDemonstration(langue = langue)
+                    BandeauSourceDonnees(
+                        langue = langue,
+                        codeRelie = codeRelie,
+                        enChargement = chargementEnCours,
+                        onConnecter = { messageConnexion = null; dialogueConnexion = true },
+                        onActualiser = { codeRelie?.let { chargerBoutique(it, false) } }
+                    )
                     AccueilEcran(
                         produits = produits,
                         // Sur Android ce nom vient des préférences (écran Épicerie). Le bureau n'a
@@ -246,7 +325,13 @@ private fun FenetreVarotra(
                 }
 
                 SectionBureau.CAISSE -> Column(modifier = Modifier.fillMaxSize()) {
-                    BandeauDemonstration(langue = langue)
+                    BandeauSourceDonnees(
+                        langue = langue,
+                        codeRelie = codeRelie,
+                        enChargement = chargementEnCours,
+                        onConnecter = { messageConnexion = null; dialogueConnexion = true },
+                        onActualiser = { codeRelie?.let { chargerBoutique(it, false) } }
+                    )
                     CaisseEcran(
                         produits = produits,
                         panier = panier,
@@ -292,7 +377,13 @@ private fun FenetreVarotra(
                 }
 
                 SectionBureau.STOCK -> Column(modifier = Modifier.fillMaxSize()) {
-                    BandeauDemonstration(langue = langue)
+                    BandeauSourceDonnees(
+                        langue = langue,
+                        codeRelie = codeRelie,
+                        enChargement = chargementEnCours,
+                        onConnecter = { messageConnexion = null; dialogueConnexion = true },
+                        onActualiser = { codeRelie?.let { chargerBoutique(it, false) } }
+                    )
                     StockEcran(
                         produits = produits,
                         recherche = recherche,
@@ -320,7 +411,13 @@ private fun FenetreVarotra(
                 }
 
                 SectionBureau.DETTES -> Column(modifier = Modifier.fillMaxSize()) {
-                    BandeauDemonstration(langue = langue)
+                    BandeauSourceDonnees(
+                        langue = langue,
+                        codeRelie = codeRelie,
+                        enChargement = chargementEnCours,
+                        onConnecter = { messageConnexion = null; dialogueConnexion = true },
+                        onActualiser = { codeRelie?.let { chargerBoutique(it, false) } }
+                    )
                     DettesEcran(
                         dettes = dettes,
                         recherche = recherche,
@@ -365,10 +462,16 @@ private fun FenetreVarotra(
                 SectionBureau.A_PROPOS -> SectionAPropos(version = version, langue = langue)
 
                 SectionBureau.RAPPORTS -> Column(modifier = Modifier.fillMaxSize()) {
-                    BandeauDemonstration(langue = langue)
+                    BandeauSourceDonnees(
+                        langue = langue,
+                        codeRelie = codeRelie,
+                        enChargement = chargementEnCours,
+                        onConnecter = { messageConnexion = null; dialogueConnexion = true },
+                        onActualiser = { codeRelie?.let { chargerBoutique(it, false) } }
+                    )
                     RapportsEcran(
-                        ventes = DonneesDemo.ventes,
-                        retours = DonneesDemo.retours,
+                        ventes = ventes,
+                        retours = retours,
                         // Le catalogue VIVANT et non la constante : un ajustement de stock ou une
                         // suppression faite dans l'écran Stock doit se refléter ici, puisque c'est
                         // la même boutique.
@@ -379,37 +482,21 @@ private fun FenetreVarotra(
                 }
             }
         }
-    }
-}
 
-/**
- * Dit franchement que les produits affichés ne sont pas ceux d'une boutique.
- *
- * Sans ce bandeau, un gérant à qui l'on montre la version de bureau croirait que ses données sont
- * déjà là, et conclurait à une perte de données en ne reconnaissant aucun article.
- */
-@Composable
-private fun BandeauDemonstration(langue: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 24.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
-        )
-    ) {
-        Text(
-            text = when (langue) {
-                "mg" -> "Entana fanandramana ity : mbola tsy mifandray amin'ny tahiry " +
-                    "an-tsokosoko ny ordinatera."
-                "fr" -> "Produits de démonstration : la version de bureau n'est pas encore " +
-                    "reliée à la base de données de la boutique."
-                else -> "Demonstration products: the desktop version is not connected to the " +
-                    "shop database yet."
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-            modifier = Modifier.padding(14.dp)
-        )
+        // Posé au niveau de la fenêtre et non dans une section : le bandeau qui l'ouvre est présent
+        // sur les cinq écrans, et un dialogue déclaré dans la section active disparaîtrait si
+        // l'utilisateur changeait de section pendant le chargement.
+        if (dialogueConnexion) {
+            DialogueConnexionBoutique(
+                langue = langue,
+                saisie = saisieCode,
+                onSaisieChange = { saisieCode = it; messageConnexion = null },
+                message = messageConnexion,
+                enChargement = chargementEnCours,
+                onValider = { chargerBoutique(saisieCode, depuisDialogue = true) },
+                onFermer = { dialogueConnexion = false }
+            )
+        }
     }
 }
 

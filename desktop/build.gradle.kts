@@ -79,6 +79,10 @@ dependencies {
   // Le code de calcul partagé avec Android : les mêmes règles de lecture des montants, de prix et
   // de mise en forme tournent des deux côtés, à partir d'une seule source.
   implementation(project(":core:logic"))
+  // Les clients REST, pour lire la sauvegarde cloud de la boutique avec le code de récupération
+  // (voir `donnees/`). C'est ce qui remplace les données de démonstration par les vraies sans
+  // partager la base de données — donc sans toucher au fichier Room d'aucune boutique en service.
+  implementation(project(":core:network"))
   implementation(compose.desktop.currentOs)
   // Material 3 est à demander EXPLICITEMENT : `compose.desktop.currentOs` n'embarque que
   // Material 2. Sans cette ligne, les imports `androidx.compose.material3.*` ne résolvent pas —
