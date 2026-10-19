@@ -135,6 +135,52 @@ compose.desktop {
       // ce rôle de secours, puisqu'elle ne dépend de rien d'autre que du JDK.
       targetFormats(TargetFormat.Deb, TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Exe)
 
+      // MODULES DU RUNTIME JAVA — et c'est la cause du plantage « java/net/http/HttpClient »
+      // signalé à l'ouverture de « À propos ».
+      //
+      // `jpackage` n'embarque pas le JDK complet : il fabrique un runtime RÉDUIT avec `jlink`, qui
+      // ne contient que les modules déclarés. Tout le reste disparaît — et l'absence ne se voit
+      // NI à la compilation NI en CI (qui tourne sur un JDK complet), seulement à l'exécution chez
+      // l'utilisateur, sous la forme d'un `NoClassDefFoundError` au moment précis où il clique.
+      // C'est le pire des échecs possibles : invisible partout où on le cherche.
+      //
+      // Chaque module est ici pour une raison précise :
+      //  - `java.net.http`     : `HttpClient`, utilisé par la mise à jour interne (`maj/`). C'est
+      //                          celui qui manquait.
+      //  - `jdk.crypto.ec`     : les suites de chiffrement à courbes elliptiques de TLS. Sans lui
+      //                          AUCUNE connexion HTTPS n'aboutit sur un serveur moderne — donc ni
+      //                          la mise à jour, ni la lecture de la sauvegarde Firebase. L'échec
+      //                          se présente comme une panne de réseau, ce qui envoie chercher le
+      //                          problème du mauvais côté.
+      //  - `java.prefs`        : `java.util.prefs.Preferences`, où le code de récupération de la
+      //                          boutique est mémorisé (`donnees/ServiceDonneesBoutique`). Même
+      //                          famille de défaut que `java.net.http`, et conséquence pire : ce
+      //                          service est construit à l'ouverture de la FENÊTRE, donc son
+      //                          absence n'aurait pas fermé un écran mais le logiciel entier.
+      //  - `java.logging`      : `java.util.logging`, qu'OkHttp sollicite — donc la lecture de la
+      //                          sauvegarde Firebase, seule source des données réelles du bureau.
+      //  - `jdk.unsupported`   : `sun.misc.Unsafe`, qu'OkHttp/Okio et les coroutines utilisent.
+      //  - `java.naming`       : résolution de noms, sollicitée par certains chemins TLS.
+      //  - `java.sql`, `java.management` : réclamés indirectement par Moshi/Retrofit et les
+      //                          coroutines selon les chemins d'exécution.
+      //
+      // Une liste explicite plutôt qu'`includeAllModules = true` : le paquet pèse déjà ~96 Mo et
+      // tout embarquer y ajouterait plusieurs dizaines de mégaoctets, payés au téléchargement par
+      // un gérant dont la connexion est facturée au mégaoctet. Ces modules-là sont petits.
+      //
+      // **Règle à tenir pour la suite :** tout code de ce module qui touche à une API du JDK hors
+      // `java.base` doit ajouter son module ICI, sinon l'échec n'apparaîtra que chez le client.
+      modules(
+        "java.net.http",
+        "java.prefs",
+        "java.logging",
+        "jdk.crypto.ec",
+        "jdk.unsupported",
+        "java.naming",
+        "java.sql",
+        "java.management"
+      )
+
       packageName = "Varotra"
       // Contrainte héritée de Windows : MSI impose un numéro de version dont le premier nombre
       // est supérieur à zéro. "0.1.x" ferait échouer l'empaquetage sur Windows uniquement — un

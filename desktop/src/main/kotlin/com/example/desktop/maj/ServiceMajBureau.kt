@@ -65,10 +65,25 @@ class ServiceMajBureau(
     private val urlManifeste: String = MiseAJourBureau.URL_MANIFESTE
 ) {
 
-    private val client: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(20))
-        .followRedirects(HttpClient.Redirect.NORMAL)
-        .build()
+    /**
+     * Construit **à la première requête** et non à la construction du service, et ce n'est pas une
+     * micro-optimisation : c'est ce qui a planté l'écran « À propos » chez le gérant.
+     *
+     * `jpackage` fabrique un runtime Java réduit par `jlink`, dont `java.net.http` est absent par
+     * défaut — le module est désormais déclaré dans `desktop/build.gradle.kts`, mais le défaut
+     * valait d'être rendu inoffensif : la carte construit son service **au moment où elle
+     * s'affiche** (`remember { ServiceMajBureau() }`), donc un champ initialisé dans le
+     * constructeur touchait `java.net.http` dès l'ouverture de l'écran, bien avant tout clic.
+     * Résultat : « À propos » ne s'ouvrait plus du tout, pour un composant dont on n'avait pas
+     * encore besoin. Différé ici, seul le bouton « Vérifier » peut encore y buter — et il échoue
+     * alors avec un message, ce que la gestion de [LinkageError] plus bas garantit.
+     */
+    private val client: HttpClient by lazy {
+        HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(20))
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build()
+    }
 
     /**
      * Ce qui empêche la mise à jour sur cette installation, ou `null` si elle est possible.
@@ -122,6 +137,11 @@ class ServiceMajBureau(
                 Result.success(MiseAJourBureau.parserManifeste(corps, versionCodeActuel))
             } catch (e: Exception) {
                 Result.failure(e)
+            } catch (e: LinkageError) {
+                // Un `NoClassDefFoundError` n'est PAS une `Exception` : sans cette branche, un
+                // module absent du runtime réduit traverse tout `catch (e: Exception)` et ferme
+                // le logiciel. C'est exactement ce qui est arrivé à l'écran « À propos ».
+                Result.failure(IOException(ERREUR_COMPOSANT_MANQUANT, e))
             }
         }
 
@@ -177,6 +197,10 @@ class ServiceMajBureau(
             archive.delete()
             nouveau.deleteRecursively()
             Result.failure(e)
+        } catch (e: LinkageError) {
+            archive.delete()
+            nouveau.deleteRecursively()
+            Result.failure(IOException(ERREUR_COMPOSANT_MANQUANT, e))
         }
     }
 
@@ -283,5 +307,18 @@ class ServiceMajBureau(
                 entree = zip.nextEntry
             }
         }
+    }
+
+    companion object {
+        /**
+         * Marque un échec dû à un composant **absent du runtime du paquet** (module JPMS non
+         * déclaré), et non à une panne de réseau.
+         *
+         * Une sentinelle plutôt qu'un message, pour la raison de la section 56 : un seul libellé
+         * pour deux causes fait attendre un réseau qui marchait. Ici, le gérant n'a rien à
+         * attendre — c'est le paquet qu'il faut reconstruire, et le dire est la seule façon que
+         * cela remonte jusqu'au fournisseur au lieu d'être pris pour une coupure.
+         */
+        const val ERREUR_COMPOSANT_MANQUANT = "COMPOSANT_MANQUANT"
     }
 }

@@ -127,12 +127,12 @@ fun CarteMajBureau(
                                             if (info == null) EtatMaj.AJour
                                             else EtatMaj.Disponible(info)
                                         },
-                                        onFailure = { EtatMaj.Echec(messageReseau(langue)) }
+                                        onFailure = { EtatMaj.Echec(messageEchec(it, langue)) }
                                     )
                                 } catch (e: CancellationException) {
                                     throw e
                                 } catch (e: Exception) {
-                                    EtatMaj.Echec(messageReseau(langue))
+                                    EtatMaj.Echec(messageEchec(e, langue))
                                 }
                             }
                         }
@@ -192,19 +192,13 @@ fun CarteMajBureau(
                                     ).fold(
                                         onSuccess = { EtatMaj.Prete(courant.info, it) },
                                         onFailure = { erreur ->
-                                            EtatMaj.Echec(
-                                                if (erreur.message == "EMPREINTE_INVALIDE") {
-                                                    messageEmpreinte(langue)
-                                                } else {
-                                                    messageReseau(langue)
-                                                }
-                                            )
+                                            EtatMaj.Echec(messageEchec(erreur, langue))
                                         }
                                     )
                                 } catch (e: CancellationException) {
                                     throw e
                                 } catch (e: Exception) {
-                                    EtatMaj.Echec(messageReseau(langue))
+                                    EtatMaj.Echec(messageEchec(e, langue))
                                 }
                             }
                         }
@@ -351,6 +345,33 @@ private fun messagePrete(langue: String) = when (langue) {
     "mg" -> "Vonona. Hikatona ny rindrambaiko ary hiverina ho azy amin'ny version vaovao."
     "fr" -> "Prêt. Le logiciel va se fermer puis se rouvrir tout seul sur la nouvelle version."
     else -> "Ready. The software will close and reopen itself on the new version."
+}
+
+/**
+ * Le message à montrer pour un échec, selon sa cause réelle.
+ *
+ * Un seul aiguillage pour les trois sites d'échec de cette carte, plutôt qu'un `if` recopié :
+ * c'est précisément la duplication qui avait laissé le cas de l'empreinte traité d'un côté et pas
+ * de l'autre. Et surtout, les trois causes ne demandent pas la même chose au gérant — réessayer
+ * plus tard, réessayer tout de suite, ou prévenir le fournisseur. Les fondre en « erreur réseau »
+ * ferait attendre une connexion qui marchait (section 56).
+ */
+private fun messageEchec(erreur: Throwable, langue: String): String = when (erreur.message) {
+    ServiceMajBureau.ERREUR_COMPOSANT_MANQUANT -> messageComposant(langue)
+    "EMPREINTE_INVALIDE" -> messageEmpreinte(langue)
+    else -> messageReseau(langue)
+}
+
+private fun messageComposant(langue: String) = when (langue) {
+    // Rien à réessayer : c'est le paquet installé qui est incomplet, pas la connexion. Le dire est
+    // la seule façon que l'information remonte au fournisseur au lieu d'être prise pour une
+    // coupure de réseau, que le gérant attendrait en vain.
+    "mg" -> "Tsy feno ity rindrambaiko napetraka ity : tsy afaka manavao ho azy. " +
+        "Ampandreneso ny mpamatsy."
+    "fr" -> "Cette installation est incomplète : la mise à jour automatique n'est pas disponible. " +
+        "Signalez-le au fournisseur."
+    else -> "This installation is incomplete: automatic updating is unavailable. " +
+        "Please report it to your supplier."
 }
 
 private fun messageReseau(langue: String) = when (langue) {

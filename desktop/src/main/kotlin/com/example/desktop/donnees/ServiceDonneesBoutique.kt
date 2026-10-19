@@ -51,19 +51,38 @@ sealed interface ResultatChargement {
  * suppose une base Room de part et d'autre.
  */
 class ServiceDonneesBoutique(
-    private val preferences: Preferences = Preferences.userRoot().node("com/example/varotra/bureau"),
-    private val urlBase: String = FirebaseBackupManager.resolveDatabaseUrl("")
+    private val urlPersonnelle: String = ""
 ) {
+
+    /**
+     * Les deux ressources de ce service sont résolues **à la première utilisation**, et c'est la
+     * leçon directe du plantage de l'écran « À propos » : ce service-ci est construit à l'ouverture
+     * de la FENÊTRE, donc un champ initialisé dans le constructeur aurait fermé le logiciel entier
+     * et non un seul écran.
+     *
+     * `java.util.prefs.Preferences` vit dans le module `java.prefs`, et le client HTTP d'OkHttp
+     * sollicite `java.logging` : deux modules que le runtime réduit de `jpackage` n'embarque que
+     * s'ils sont déclarés (ils le sont maintenant, dans `desktop/build.gradle.kts`). Le `?` et les
+     * `runCatching` font que même une déclaration oubliée dégrade le poste vers les données de
+     * démonstration, au lieu de l'empêcher de démarrer.
+     */
+    private val preferences: Preferences? by lazy {
+        runCatching { Preferences.userRoot().node(NOEUD) }.getOrNull()
+    }
+
+    private val urlBase: String by lazy {
+        runCatching { FirebaseBackupManager.resolveDatabaseUrl(urlPersonnelle) }.getOrNull() ?: ""
+    }
 
     /** Le code mémorisé après un chargement réussi, ou `null` si le poste n'est pas encore relié. */
     fun codeEnregistre(): String? =
-        runCatching { preferences.get(CLE_CODE, null)?.takeIf { it.isNotBlank() } }.getOrNull()
+        runCatching { preferences?.get(CLE_CODE, null)?.takeIf { it.isNotBlank() } }.getOrNull()
 
     /** Oublie le code : le poste repasse sur les données de démonstration. */
     fun oublierCode() {
         runCatching {
-            preferences.remove(CLE_CODE)
-            preferences.flush()
+            preferences?.remove(CLE_CODE)
+            preferences?.flush()
         }
     }
 
@@ -80,7 +99,13 @@ class ServiceDonneesBoutique(
             ?: RecoveryCode.normalizeLegacyUuid(codeSaisi)
             ?: return ResultatChargement.CodeInvalide
 
-        val telechargement = FirebaseBackupManager.downloadBackup(urlBase, normalise)
+        // `runCatching` et non l'appel nu : il rattrape `Throwable`, donc aussi un
+        // `NoClassDefFoundError` — qu'aucun `catch (e: Exception)` de l'appelant n'intercepterait.
+        // Un composant absent du paquet se présente alors comme un échec de connexion, ce qui est
+        // imprécis mais laisse le logiciel ouvert ; le vrai remède est la liste de modules du
+        // fichier de construction, et il est en place.
+        val telechargement = runCatching { FirebaseBackupManager.downloadBackup(urlBase, normalise) }
+            .getOrElse { Result.failure(it) }
         val corps = telechargement.getOrElse { erreur ->
             // `downloadBackup` rend le même échec pour « chemin vide » (HTTP 200 + corps « null »)
             // et pour une panne réseau. Le code HTTP permet de les séparer : un 200 signifie qu'on
@@ -96,13 +121,14 @@ class ServiceDonneesBoutique(
             ?: return ResultatChargement.SauvegardeIllisible
 
         runCatching {
-            preferences.put(CLE_CODE, normalise)
-            preferences.flush()
+            preferences?.put(CLE_CODE, normalise)
+            preferences?.flush()
         }
         return ResultatChargement.Succes(donnees, normalise)
     }
 
     private companion object {
+        const val NOEUD = "com/example/varotra/bureau"
         const val CLE_CODE = "code_recuperation"
     }
 }
