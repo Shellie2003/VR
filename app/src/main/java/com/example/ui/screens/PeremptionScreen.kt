@@ -33,7 +33,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private const val EXPIRY_WARNING_WINDOW_MS = 7L * 24 * 60 * 60 * 1000
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,13 +52,20 @@ fun PeremptionScreen(
     val secondaryTextColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     val now = remember { System.currentTimeMillis() }
-    val warningThreshold = now + EXPIRY_WARNING_WINDOW_MS
+    val warningThreshold = now + com.example.util.AlertePeremption.FENETRE_ALERTE_MS
 
     val eligibleProducts = remember(allProducts) { allProducts.filter { it.gerePeremption } }
 
+    // La classification vient de `AlertePeremption` : la fenêtre de 7 jours était écrite ici ET
+    // dans le ViewModel (la notification quotidienne). C'est un seuil commercial, et le changer
+    // d'un seul côté donnerait un écran qui signale des lots que la notification ignore.
     val sortedLots = remember(allLots) { allLots.sortedBy { it.datePeremption } }
-    val expiredCount = remember(allLots) { allLots.count { it.datePeremption < now } }
-    val expiringSoonCount = remember(allLots) { allLots.count { it.datePeremption in now..warningThreshold } }
+    val expiredCount = remember(allLots) {
+        com.example.util.AlertePeremption.compterPerimes(allLots.map { it.datePeremption }, now)
+    }
+    val expiringSoonCount = remember(allLots) {
+        com.example.util.AlertePeremption.compterBientot(allLots.map { it.datePeremption }, now)
+    }
 
     var showAddLotDialog by remember { mutableStateOf(false) }
     var lotToEdit by remember { mutableStateOf<LotProduit?>(null) }

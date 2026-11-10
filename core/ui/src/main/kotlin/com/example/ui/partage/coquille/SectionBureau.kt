@@ -13,10 +13,15 @@ package com.example.ui.partage.coquille
  * permet à `SectionBureauTest` de vérifier qu'aucune traduction ne manque. Une étiquette oubliée
  * afficherait un menu avec un trou, ce qu'aucun test d'interface ne remarquerait.
  *
- * **Les six sections sont désormais servies.** Le mécanisme « à venir » qui grisait une entrée de
- * menu et expliquait ce qu'elle attendait a donc été retiré : un drapeau toujours vrai est une
- * documentation fausse. Il est dans l'historique git si une future section doit être annoncée avant
- * d'être écrite.
+ * **Les dix sections sont servies.** Le mécanisme « à venir » qui grisait une entrée de menu et
+ * expliquait ce qu'elle attendait a été retiré : un drapeau toujours vrai est une documentation
+ * fausse. Il est dans l'historique git si une future section doit être annoncée avant d'être
+ * écrite.
+ *
+ * L'ordre du menu suit le travail d'une journée — encaisser, consulter le catalogue et le stock,
+ * relire l'historique, les trosa, la caisse — puis les outils d'organisation (péremption, plan
+ * d'étagères) et enfin les rapports. `SectionBureauTest` l'épingle : une section glissée au milieu
+ * déplacerait sous le curseur des entrées que le gérant a appris à viser sans lire.
  *
  * Ce qui manque encore est dit **dans** les écrans, là où c'est utile : le bandeau de démonstration
  * sur chacun, et la raison affichée sous le bouton « Valider » désactivé de la caisse — tout son
@@ -26,7 +31,11 @@ enum class SectionBureau {
     CAISSE,
     CATALOGUE,
     STOCK,
+    HISTORIQUE,
     DETTES,
+    MOUVEMENTS_CAISSE,
+    PEREMPTION,
+    ETAGERES,
     RAPPORTS,
     A_PROPOS;
 
@@ -54,6 +63,29 @@ enum class SectionBureau {
             "mg" -> "Trosa"
             "fr" -> "Dettes"
             else -> "Debts"
+        }
+        HISTORIQUE -> when (langue) {
+            "mg" -> "Tantara"
+            "fr" -> "Historique"
+            else -> "History"
+        }
+        // Libellés repris MOT POUR MOT de l'écran Paramètres d'Android : le gérant qui connaît son
+        // téléphone doit retrouver le même nom sur son PC. Inventer un synonyme ici ferait croire
+        // à deux fonctionnalités différentes.
+        MOUVEMENTS_CAISSE -> when (langue) {
+            "mg" -> "Vola an-Kesty"
+            "fr" -> "Mouvements de caisse"
+            else -> "Cash Movements"
+        }
+        PEREMPTION -> when (langue) {
+            "mg" -> "Fetr'andro"
+            "fr" -> "Péremption"
+            else -> "Expiry"
+        }
+        ETAGERES -> when (langue) {
+            "mg" -> "Efitrano fivarotana"
+            "fr" -> "Plan d'étagères"
+            else -> "Shelf plan"
         }
         RAPPORTS -> when (langue) {
             "mg" -> "Tatitra"

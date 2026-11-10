@@ -90,22 +90,12 @@ fun SalesHistoryScreen(
         cal
     }
 
-    val dayStart = remember(calendar) {
-        val cal = calendar.clone() as java.util.Calendar
-        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-        cal.set(java.util.Calendar.MINUTE, 0)
-        cal.set(java.util.Calendar.SECOND, 0)
-        cal.set(java.util.Calendar.MILLISECOND, 0)
-        cal.timeInMillis
-    }
-
-    val dayEnd = remember(calendar) {
-        val cal = calendar.clone() as java.util.Calendar
-        cal.set(java.util.Calendar.HOUR_OF_DAY, 23)
-        cal.set(java.util.Calendar.MINUTE, 59)
-        cal.set(java.util.Calendar.SECOND, 59)
-        cal.set(java.util.Calendar.MILLISECOND, 999)
-        cal.timeInMillis
+    // Le découpage de la journée vient de `RapportFinancier` : il était écrit à la main ici, et
+    // une deuxième fois, différemment, dans le graphique du tableau de bord. Le port de cet écran
+    // sur le bureau en aurait fait une troisième copie — or c'est ce découpage qui décide quelles
+    // ventes comptent dans la recette du jour.
+    val journee = remember(calendar) {
+        com.example.util.RapportFinancier.bornesDuJour(calendar.timeInMillis)
     }
 
     // Dynamic selected day formatting helper
@@ -141,37 +131,23 @@ fun SalesHistoryScreen(
         }
     }
 
-    // 1. FILTER SALES BY DATE
-    val salesFilteredByDate = remember(sales, dayStart, dayEnd) {
-        sales.filter { it.timestamp in dayStart..dayEnd }
+    // Le filtrage (journée puis recherche) vient de `FiltreHistorique` : il était écrit ici, et le
+    // port de cet écran sur le bureau en aurait fait une seconde copie — or c'est lui qui décide de
+    // ce que le gérant compte comme la recette du jour.
+    val salesFilteredByDate = remember(sales, journee) {
+        sales.filter { journee.contient(it.timestamp) }
     }
 
-    // 2. FILTER SALES BY SEARCH QUERY
     val displayedSales = remember(salesFilteredByDate, searchQuery) {
-        if (searchQuery.isBlank()) {
-            salesFilteredByDate
-        } else {
-            salesFilteredByDate.filter { sale ->
-                sale.items.any { item -> item.name.contains(searchQuery, ignoreCase = true) }
-            }
-        }
+        com.example.util.FiltreHistorique.chercherVentes(salesFilteredByDate, searchQuery)
     }
 
-    // RESTOCK FILTERING BY DATE
-    val restocksFilteredByDate = remember(restocks, dayStart, dayEnd) {
-        restocks.filter { it.timestamp in dayStart..dayEnd }
+    val restocksFilteredByDate = remember(restocks, journee) {
+        restocks.filter { journee.contient(it.timestamp) }
     }
 
-    // RESTOCK FILTERING BY SEARCH QUERY
     val displayedRestocks = remember(restocksFilteredByDate, searchQuery) {
-        if (searchQuery.isBlank()) {
-            restocksFilteredByDate
-        } else {
-            restocksFilteredByDate.filter { restock ->
-                restock.productName.contains(searchQuery, ignoreCase = true) ||
-                (restock.supplierName?.contains(searchQuery, ignoreCase = true) == true)
-            }
-        }
+        com.example.util.FiltreHistorique.chercherReappros(restocksFilteredByDate, searchQuery)
     }
 
     // METRICS CALCULATIONS
@@ -486,8 +462,30 @@ fun SalesHistoryScreen(
                                 tint = themeColor,
                                 modifier = Modifier.size(14.dp)
                             )
+                            // Cette ligne affichait « +12% omaly » EN DUR : une valeur inventée,
+                            // la même chaque jour, posée sous la recette réelle et donc lue comme
+                            // une mesure. Elle est désormais calculée ; un tiret quand la veille
+                            // n'a rien encaissé, car une progression depuis zéro ne s'exprime pas
+                            // en pourcentage.
+                            val variation = remember(sales, journee) {
+                                com.example.util.FiltreHistorique.variationVeille(
+                                    ventes = sales,
+                                    instantDuJour = journee.debut
+                                )
+                            }
                             Text(
-                                text = "+12% omaly",
+                                text = variation?.let {
+                                    val signe = if (it >= 0) "+" else ""
+                                    "$signe${String.format("%.0f", it)}% " + when (activeLang) {
+                                        "mg" -> "omaly"
+                                        "fr" -> "vs hier"
+                                        else -> "vs yesterday"
+                                    }
+                                } ?: when (activeLang) {
+                                    "mg" -> "Tsy nisy omaly"
+                                    "fr" -> "Rien hier"
+                                    else -> "Nothing yesterday"
+                                },
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -1416,7 +1414,13 @@ fun RestockListItem(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     DetailRow(label = "Isany manontolo", value = "${restock.totalUnits.toInt()} singany")
-                    DetailRow(label = "Vidiny nividianana (Singany)", value = "Ar ${FormatUtil.formatPrice(restock.totalCostPrice / restock.totalUnits)}")
+                    // `coutUnitaireReappro` rend `null` à zéro unité : la division nue affichait
+                    // « Ar ∞ » sur un réappro saisi sans compter les pièces.
+                    val coutUnitaire = com.example.util.FiltreHistorique.coutUnitaireReappro(restock)
+                    DetailRow(
+                        label = "Vidiny nividianana (Singany)",
+                        value = coutUnitaire?.let { "Ar ${FormatUtil.formatPrice(it)}" } ?: "—"
+                    )
                     DetailRow(label = "Vidiny hivarotana", value = "Ar ${FormatUtil.formatPrice(restock.unitSellingPrice)}")
                     DetailRow(label = "Mpamatsy", value = restock.supplierName ?: "Tsy misy")
                 }

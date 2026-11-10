@@ -50,9 +50,14 @@ import com.example.data.model.CartItem
 import com.example.data.model.Debt
 import com.example.ui.partage.accueil.AccueilEcran
 import com.example.ui.partage.caisse.CaisseEcran
+import com.example.ui.partage.caisse.MouvementsCaisseEcran
 import com.example.ui.partage.coquille.CoquilleBureau
 import com.example.ui.partage.coquille.SectionBureau
 import com.example.ui.partage.dettes.DettesEcran
+import com.example.ui.partage.etagere.EtagereEcran
+import com.example.ui.partage.historique.HistoriqueEcran
+import com.example.ui.partage.historique.OngletHistorique
+import com.example.ui.partage.peremption.PeremptionEcran
 import com.example.ui.partage.rapports.RapportsEcran
 import com.example.ui.partage.stock.StockEcran
 import com.example.ui.partage.theme.VarotraTheme
@@ -162,6 +167,21 @@ private fun FenetreVarotra(
     // que l'écran Rapports lit, donc ils doivent pouvoir être remplacés par ceux de la boutique.
     var ventes by remember { mutableStateOf(DonneesDemo.ventes) }
     var retours by remember { mutableStateOf(DonneesDemo.retours) }
+    // Les collections des quatre nouvelles sections. Elles viennent de la MÊME sauvegarde que les
+    // précédentes : la lire plus largement ne coûte rien de plus au réseau, puisque c'est un seul
+    // fichier JSON (section 102).
+    var reappros by remember { mutableStateOf(DonneesDemo.reappros) }
+    var mouvementsCaisse by remember { mutableStateOf(DonneesDemo.mouvementsCaisse) }
+    var sessionsCaisse by remember { mutableStateOf(DonneesDemo.sessionsCaisse) }
+    var lots by remember { mutableStateOf(DonneesDemo.lots) }
+    var planEtagere by remember { mutableStateOf(DonneesDemo.planEtagere) }
+
+    // L'état propre à l'historique. Sa recherche est SÉPARÉE de celle du catalogue, et c'est
+    // fidèle au téléphone : là-bas `searchQuery` de l'historique est un état local de l'écran,
+    // alors que celui du catalogue vit dans le ViewModel.
+    var ongletHistorique by remember { mutableStateOf(OngletHistorique.VENTES) }
+    var jourHistorique by remember { mutableStateOf(System.currentTimeMillis()) }
+    var rechercheHistorique by remember { mutableStateOf("") }
 
     // Un SEUL panier pour le catalogue et la caisse, et c'est le point important : le badge de
     // quantité de l'accueil et la ligne de la caisse montrent désormais le même panier, géré par
@@ -196,6 +216,11 @@ private fun FenetreVarotra(
                         dettes = resultat.donnees.dettes
                         ventes = resultat.donnees.ventes
                         retours = resultat.donnees.retours
+                        reappros = resultat.donnees.reappros
+                        mouvementsCaisse = resultat.donnees.mouvementsCaisse
+                        sessionsCaisse = resultat.donnees.sessionsCaisse
+                        lots = resultat.donnees.lots
+                        planEtagere = resultat.donnees.planEtagere
                         codeRelie = resultat.codeNormalise
                         messageConnexion = null
                         dialogueConnexion = false
@@ -283,15 +308,27 @@ private fun FenetreVarotra(
                 )
             }
         ) { sectionActive ->
+          Column(modifier = Modifier.fillMaxSize()) {
+            // UN SEUL bandeau pour toutes les sections de données. Il était recopié dans chacune
+            // — cinq copies, et neuf après l'arrivée de l'historique, de la caisse, de la
+            // péremption et du plan d'étagères. C'est la duplication que ce projet passe son temps
+            // à défaire : une copie modifiée et les autres oubliées donneraient un écran qui
+            // annonce une source de données et un autre qui en annonce une différente.
+            //
+            // « À propos » en est exclue, et c'est voulu : elle ne montre aucune donnée de la
+            // boutique, donc y annoncer la source serait du bruit.
+            if (sectionActive != SectionBureau.A_PROPOS) {
+                BandeauSourceDonnees(
+                    langue = langue,
+                    codeRelie = codeRelie,
+                    enChargement = chargementEnCours,
+                    onConnecter = { messageConnexion = null; dialogueConnexion = true },
+                    onActualiser = { codeRelie?.let { chargerBoutique(it, false) } }
+                )
+            }
+
             when (sectionActive) {
                 SectionBureau.CATALOGUE -> Column(modifier = Modifier.fillMaxSize()) {
-                    BandeauSourceDonnees(
-                        langue = langue,
-                        codeRelie = codeRelie,
-                        enChargement = chargementEnCours,
-                        onConnecter = { messageConnexion = null; dialogueConnexion = true },
-                        onActualiser = { codeRelie?.let { chargerBoutique(it, false) } }
-                    )
                     AccueilEcran(
                         produits = produits,
                         // Sur Android ce nom vient des préférences (écran Épicerie). Le bureau n'a
@@ -325,13 +362,6 @@ private fun FenetreVarotra(
                 }
 
                 SectionBureau.CAISSE -> Column(modifier = Modifier.fillMaxSize()) {
-                    BandeauSourceDonnees(
-                        langue = langue,
-                        codeRelie = codeRelie,
-                        enChargement = chargementEnCours,
-                        onConnecter = { messageConnexion = null; dialogueConnexion = true },
-                        onActualiser = { codeRelie?.let { chargerBoutique(it, false) } }
-                    )
                     CaisseEcran(
                         produits = produits,
                         panier = panier,
@@ -377,13 +407,6 @@ private fun FenetreVarotra(
                 }
 
                 SectionBureau.STOCK -> Column(modifier = Modifier.fillMaxSize()) {
-                    BandeauSourceDonnees(
-                        langue = langue,
-                        codeRelie = codeRelie,
-                        enChargement = chargementEnCours,
-                        onConnecter = { messageConnexion = null; dialogueConnexion = true },
-                        onActualiser = { codeRelie?.let { chargerBoutique(it, false) } }
-                    )
                     StockEcran(
                         produits = produits,
                         recherche = recherche,
@@ -411,13 +434,6 @@ private fun FenetreVarotra(
                 }
 
                 SectionBureau.DETTES -> Column(modifier = Modifier.fillMaxSize()) {
-                    BandeauSourceDonnees(
-                        langue = langue,
-                        codeRelie = codeRelie,
-                        enChargement = chargementEnCours,
-                        onConnecter = { messageConnexion = null; dialogueConnexion = true },
-                        onActualiser = { codeRelie?.let { chargerBoutique(it, false) } }
-                    )
                     DettesEcran(
                         dettes = dettes,
                         recherche = recherche,
@@ -459,16 +475,53 @@ private fun FenetreVarotra(
                     )
                 }
 
+                SectionBureau.HISTORIQUE -> HistoriqueEcran(
+                    ventes = ventes,
+                    reappros = reappros,
+                    retours = retours,
+                    produits = produits,
+                    onglet = ongletHistorique,
+                    onOngletChange = { ongletHistorique = it },
+                    jourAffiche = jourHistorique,
+                    onJourChange = { jourHistorique = it },
+                    recherche = rechercheHistorique,
+                    onRechercheChange = { rechercheHistorique = it },
+                    dateLisible = { FORMAT_DATE.format(java.util.Date(it)) },
+                    heureLisible = { FORMAT_HEURE.format(java.util.Date(it)) },
+                    // Comparé par BORNES DE JOURNÉE et non par différence de millisecondes : à
+                    // 23h59, « aujourd'hui » et « il y a une minute » sont le même jour civil,
+                    // ce qu'une soustraction ne dirait pas.
+                    estAujourdhui = com.example.util.RapportFinancier.bornesDuJour(jourHistorique)
+                        .contient(System.currentTimeMillis()),
+                    langue = langue,
+                    themeColor = MaterialTheme.colorScheme.primary,
+                    focusRecherche = focusRecherche
+                )
+
+                SectionBureau.MOUVEMENTS_CAISSE -> MouvementsCaisseEcran(
+                    mouvements = mouvementsCaisse,
+                    sessions = sessionsCaisse,
+                    dateHeureLisible = { FORMAT_DATE_HEURE.format(java.util.Date(it)) },
+                    langue = langue,
+                    themeColor = MaterialTheme.colorScheme.primary
+                )
+
+                SectionBureau.PEREMPTION -> PeremptionEcran(
+                    lots = lots,
+                    dateLisible = { FORMAT_DATE.format(java.util.Date(it)) },
+                    langue = langue,
+                    themeColor = MaterialTheme.colorScheme.primary
+                )
+
+                SectionBureau.ETAGERES -> EtagereEcran(
+                    plan = planEtagere,
+                    langue = langue,
+                    focusRecherche = focusRecherche
+                )
+
                 SectionBureau.A_PROPOS -> SectionAPropos(version = version, langue = langue)
 
                 SectionBureau.RAPPORTS -> Column(modifier = Modifier.fillMaxSize()) {
-                    BandeauSourceDonnees(
-                        langue = langue,
-                        codeRelie = codeRelie,
-                        enChargement = chargementEnCours,
-                        onConnecter = { messageConnexion = null; dialogueConnexion = true },
-                        onActualiser = { codeRelie?.let { chargerBoutique(it, false) } }
-                    )
                     RapportsEcran(
                         ventes = ventes,
                         retours = retours,
@@ -481,6 +534,7 @@ private fun FenetreVarotra(
                     )
                 }
             }
+          }
         }
 
         // Posé au niveau de la fenêtre et non dans une section : le bandeau qui l'ouvre est présent
@@ -717,7 +771,9 @@ private val SECTIONS_AVEC_RECHERCHE = setOf(
     SectionBureau.CATALOGUE,
     SectionBureau.STOCK,
     SectionBureau.CAISSE,
-    SectionBureau.DETTES
+    SectionBureau.DETTES,
+    SectionBureau.HISTORIQUE,
+    SectionBureau.ETAGERES
 )
 
 /**
@@ -725,3 +781,9 @@ private val SECTIONS_AVEC_RECHERCHE = setOf(
  * être la même d'un appareil à l'autre, pas celle de la configuration du PC.
  */
 private val FORMAT_DATE = SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE)
+
+/** L'heure seule, comme sur les cartes de l'historique Android. */
+private val FORMAT_HEURE = SimpleDateFormat("HH:mm", Locale.FRANCE)
+
+/** Date et heure, comme sur les cartes de mouvement de caisse Android. */
+private val FORMAT_DATE_HEURE = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.FRANCE)

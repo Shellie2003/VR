@@ -161,6 +161,42 @@ object RapportFinancier {
         }
     }
 
+    /**
+     * Les bornes d'une journée civile : minuit inclus, minuit du lendemain **exclu**.
+     *
+     * **Pourquoi ici et pas dans l'écran qui en a besoin.** Ce découpage était écrit à la main dans
+     * `SalesHistoryScreen` (un `dayStart` et un `dayEnd` à 23:59:59.999) et une deuxième fois,
+     * différemment, dans [chiffreAffairesParJour] juste au-dessus. Le port bureau de l'historique
+     * en aurait fait une troisième copie. Or c'est ce découpage qui décide quelles ventes comptent
+     * dans « le chiffre d'affaires du jour » : deux variantes finiraient par annoncer deux recettes
+     * différentes pour la même journée selon l'écran ouvert, sans qu'aucune erreur n'apparaisse.
+     *
+     * **Borne haute exclusive**, comme dans [chiffreAffairesParJour] et pour la même raison : avec
+     * deux bornes inclusives, une vente tombant exactement à la milliseconde de bascule serait
+     * comptée dans les deux journées. L'écart avec l'ancien `23:59:59.999` est d'une milliseconde
+     * — sauf précisément pour cette vente-là, que l'ancien découpage comptait deux fois.
+     *
+     * `Calendar` et non une arithmétique en millisecondes : une journée ne fait pas toujours
+     * 24 heures.
+     */
+    data class Journee(val debut: Long, val finExclusive: Long) {
+        /** L'instant appartient-il à cette journée ? */
+        fun contient(instant: Long): Boolean = instant >= debut && instant < finExclusive
+    }
+
+    /** La journée civile qui contient [instant]. */
+    fun bornesDuJour(instant: Long): Journee {
+        val minuit = Calendar.getInstance().apply {
+            timeInMillis = instant
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val lendemain = (minuit.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
+        return Journee(minuit.timeInMillis, lendemain.timeInMillis)
+    }
+
     /** La fenêtre d'analyse : son premier instant et son nombre de jours. */
     data class Periode(val debut: Long, val nombreDeJours: Int)
 

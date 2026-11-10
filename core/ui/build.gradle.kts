@@ -67,6 +67,13 @@ dependencies {
   // ou de définir ce seul vecteur localement appartient à l'utilisateur (AGENTS.md section 88).
   implementation(compose.materialIconsExtended)
 
+  // DÉCLARÉE EXPLICITEMENT, bien que le runtime Compose l'apporte en pratique : le plan
+  // d'étagères utilise `delay` et `launch` (défilement animé vers un rayon, soulignement qui
+  // s'efface). S'appuyer sur une dépendance transitive que je ne peux pas vérifier ici — le
+  // dépôt Maven de Google n'est pas joignable depuis cet environnement — serait un pari dont
+  // l'échec n'apparaîtrait qu'en CI.
+  implementation(libs.kotlinx.coroutines.core)
+
   testImplementation(libs.junit)
   // Rendu des écrans en test. Jusqu'ici la CI ne faisait que COMPILER ces ~2500 lignes de Compose :
   // un plantage sur une liste vide (un `maxOf` sans garde, une division par zéro dans le

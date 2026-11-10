@@ -743,16 +743,15 @@ private fun RenommerDialog(
 }
 
 /**
- * Conversion défensive d'un hex déjà normalisé par [EtagereColors.normaliser] vers une `Color`
- * Compose. `normaliser` garantit un format `#RRGGBB` valide, donc `parseColor` ne devrait jamais
- * lever — le `try/catch` reste une protection de dernier recours plutôt qu'un chemin attendu :
- * une donnée corrompue (sync partielle, ancienne version) ne doit jamais faire planter l'écran.
+ * Conversion d'un hex de couleur de rayon vers une `Color` Compose.
+ *
+ * La lecture est faite par [EtagereColors.versArgb], partagée avec la version de bureau : elle
+ * remplace `android.graphics.Color.parseColor`, qui n'existe pas hors d'Android et aurait donc
+ * imposé un second analyseur pour un seul format. Une valeur corrompue (synchronisation partielle,
+ * ancienne version) rend `null` sans jamais lever.
  */
-private fun parseHexColorOrNull(hexNormalise: String): Color? = try {
-    Color(android.graphics.Color.parseColor(hexNormalise))
-} catch (e: IllegalArgumentException) {
-    null
-}
+private fun parseHexColorOrNull(hexNormalise: String): Color? =
+    EtagereColors.versArgb(hexNormalise)?.let { Color(it) }
 
 /** Sélecteur de couleur pour une étagère ou une case : une palette fixe plutôt qu'une vraie roue
  * chromatique, largement suffisante pour distinguer visuellement des rayons et bien plus légère

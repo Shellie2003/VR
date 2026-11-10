@@ -40,7 +40,6 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 // C.4: a lot within this many days of its expiry date counts as "expiring soon".
-private const val EXPIRY_WARNING_WINDOW_MS = 7L * 24 * 60 * 60 * 1000
 
 // Deletion tombstones: stable, cross-device identifiers for each entity type, used both when
 // recording a deletion and when checking incoming sync/backup payloads so a deleted record can
@@ -1041,10 +1040,12 @@ class InventoryViewModel(
         if (appPreferences.lastExpiryCheckDate == todayStr) return
 
         val now = System.currentTimeMillis()
-        val warningThreshold = now + EXPIRY_WARNING_WINDOW_MS
         val lots = repository.allLots.first()
-        val expiredCount = lots.count { it.datePeremption < now }
-        val expiringSoonCount = lots.count { it.datePeremption in now..warningThreshold }
+        // Même classification que l'écran Péremption (`AlertePeremption`) : la fenêtre de 7 jours
+        // était écrite des deux côtés, donc la déplacer n'aurait alerté qu'à moitié.
+        val dates = lots.map { it.datePeremption }
+        val expiredCount = com.example.util.AlertePeremption.compterPerimes(dates, now)
+        val expiringSoonCount = com.example.util.AlertePeremption.compterBientot(dates, now)
         if (expiredCount > 0 || expiringSoonCount > 0) {
             try {
                 NotificationHelper.showExpiryAlertNotification(context, expiredCount, expiringSoonCount)

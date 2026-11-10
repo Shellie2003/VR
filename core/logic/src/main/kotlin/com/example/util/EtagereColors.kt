@@ -25,4 +25,27 @@ object EtagereColors {
         val nettoye = hex.trim()
         return if (HEX_REGEX.matches(nettoye)) nettoye.uppercase() else null
     }
+
+    /**
+     * La couleur en entier ARGB opaque, ou `null` si [hex] n'est pas exploitable.
+     *
+     * **Un entier et non un `Color`**, exactement pour la raison de `VarotraPalette` (section 84) :
+     * `androidx.compose.ui.graphics.Color` et son équivalent Compose Multiplatform viennent de deux
+     * artefacts différents, donc une valeur typée obligerait ce module à choisir un camp. Chaque
+     * plateforme enveloppe l'entier dans SON type.
+     *
+     * Elle remplace le `android.graphics.Color.parseColor` qu'utilisait l'écran Android : cette
+     * fonction n'existe pas hors d'Android, et le port du plan d'étagères sur le bureau aurait
+     * donc dû écrire sa propre conversion — soit deux analyseurs de couleur pour un seul format.
+     *
+     * [normaliser] est appelée d'abord : une valeur corrompue (synchronisation partielle, ancien
+     * format, nom de couleur) rend `null` plutôt que de lever. L'octet alpha est forcé à `FF`,
+     * sans quoi la couleur serait **totalement invisible** — le piège épinglé par
+     * `VarotraPaletteTest`.
+     */
+    fun versArgb(hex: String?): Int? {
+        val normalise = normaliser(hex) ?: return null
+        val rgb = normalise.removePrefix("#").toLongOrNull(16) ?: return null
+        return (0xFF000000L or rgb).toInt()
+    }
 }

@@ -59,7 +59,10 @@ class SectionBureauTest {
         // section se glisse au milieu et déplace sous le curseur des entrées que l'utilisateur
         // a appris à viser sans lire.
         assertEquals(
-            listOf("CAISSE", "CATALOGUE", "STOCK", "DETTES", "RAPPORTS", "A_PROPOS"),
+            listOf(
+                "CAISSE", "CATALOGUE", "STOCK", "HISTORIQUE", "DETTES",
+                "MOUVEMENTS_CAISSE", "PEREMPTION", "ETAGERES", "RAPPORTS", "A_PROPOS"
+            ),
             SectionBureau.entries.map { it.name }
         )
     }

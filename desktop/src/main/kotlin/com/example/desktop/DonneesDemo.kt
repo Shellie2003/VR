@@ -1,7 +1,16 @@
 package com.example.desktop
 
+import com.example.data.model.CaisseSession
 import com.example.data.model.Debt
+import com.example.data.model.Etagere
+import com.example.data.model.EtagereAvecNiveaux
+import com.example.data.model.LotLisible
+import com.example.data.model.NiveauAvecProduits
+import com.example.data.model.NiveauEtagere
+import com.example.data.model.ProduitNiveau
+import com.example.data.model.MouvementCaisse
 import com.example.data.model.Product
+import com.example.data.model.Restock
 import com.example.data.model.Retour
 import com.example.data.model.Sale
 import com.example.data.model.SoldItem
@@ -249,6 +258,216 @@ object DonneesDemo {
                 ),
                 totalAmount = 7000.0,
                 motif = "Sac percé"
+            )
+        )
+    }
+
+    /**
+     * Des réapprovisionnements, choisis pour exercer ce que la carte affiche conditionnellement
+     * plutôt que pour faire joli : un fournisseur renseigné et un autre absent (deux libellés
+     * différents au dépliage), et surtout **une livraison à zéro unité** — c'est le cas qui faisait
+     * afficher « Ar ∞ » sur le téléphone, et qui doit donc se voir dans la démonstration.
+     */
+    val reappros: List<Restock> = run {
+        val jour = 24L * 60 * 60 * 1000
+        val maintenant = System.currentTimeMillis()
+        listOf(
+            Restock(
+                id = 1,
+                productId = 1,
+                productName = "Riz Makalioka 1 kg",
+                cartonsQuantity = 4.0,
+                itemsPerCarton = 25.0,
+                totalUnits = 100.0,
+                totalCostPrice = 260000.0,
+                unitSellingPrice = 3500.0,
+                supplierId = 1L,
+                supplierName = "Grossiste Analakely",
+                timestamp = maintenant - 2 * 60 * 60 * 1000,
+                deviceName = "Caisse 1",
+                vendeurNom = "Koto"
+            ),
+            Restock(
+                id = 2,
+                productId = 3,
+                productName = "Eau minérale 1,5 L",
+                cartonsQuantity = 10.0,
+                itemsPerCarton = 6.0,
+                totalUnits = 60.0,
+                totalCostPrice = 84000.0,
+                unitSellingPrice = 2000.0,
+                supplierId = null,
+                supplierName = null,
+                timestamp = maintenant - 5 * 60 * 60 * 1000,
+                deviceName = "Caisse 1",
+                vendeurNom = ""
+            ),
+            Restock(
+                id = 3,
+                productId = 8,
+                productName = "Ananas frais",
+                cartonsQuantity = 1.0,
+                itemsPerCarton = 0.0,
+                // Zéro unité : la division nue donnait « Ar ∞ », `coutUnitaireReappro` rend « — ».
+                totalUnits = 0.0,
+                totalCostPrice = 15000.0,
+                unitSellingPrice = 2500.0,
+                supplierId = null,
+                supplierName = "Marché d'Anosibe",
+                timestamp = maintenant - jour,
+                deviceName = "Téléphone de Rasoa",
+                vendeurNom = "Rasoa"
+            )
+        )
+    }
+
+    /** Des entrées et des sorties d'espèces, avec et sans note, de deux postes différents. */
+    val mouvementsCaisse: List<MouvementCaisse> = run {
+        val heure = 60L * 60 * 1000
+        val maintenant = System.currentTimeMillis()
+        listOf(
+            MouvementCaisse(
+                id = 1,
+                type = "ENTREE",
+                montant = 50000.0,
+                motif = "Fond de caisse",
+                date = maintenant - 8 * heure,
+                deviceName = "Caisse 1",
+                vendeurNom = "Koto"
+            ),
+            MouvementCaisse(
+                id = 2,
+                type = "SORTIE",
+                montant = 12000.0,
+                motif = "Achat sacs plastique",
+                note = "Payé au marché",
+                date = maintenant - 5 * heure,
+                deviceName = "Caisse 1",
+                vendeurNom = "Koto"
+            ),
+            MouvementCaisse(
+                id = 3,
+                type = "SORTIE",
+                montant = 30000.0,
+                motif = "Retrait du gérant",
+                date = maintenant - 2 * heure,
+                deviceName = "Téléphone de Rasoa",
+                vendeurNom = "Rasoa"
+            )
+        )
+    }
+
+    /**
+     * Une session **ouverte** et une session **fermée en manquant**, pour que les deux branches de
+     * la carte de session soient exercées : l'état courant et le récapitulatif d'écart. L'écart est
+     * négatif, donc rouge — c'est celui qui compte pour le gérant.
+     */
+    val sessionsCaisse: List<CaisseSession> = run {
+        val jour = 24L * 60 * 60 * 1000
+        val maintenant = System.currentTimeMillis()
+        listOf(
+            CaisseSession(
+                id = 1,
+                dateOuverture = maintenant - 2 * jour,
+                montantOuverture = 50000.0,
+                dateFermeture = maintenant - 2 * jour + 10 * 60 * 60 * 1000,
+                montantCompteFermeture = 243000.0,
+                montantTheoriqueFermeture = 248500.0,
+                ecart = -5500.0,
+                note = "Manquant constaté au comptage"
+            ),
+            CaisseSession(
+                id = 2,
+                dateOuverture = maintenant - 9 * 60 * 60 * 1000,
+                montantOuverture = 50000.0
+            )
+        )
+    }
+
+    /**
+     * Des lots **dans les trois états** : un périmé, un qui périme dans la fenêtre d'alerte, et un
+     * encore bon. Sans les trois, deux des trois couleurs de l'écran ne seraient jamais rendues —
+     * et c'est précisément ce que `EcransBureauRenduTest` doit pouvoir traverser.
+     */
+    val lots: List<LotLisible> = run {
+        val jour = 24L * 60 * 60 * 1000
+        val maintenant = System.currentTimeMillis()
+        listOf(
+            LotLisible(
+                produitNom = "Doliprane 500 mg",
+                produitBarcode = "3400930000001",
+                numeroLot = "L-2403",
+                quantite = 12.0,
+                datePeremption = maintenant - 3 * jour,
+                dateReception = maintenant - 90 * jour,
+                unite = "Plaquette"
+            ),
+            LotLisible(
+                produitNom = "Efferalgan 1 g",
+                produitBarcode = "3400930000002",
+                numeroLot = "L-2411",
+                quantite = 30.0,
+                datePeremption = maintenant + 4 * jour,
+                dateReception = maintenant - 30 * jour,
+                unite = "Plaquette"
+            ),
+            LotLisible(
+                produitNom = "Zébu séché 500 g",
+                numeroLot = null,
+                quantite = 8.0,
+                datePeremption = maintenant + 60 * jour,
+                dateReception = maintenant - 5 * jour,
+                unite = "Paquet"
+            )
+        )
+    }
+
+    /**
+     * Un plan de deux étagères, dont une **case vide** et une étagère colorée : les deux branches
+     * d'affichage de la case (remplie / vide) et les deux de la teinte (couleur choisie / couleur
+     * du thème) sont ainsi exercées.
+     *
+     * Les identifiants sont posés à la main ici, comme le lecteur de sauvegarde les fabrique :
+     * un plan n'en porte aucun dans la sauvegarde, ce sont des clés naturelles (section 52).
+     */
+    val planEtagere: List<EtagereAvecNiveaux> = run {
+        val riz = catalogue.first { it.id == 1 }
+        val huile = catalogue.first { it.id == 2 }
+        val eau = catalogue.first { it.id == 3 }
+        val savon = catalogue.first { it.id == 4 }
+        listOf(
+            EtagereAvecNiveaux(
+                etagere = Etagere(id = 1, nom = "Rayon A", position = 0, couleur = "#2E7D32"),
+                niveaux = listOf(
+                    NiveauAvecProduits(
+                        niveau = NiveauEtagere(id = 1, etagereId = 1, position = 0, nom = "Haut"),
+                        liens = listOf(ProduitNiveau(id = 1, niveauId = 1, produitId = riz.id)),
+                        produits = listOf(riz)
+                    ),
+                    NiveauAvecProduits(
+                        niveau = NiveauEtagere(id = 2, etagereId = 1, position = 1, nom = "Milieu"),
+                        liens = listOf(
+                            ProduitNiveau(id = 2, niveauId = 2, produitId = huile.id),
+                            ProduitNiveau(id = 3, niveauId = 2, produitId = eau.id)
+                        ),
+                        produits = listOf(huile, eau)
+                    ),
+                    NiveauAvecProduits(
+                        niveau = NiveauEtagere(id = 3, etagereId = 1, position = 2, nom = "Bas"),
+                        liens = emptyList(),
+                        produits = emptyList()
+                    )
+                )
+            ),
+            EtagereAvecNiveaux(
+                etagere = Etagere(id = 2, nom = "Droguerie", position = 1),
+                niveaux = listOf(
+                    NiveauAvecProduits(
+                        niveau = NiveauEtagere(id = 4, etagereId = 2, position = 0),
+                        liens = listOf(ProduitNiveau(id = 4, niveauId = 4, produitId = savon.id)),
+                        produits = listOf(savon)
+                    )
+                )
             )
         )
     }
