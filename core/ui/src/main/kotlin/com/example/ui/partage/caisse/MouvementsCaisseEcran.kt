@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.ui.partage.composants.BoutonExport
 import com.example.data.model.CaisseSession
 import com.example.data.model.MouvementCaisse
 import com.example.util.FormatUtil
@@ -75,6 +76,7 @@ fun MouvementsCaisseEcran(
     dateHeureLisible: (Long) -> String,
     langue: String,
     themeColor: Color,
+    onExporter: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val triees = remember(mouvements) { mouvements.sortedByDescending { it.date } }
@@ -169,6 +171,14 @@ fun MouvementsCaisseEcran(
                     }
                 }
             }
+        }
+
+        if (onExporter != null && triees.isNotEmpty()) {
+            BoutonExport(
+                onClick = onExporter,
+                langue = langue,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
         }
 
         if (triees.isEmpty()) {

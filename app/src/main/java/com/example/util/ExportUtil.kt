@@ -17,9 +17,6 @@ import com.example.data.model.Product
 import com.example.data.model.Sale
 import java.io.File
 import java.io.FileOutputStream
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 enum class ExportFormat { CSV, PDF }
 
@@ -329,115 +326,51 @@ object ExportUtil {
         }
     }
 
+    // Les cinq tableaux viennent de `TableauExport` (:core:logic) : colonnes, ordre et formatage
+    // y sont décrits une seule fois, et le port de l'export sur le bureau en réutilise exactement
+    // le contenu. Deux descriptions du même tableau auraient fini par donner deux fichiers
+    // différents pour une seule boutique — donc deux formats au comptable du gérant.
+    //
+    // Ce qui reste ici est ce qui ne peut PAS être partagé : écrire un PDF avec `PdfDocument`,
+    // déposer dans `Downloads` par MediaStore, partager par `FileProvider`.
+    private fun generer(context: Context, tableau: Tableau, format: ExportFormat) {
+        generateAndShare(
+            context,
+            format,
+            "${tableau.nomFichier}_${System.currentTimeMillis()}",
+            tableau.titre,
+            tableau.entetes,
+            tableau.lignes,
+            tableau.poidsColonnes
+        )
+    }
+
     /** Detailed export: one row per sold line item (not per sale), so every article is traceable. */
     fun exportSales(context: Context, sales: List<Sale>, format: ExportFormat) {
-        val dateFmt = SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE)
-        val timeFmt = SimpleDateFormat("HH:mm", Locale.FRANCE)
-        val headers = listOf("Date", "Heure", "Produit", "Quantité", "Prix unitaire (Ar)", "Total ligne (Ar)", "Total vente (Ar)")
-        val rows = mutableListOf<List<String>>()
-        for (sale in sales.sortedByDescending { it.timestamp }) {
-            val date = Date(sale.timestamp)
-            for (item in sale.items) {
-                rows.add(
-                    listOf(
-                        dateFmt.format(date),
-                        timeFmt.format(date),
-                        item.name,
-                        FormatUtil.formatQty(item.quantity, "").trim(),
-                        FormatUtil.formatPrice(item.price),
-                        FormatUtil.formatPrice(item.price * item.quantity),
-                        FormatUtil.formatPrice(sale.totalAmount)
-                    )
-                )
-            }
-        }
-        generateAndShare(
-            context, format, "historique_ventes_${System.currentTimeMillis()}", "Historique des ventes",
-            headers, rows, listOf(1.2f, 0.8f, 2.2f, 1f, 1.3f, 1.3f, 1.3f)
-        )
+        generer(context, TableauExport.ventes(sales), format)
     }
 
     fun exportStock(context: Context, products: List<Product>, format: ExportFormat) {
-        val headers = listOf("Nom", "Catégorie", "SKU", "Code-barres", "Unité", "Stock actuel", "Seuil alerte", "Prix vente (Ar)", "Prix achat (Ar)")
-        val rows = products.sortedBy { it.name.lowercase() }.map { p ->
-            listOf(
-                p.name,
-                p.category,
-                p.sku,
-                p.barcode,
-                p.unit,
-                FormatUtil.formatQty(p.stock, "").trim(),
-                FormatUtil.formatQty(p.lowStockThreshold, "").trim(),
-                FormatUtil.formatPrice(p.price),
-                FormatUtil.formatPrice(p.prixAchatUniteBase)
-            )
-        }
-        generateAndShare(
-            context, format, "inventaire_stock_${System.currentTimeMillis()}", "Inventaire / État des stocks",
-            headers, rows, listOf(2f, 1.3f, 1.2f, 1.4f, 1f, 1f, 1f, 1.2f, 1.2f)
-        )
+        generer(context, TableauExport.stock(products), format)
     }
 
     fun exportDebts(context: Context, debts: List<Debt>, format: ExportFormat) {
-        val dateFmt = SimpleDateFormat("dd/MM/yyyy", Locale.FRANCE)
-        val headers = listOf("Débiteur", "Date", "Montant initial (Ar)", "Solde restant (Ar)", "Statut", "Échéance", "Note")
-        val rows = debts.sortedByDescending { it.date }.map { d ->
-            listOf(
-                d.debtorName,
-                dateFmt.format(Date(d.date)),
-                FormatUtil.formatPrice(d.amount),
-                FormatUtil.formatPrice(d.balance),
-                when {
-                    d.isPaid -> "Payée"
-                    d.isOverdue() -> "En retard"
-                    else -> "En cours"
-                },
-                d.dueDate?.let { dateFmt.format(Date(it)) } ?: "-",
-                d.note
-            )
-        }
-        generateAndShare(
-            context, format, "dettes_${System.currentTimeMillis()}", "Dettes clients",
-            headers, rows, listOf(1.6f, 1f, 1.3f, 1.3f, 1f, 1f, 2f)
-        )
+        generer(context, TableauExport.dettes(debts), format)
     }
 
-    fun exportCaisseMouvements(context: Context, mouvements: List<MouvementCaisse>, format: ExportFormat) {
-        val dateFmt = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.FRANCE)
-        val headers = listOf("Date", "Type", "Motif", "Montant (Ar)", "Note")
-        val rows = mouvements.sortedByDescending { it.date }.map { m ->
-            listOf(
-                dateFmt.format(Date(m.date)),
-                if (m.type == "ENTREE") "Entrée" else "Sortie",
-                m.motif,
-                FormatUtil.formatPrice(m.montant),
-                m.note
-            )
-        }
-        generateAndShare(
-            context, format, "mouvements_caisse_${System.currentTimeMillis()}", "Mouvements de caisse",
-            headers, rows, listOf(1.4f, 1f, 1.6f, 1.2f, 2f)
-        )
+    fun exportCaisseMouvements(
+        context: Context,
+        mouvements: List<MouvementCaisse>,
+        format: ExportFormat
+    ) {
+        generer(context, TableauExport.mouvementsCaisse(mouvements), format)
     }
 
-    fun exportRestocks(context: Context, restocks: List<com.example.data.model.Restock>, format: ExportFormat) {
-        val dateFmt = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.FRANCE)
-        val headers = listOf("Date", "Produit", "Cartons", "Unités/carton", "Total unités", "Coût total (Ar)", "Prix vente unité (Ar)", "Fournisseur")
-        val rows = restocks.sortedByDescending { it.timestamp }.map { r ->
-            listOf(
-                dateFmt.format(Date(r.timestamp)),
-                r.productName,
-                FormatUtil.formatQty(r.cartonsQuantity, "").trim(),
-                FormatUtil.formatQty(r.itemsPerCarton, "").trim(),
-                FormatUtil.formatQty(r.totalUnits, "").trim(),
-                FormatUtil.formatPrice(r.totalCostPrice),
-                FormatUtil.formatPrice(r.unitSellingPrice),
-                r.supplierName ?: ""
-            )
-        }
-        generateAndShare(
-            context, format, "reappro_${System.currentTimeMillis()}", "Historique des réapprovisionnements",
-            headers, rows, listOf(1.3f, 1.8f, 1f, 1.2f, 1.1f, 1.3f, 1.3f, 1.4f)
-        )
+    fun exportRestocks(
+        context: Context,
+        restocks: List<com.example.data.model.Restock>,
+        format: ExportFormat
+    ) {
+        generer(context, TableauExport.reappros(restocks), format)
     }
 }

@@ -51,6 +51,7 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.partage.composants.BoutonExport
 import com.example.data.model.Product
 import com.example.data.model.Restock
 import com.example.data.model.Retour
@@ -103,6 +104,9 @@ fun HistoriqueEcran(
     // Même raison que les autres écrans : sur un PC, Ctrl+F doit donner le focus au champ de
     // l'écran qu'on consulte, sans déplacer l'utilisateur ailleurs.
     focusRecherche: FocusRequester? = null,
+    // Exporte l'onglet AFFICHÉ et la journée affichée, pas tout l'historique : c'est ce que le
+    // gérant a sous les yeux, donc ce qu'il croit exporter.
+    onExporter: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val ventesDuJour = remember(ventes, jourAffiche) {
@@ -179,6 +183,10 @@ fun HistoriqueEcran(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                if (onExporter != null) {
+                    BoutonExport(onClick = onExporter, langue = langue)
+                    Spacer(Modifier.size(8.dp))
+                }
                 IconButton(
                     onClick = { onJourChange(jourAffiche - UN_JOUR_MS) },
                     modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)

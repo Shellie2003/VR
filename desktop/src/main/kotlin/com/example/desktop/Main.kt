@@ -44,6 +44,9 @@ import com.example.desktop.donnees.DialogueConnexionBoutique
 import com.example.desktop.donnees.ResultatChargement
 import com.example.desktop.donnees.ServiceDonneesBoutique
 import com.example.desktop.donnees.messageChargement
+import com.example.desktop.export.DialogueExport
+import com.example.desktop.export.ExportFichier
+import com.example.desktop.export.ResultatExport
 import com.example.desktop.maj.CarteMajBureau
 import com.example.desktop.maj.MiseAJourBureau
 import com.example.data.model.CartItem
@@ -63,6 +66,10 @@ import com.example.ui.partage.stock.StockEcran
 import com.example.ui.partage.theme.VarotraTheme
 import com.example.util.CatalogueFiltre
 import com.example.util.DebtAllocation
+import com.example.util.FiltreHistorique
+import com.example.util.RegroupementDettes
+import com.example.util.Tableau
+import com.example.util.TableauExport
 import com.example.util.PanierCaisse
 import com.example.util.ShopMode
 import com.example.util.enDecimal
@@ -258,6 +265,18 @@ private fun FenetreVarotra(
         serviceDonnees.codeEnregistre()?.let { chargerBoutique(it, depuisDialogue = false) }
     }
 
+    // L'export de la liste affichée. Le résultat est un état plutôt qu'un effet immédiat : le
+    // dialogue qui l'annonce est posé au niveau de la fenêtre, donc il survit à un changement de
+    // section — et surtout le gérant doit pouvoir LIRE le chemin, pas l'apercevoir.
+    var resultatExport by remember { mutableStateOf<ResultatExport?>(null) }
+
+    // L'écriture est synchrone : un CSV de quelques milliers de lignes se compte en kilooctets et
+    // en millisecondes, là où une coroutine ajouterait un état « en cours » que rien ne viendrait
+    // jamais remplir assez longtemps pour être vu.
+    fun exporter(tableau: Tableau) {
+        resultatExport = ExportFichier.ecrireCsv(tableau)
+    }
+
 
     // Les quantités par produit, pour le badge des cartes de l'accueil : dérivées du panier réel
     // plutôt que tenues à part, donc toujours d'accord avec la caisse.
@@ -429,6 +448,21 @@ private fun FenetreVarotra(
                                 if (it.id == produit.id) it.copy(stock = nouveauStock) else it
                             }
                         },
+                        // Le MÊME filtrage que celui de l'écran, par la même fonction : exporter
+                        // le catalogue entier alors que l'écran n'en montre qu'une catégorie
+                        // donnerait un fichier que le gérant ne reconnaîtrait pas.
+                        onExporter = {
+                            exporter(
+                                TableauExport.stock(
+                                    CatalogueFiltre.filtrer(
+                                        produits = produits,
+                                        recherche = recherche,
+                                        categorie = categorie,
+                                        stockFaibleSeulement = stockFaibleSeulement
+                                    )
+                                )
+                            )
+                        },
                         focusRecherche = focusRecherche
                     )
                 }
@@ -470,6 +504,12 @@ private fun FenetreVarotra(
                             }
                         },
                         onSupprimer = { dette -> dettes = dettes.filterNot { it.id == dette.id } },
+                        // La liste À PLAT filtrée, transaction par transaction : c'est ce
+                        // qu'exporte Android, et le regroupement par débiteur reste un confort
+                        // d'affichage que le tableur sait refaire tout seul.
+                        onExporter = {
+                            exporter(TableauExport.dettes(RegroupementDettes.chercher(dettes, recherche)))
+                        },
                         langue = langue,
                         focusRecherche = focusRecherche
                     )
@@ -493,6 +533,31 @@ private fun FenetreVarotra(
                     // ce qu'une soustraction ne dirait pas.
                     estAujourdhui = com.example.util.RapportFinancier.bornesDuJour(jourHistorique)
                         .contient(System.currentTimeMillis()),
+                    // L'onglet actif décide du tableau : l'écran montre les ventes OU les
+                    // réappros, et exporter les deux à la fois donnerait un fichier dont la
+                    // moitié des colonnes seraient vides.
+                    onExporter = {
+                        val jour = jourHistorique
+                        val terme = rechercheHistorique
+                        when (ongletHistorique) {
+                            OngletHistorique.VENTES -> exporter(
+                                TableauExport.ventes(
+                                    FiltreHistorique.chercherVentes(
+                                        FiltreHistorique.ventesDuJour(ventes, jour),
+                                        terme
+                                    )
+                                )
+                            )
+                            OngletHistorique.REAPPROS -> exporter(
+                                TableauExport.reappros(
+                                    FiltreHistorique.chercherReappros(
+                                        FiltreHistorique.reapprosDuJour(reappros, jour),
+                                        terme
+                                    )
+                                )
+                            )
+                        }
+                    },
                     langue = langue,
                     themeColor = MaterialTheme.colorScheme.primary,
                     focusRecherche = focusRecherche
@@ -502,6 +567,9 @@ private fun FenetreVarotra(
                     mouvements = mouvementsCaisse,
                     sessions = sessionsCaisse,
                     dateHeureLisible = { FORMAT_DATE_HEURE.format(java.util.Date(it)) },
+                    // Cet écran n'a aucun filtre : la liste exportée est donc celle qu'il affiche,
+                    // en entier.
+                    onExporter = { exporter(TableauExport.mouvementsCaisse(mouvementsCaisse)) },
                     langue = langue,
                     themeColor = MaterialTheme.colorScheme.primary
                 )
@@ -549,6 +617,17 @@ private fun FenetreVarotra(
                 enChargement = chargementEnCours,
                 onValider = { chargerBoutique(saisieCode, depuisDialogue = true) },
                 onFermer = { dialogueConnexion = false }
+            )
+        }
+
+        // Même niveau que le dialogue de connexion, et pour la même raison : le bouton d'export
+        // existe sur quatre écrans, et un dialogue déclaré dans la section active disparaîtrait
+        // si le gérant changeait de section juste après avoir exporté.
+        resultatExport?.let { resultat ->
+            DialogueExport(
+                resultat = resultat,
+                langue = langue,
+                onFermer = { resultatExport = null }
             )
         }
     }

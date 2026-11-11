@@ -171,6 +171,10 @@ compose.desktop {
       // **Règle à tenir pour la suite :** tout code de ce module qui touche à une API du JDK hors
       // `java.base` doit ajouter son module ICI, sinon l'échec n'apparaîtra que chez le client.
       modules(
+        // `java.awt.Desktop` (ouvrir le dossier d'export dans l'explorateur) et toute l'interface
+        // Compose. Compose le déclare déjà de son côté, mais la règle écrite plus bas vaut aussi
+        // pour mon propre code : un module utilisé directement se déclare ici.
+        "java.desktop",
         "java.net.http",
         "java.prefs",
         "java.logging",

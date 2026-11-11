@@ -42,6 +42,7 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.data.model.Debt
+import com.example.ui.partage.composants.BoutonExport
 import com.example.util.FormatUtil
 import com.example.util.LanguageManager
 import com.example.util.RegroupementDettes
@@ -73,25 +74,16 @@ fun DettesEcran(
     onSupprimer: ((Debt) -> Unit)? = null,
     langue: String,
     focusRecherche: FocusRequester? = null,
+    onExporter: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var detteOuverte by remember { mutableStateOf<Debt?>(null) }
     var groupeAuReglement by remember { mutableStateOf<String?>(null) }
 
-    // Le filtrage porte sur la liste À PLAT, comme sur Android : chercher un nom doit trouver la
-    // transaction, et c'est le regroupement qui s'applique ENSUITE au résultat — l'inverse ferait
-    // disparaître un groupe entier dès que la recherche ne correspond pas à sa dette la plus
-    // récente.
-    val visibles = remember(dettes, recherche) {
-        if (recherche.isBlank()) {
-            dettes
-        } else {
-            val requete = recherche.trim().lowercase()
-            dettes.filter {
-                it.debtorName.lowercase().contains(requete) || it.note.lowercase().contains(requete)
-            }
-        }
-    }
+    // La règle de recherche vit dans `:core:logic` : c'est la même que celle d'Android, et c'est
+    // aussi celle que l'export doit porter (« la liste actuellement filtrée/affichée »). Recopiée
+    // ici, elle finirait par ne plus retenir les mêmes lignes que le fichier exporté.
+    val visibles = remember(dettes, recherche) { RegroupementDettes.chercher(dettes, recherche) }
     val groupes = remember(visibles) { RegroupementDettes.grouper(visibles) }
     val totalDu = remember(visibles) { visibles.sumOf { it.balance } }
 
@@ -133,6 +125,14 @@ fun DettesEcran(
             shape = RoundedCornerShape(16.dp),
             singleLine = true
         )
+
+        if (onExporter != null) {
+            BoutonExport(
+                onClick = onExporter,
+                langue = langue,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
 
         Card(
             modifier = Modifier.fillMaxWidth(),

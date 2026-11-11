@@ -191,7 +191,10 @@ class EcransBureauRenduTest {
                     onStockFaibleChange = {},
                     modeBoutique = ShopMode.GROSSISTE,
                     langue = "fr",
-                    onAjusterStock = { _, _ -> }
+                    onAjusterStock = { _, _ -> },
+                    // Avec un `onExporter` non nul, le bouton d'export est réellement composé —
+                    // sinon ce chemin ne serait jamais rendu par aucun test.
+                    onExporter = {}
                 )
             }
         }
@@ -276,6 +279,7 @@ class EcransBureauRenduTest {
                     echeanceLisible = { dette -> dette.dueDate?.let { "02/01/2026" } },
                     onRembourser = {},
                     onReglerGroupe = { _, _ -> },
+                    onExporter = {},
                     langue = "fr"
                 )
             }
@@ -385,6 +389,7 @@ class EcransBureauRenduTest {
                         dateLisible = { "15/01/2026" },
                         heureLisible = { "14:30" },
                         estAujourdhui = true,
+                        onExporter = {},
                         langue = "fr",
                         themeColor = androidx.compose.ui.graphics.Color(0xFF012D1D)
                     )
@@ -454,6 +459,7 @@ class EcransBureauRenduTest {
                     mouvements = mouvements,
                     sessions = sessions,
                     dateHeureLisible = { "15/01/2026 14:30" },
+                    onExporter = {},
                     langue = "fr",
                     themeColor = androidx.compose.ui.graphics.Color(0xFF012D1D)
                 )

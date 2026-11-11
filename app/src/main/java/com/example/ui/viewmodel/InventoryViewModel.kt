@@ -30,6 +30,7 @@ import com.example.util.AppPreferences
 import com.example.util.FormatUtil
 import com.example.util.NotificationHelper
 import com.example.util.RecoveryCode
+import com.example.util.RegroupementDettes
 import com.example.util.ShopMode
 import com.example.util.Monnaie
 import com.example.util.PanierCaisse
@@ -955,8 +956,9 @@ class InventoryViewModel(
         debtFilter
     ) { debts, query, filter ->
         debts.filter { debt ->
-            val matchesQuery = debt.debtorName.contains(query, ignoreCase = true) || 
-                               debt.note.contains(query, ignoreCase = true)
+            // Règle partagée avec l'écran Dettes du bureau et avec l'export : recopiée des deux
+            // côtés, elle finirait par ne plus retenir les mêmes lignes à l'écran et dans le fichier.
+            val matchesQuery = RegroupementDettes.correspond(debt, query)
             val matchesFilter = when (filter) {
                 "Payées" -> debt.isPaid
                 "Non payées" -> !debt.isPaid

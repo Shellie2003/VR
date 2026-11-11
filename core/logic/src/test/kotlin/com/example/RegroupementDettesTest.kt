@@ -4,6 +4,7 @@ import com.example.data.model.Debt
 import com.example.util.RegroupementDettes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -21,14 +22,15 @@ class RegroupementDettesTest {
         solde: Double = montant,
         date: Long = 1_000L,
         paye: Boolean = false,
-        echeance: Long? = null
+        echeance: Long? = null,
+        note: String = ""
     ) = Debt(
         id = id,
         debtorName = nom,
         amount = montant,
         balance = solde,
         date = date,
-        note = "",
+        note = note,
         isPaid = paye,
         dueDate = echeance
     )
@@ -136,5 +138,71 @@ class RegroupementDettesTest {
     @Test
     fun `une liste vide rend une liste vide et non une erreur`() {
         assertTrue(RegroupementDettes.grouper(emptyList()).isEmpty())
+    }
+
+    // --- La recherche, partagée avec l'écran de bureau ET avec l'export -----------------------
+
+    @Test
+    fun `la recherche porte sur le nom du debiteur`() {
+        val dettes = listOf(dette(1, "Rakoto"), dette(2, "Soa"))
+        val trouvees = RegroupementDettes.chercher(dettes, "rako")
+        assertEquals(1, trouvees.size)
+        assertEquals("Rakoto", trouvees.first().debtorName)
+    }
+
+    @Test
+    fun `la recherche porte aussi sur la note, ou vivent les articles du trosa`() {
+        // Les articles d'un trosa sont enregistrés dans la note (section 33) : chercher « riz »
+        // doit retrouver qui a pris du riz à crédit, sinon cette information n'est accessible
+        // nulle part.
+        val dettes = listOf(
+            dette(1, "Rakoto", note = "Riz (2 x 3 500), Savon (1 x 1 500)"),
+            dette(2, "Soa", note = "Menaka (1 x 6 000)")
+        )
+        val trouvees = RegroupementDettes.chercher(dettes, "riz")
+        assertEquals(1, trouvees.size)
+        assertEquals("Rakoto", trouvees.first().debtorName)
+    }
+
+    @Test
+    fun `un espace de fin ne vide pas le resultat`() {
+        // Un presse-papier ou un lecteur de code-barres laisse volontiers un espace. Sans le
+        // détrimage, « Rakoto » suivi d'un espace ne trouverait plus rien.
+        val dettes = listOf(dette(1, "Rakoto"))
+        assertEquals(1, RegroupementDettes.chercher(dettes, "Rakoto ").size)
+        assertEquals(1, RegroupementDettes.chercher(dettes, "  rakoto  ").size)
+    }
+
+    @Test
+    fun `une requete vide rend la liste entiere, telle quelle`() {
+        val dettes = listOf(dette(1, "Rakoto"), dette(2, "Soa"), dette(3, "Naivo"))
+        // La MÊME instance de liste : c'est ce qui évite une recomposition pour un geste sans
+        // effet, et ce que l'export doit porter quand aucun filtre n'est appliqué.
+        assertSame(dettes, RegroupementDettes.chercher(dettes, ""))
+        assertSame(dettes, RegroupementDettes.chercher(dettes, "   "))
+    }
+
+    @Test
+    fun `la recherche conserve l ordre d origine, elle ne regroupe pas`() {
+        // C'est ce que l'export porte : transaction par transaction, à plat. Un tri ou un
+        // regroupement ici donnerait un fichier qui ne ressemble pas à la liste affichée.
+        val dettes = listOf(
+            dette(1, "Soa", date = 3_000L),
+            dette(2, "Rakoto", date = 1_000L),
+            dette(3, "Soa", date = 2_000L)
+        )
+        val trouvees = RegroupementDettes.chercher(dettes, "soa")
+        assertEquals(listOf(1, 3), trouvees.map { it.id })
+    }
+
+    @Test
+    fun `la recherche ne fusionne jamais deux personnes par prefixe commun`() {
+        // Le pendant du regroupement : chercher « Rakoto » DOIT remonter Rakotoarisoa, parce
+        // qu'une recherche est un filtre et non une identité — mais les deux restent deux
+        // transactions distinctes, pas une dette fondue.
+        val dettes = listOf(dette(1, "Rakoto"), dette(2, "Rakotoarisoa"))
+        val trouvees = RegroupementDettes.chercher(dettes, "Rakoto")
+        assertEquals(2, trouvees.size)
+        assertEquals(2, RegroupementDettes.grouper(trouvees).size)
     }
 }
