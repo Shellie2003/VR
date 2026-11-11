@@ -194,9 +194,10 @@ class EcransBureauRenduTest {
                     modeBoutique = ShopMode.GROSSISTE,
                     langue = "fr",
                     onAjusterStock = { _, _ -> },
-                    // Avec un `onExporter` non nul, le bouton d'export est réellement composé —
-                    // sinon ce chemin ne serait jamais rendu par aucun test.
-                    onExporter = {}
+                    // Avec des rappels non nuls, les boutons d'export et d'impression sont
+                    // réellement composés — sinon ce chemin ne serait rendu par aucun test.
+                    onExporter = {},
+                    onImprimer = {}
                 )
             }
         }
@@ -282,6 +283,7 @@ class EcransBureauRenduTest {
                     onRembourser = {},
                     onReglerGroupe = { _, _ -> },
                     onExporter = {},
+                    onImprimer = {},
                     langue = "fr"
                 )
             }
@@ -392,6 +394,7 @@ class EcransBureauRenduTest {
                         heureLisible = { "14:30" },
                         estAujourdhui = true,
                         onExporter = {},
+                        onImprimer = {},
                         langue = "fr",
                         themeColor = androidx.compose.ui.graphics.Color(0xFF012D1D)
                     )
@@ -462,6 +465,7 @@ class EcransBureauRenduTest {
                     sessions = sessions,
                     dateHeureLisible = { "15/01/2026 14:30" },
                     onExporter = {},
+                    onImprimer = {},
                     langue = "fr",
                     themeColor = androidx.compose.ui.graphics.Color(0xFF012D1D)
                 )

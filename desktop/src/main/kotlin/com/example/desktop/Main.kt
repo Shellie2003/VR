@@ -46,8 +46,11 @@ import com.example.desktop.donnees.ResultatChargement
 import com.example.desktop.donnees.ServiceDonneesBoutique
 import com.example.desktop.donnees.messageChargement
 import com.example.desktop.export.DialogueExport
+import com.example.desktop.export.DialogueImpression
 import com.example.desktop.export.ExportFichier
+import com.example.desktop.export.ImpressionTableau
 import com.example.desktop.export.ResultatExport
+import com.example.desktop.export.ResultatImpression
 import com.example.desktop.maj.CarteMajBureau
 import com.example.desktop.maj.MiseAJourBureau
 import com.example.data.model.CartItem
@@ -366,6 +369,21 @@ private fun FenetreVarotra(
         resultatExport = ExportFichier.ecrireCsv(tableau)
     }
 
+    // L'impression. Elle n'annonce QUE ce sur quoi le gérant doit agir : un travail lancé n'a rien
+    // à dire (la boîte de dialogue du système vient de confirmer et le papier sort), et une
+    // annulation non plus — c'est lui qui vient de fermer cette boîte.
+    var resultatImpression by remember { mutableStateOf<ResultatImpression?>(null) }
+
+    fun imprimer(tableau: Tableau) {
+        // Appel bloquant assumé : la boîte de dialogue d'impression du système est modale, et
+        // c'est elle qui laisse choisir l'imprimante — « Microsoft Print to PDF » comprise —,
+        // l'orientation et le nombre de copies. L'imposer nous obligerait à tout redévelopper.
+        val resultat = ImpressionTableau.imprimer(tableau)
+        if (resultat != ResultatImpression.Lancee && resultat != ResultatImpression.Annulee) {
+            resultatImpression = resultat
+        }
+    }
+
 
     // Les quantités par produit, pour le badge des cartes de l'accueil : dérivées du panier réel
     // plutôt que tenues à part, donc toujours d'accord avec la caisse.
@@ -518,6 +536,14 @@ private fun FenetreVarotra(
                 }
 
                 SectionBureau.STOCK -> Column(modifier = Modifier.fillMaxSize()) {
+                    fun tableauStock() = TableauExport.stock(
+                        CatalogueFiltre.filtrer(
+                            produits = produits,
+                            recherche = recherche,
+                            categorie = categorie,
+                            stockFaibleSeulement = stockFaibleSeulement
+                        )
+                    )
                     StockEcran(
                         produits = produits,
                         recherche = recherche,
@@ -542,24 +568,18 @@ private fun FenetreVarotra(
                         },
                         // Le MÊME filtrage que celui de l'écran, par la même fonction : exporter
                         // le catalogue entier alors que l'écran n'en montre qu'une catégorie
-                        // donnerait un fichier que le gérant ne reconnaîtrait pas.
-                        onExporter = {
-                            exporter(
-                                TableauExport.stock(
-                                    CatalogueFiltre.filtrer(
-                                        produits = produits,
-                                        recherche = recherche,
-                                        categorie = categorie,
-                                        stockFaibleSeulement = stockFaibleSeulement
-                                    )
-                                )
-                            )
-                        },
+                        // donnerait un fichier que le gérant ne reconnaîtrait pas. Et UNE SEULE
+                        // expression pour les deux boutons : le fichier et le papier doivent
+                        // porter exactement les mêmes lignes.
+                        onExporter = { exporter(tableauStock()) },
+                        onImprimer = { imprimer(tableauStock()) },
                         focusRecherche = focusRecherche
                     )
                 }
 
                 SectionBureau.DETTES -> Column(modifier = Modifier.fillMaxSize()) {
+                    fun tableauDettes() =
+                        TableauExport.dettes(RegroupementDettes.chercher(dettes, recherche))
                     DettesEcran(
                         dettes = dettes,
                         recherche = recherche,
@@ -599,61 +619,61 @@ private fun FenetreVarotra(
                         // La liste À PLAT filtrée, transaction par transaction : c'est ce
                         // qu'exporte Android, et le regroupement par débiteur reste un confort
                         // d'affichage que le tableur sait refaire tout seul.
-                        onExporter = {
-                            exporter(TableauExport.dettes(RegroupementDettes.chercher(dettes, recherche)))
-                        },
+                        onExporter = { exporter(tableauDettes()) },
+                        onImprimer = { imprimer(tableauDettes()) },
                         langue = langue,
                         focusRecherche = focusRecherche
                     )
                 }
 
-                SectionBureau.HISTORIQUE -> HistoriqueEcran(
-                    ventes = ventes,
-                    reappros = reappros,
-                    retours = retours,
-                    produits = produits,
-                    onglet = ongletHistorique,
-                    onOngletChange = { ongletHistorique = it },
-                    jourAffiche = jourHistorique,
-                    onJourChange = { jourHistorique = it },
-                    recherche = rechercheHistorique,
-                    onRechercheChange = { rechercheHistorique = it },
-                    dateLisible = { FORMAT_DATE.format(java.util.Date(it)) },
-                    heureLisible = { FORMAT_HEURE.format(java.util.Date(it)) },
-                    // Comparé par BORNES DE JOURNÉE et non par différence de millisecondes : à
-                    // 23h59, « aujourd'hui » et « il y a une minute » sont le même jour civil,
-                    // ce qu'une soustraction ne dirait pas.
-                    estAujourdhui = com.example.util.RapportFinancier.bornesDuJour(jourHistorique)
-                        .contient(System.currentTimeMillis()),
+                SectionBureau.HISTORIQUE -> {
                     // L'onglet actif décide du tableau : l'écran montre les ventes OU les
-                    // réappros, et exporter les deux à la fois donnerait un fichier dont la
-                    // moitié des colonnes seraient vides.
-                    onExporter = {
+                    // réappros, et en exporter les deux à la fois donnerait un fichier dont la
+                    // moitié des colonnes seraient vides. Une seule fonction pour les deux
+                    // boutons, pour que le fichier et le papier portent les mêmes lignes.
+                    fun tableauHistorique(): Tableau {
                         val jour = jourHistorique
                         val terme = rechercheHistorique
-                        when (ongletHistorique) {
-                            OngletHistorique.VENTES -> exporter(
-                                TableauExport.ventes(
-                                    FiltreHistorique.chercherVentes(
-                                        FiltreHistorique.ventesDuJour(ventes, jour),
-                                        terme
-                                    )
+                        return when (ongletHistorique) {
+                            OngletHistorique.VENTES -> TableauExport.ventes(
+                                FiltreHistorique.chercherVentes(
+                                    FiltreHistorique.ventesDuJour(ventes, jour),
+                                    terme
                                 )
                             )
-                            OngletHistorique.REAPPROS -> exporter(
-                                TableauExport.reappros(
-                                    FiltreHistorique.chercherReappros(
-                                        FiltreHistorique.reapprosDuJour(reappros, jour),
-                                        terme
-                                    )
+                            OngletHistorique.REAPPROS -> TableauExport.reappros(
+                                FiltreHistorique.chercherReappros(
+                                    FiltreHistorique.reapprosDuJour(reappros, jour),
+                                    terme
                                 )
                             )
                         }
-                    },
-                    langue = langue,
-                    themeColor = MaterialTheme.colorScheme.primary,
-                    focusRecherche = focusRecherche
-                )
+                    }
+                    HistoriqueEcran(
+                        ventes = ventes,
+                        reappros = reappros,
+                        retours = retours,
+                        produits = produits,
+                        onglet = ongletHistorique,
+                        onOngletChange = { ongletHistorique = it },
+                        jourAffiche = jourHistorique,
+                        onJourChange = { jourHistorique = it },
+                        recherche = rechercheHistorique,
+                        onRechercheChange = { rechercheHistorique = it },
+                        dateLisible = { FORMAT_DATE.format(java.util.Date(it)) },
+                        heureLisible = { FORMAT_HEURE.format(java.util.Date(it)) },
+                        // Comparé par BORNES DE JOURNÉE et non par différence de millisecondes : à
+                        // 23h59, « aujourd'hui » et « il y a une minute » sont le même jour civil,
+                        // ce qu'une soustraction ne dirait pas.
+                        estAujourdhui = com.example.util.RapportFinancier.bornesDuJour(jourHistorique)
+                            .contient(System.currentTimeMillis()),
+                        onExporter = { exporter(tableauHistorique()) },
+                        onImprimer = { imprimer(tableauHistorique()) },
+                        langue = langue,
+                        themeColor = MaterialTheme.colorScheme.primary,
+                        focusRecherche = focusRecherche
+                    )
+                }
 
                 SectionBureau.MOUVEMENTS_CAISSE -> MouvementsCaisseEcran(
                     mouvements = mouvementsCaisse,
@@ -662,6 +682,7 @@ private fun FenetreVarotra(
                     // Cet écran n'a aucun filtre : la liste exportée est donc celle qu'il affiche,
                     // en entier.
                     onExporter = { exporter(TableauExport.mouvementsCaisse(mouvementsCaisse)) },
+                    onImprimer = { imprimer(TableauExport.mouvementsCaisse(mouvementsCaisse)) },
                     langue = langue,
                     themeColor = MaterialTheme.colorScheme.primary
                 )
@@ -752,6 +773,14 @@ private fun FenetreVarotra(
                 resultat = resultat,
                 langue = langue,
                 onFermer = { resultatExport = null }
+            )
+        }
+
+        resultatImpression?.let { resultat ->
+            DialogueImpression(
+                resultat = resultat,
+                langue = langue,
+                onFermer = { resultatImpression = null }
             )
         }
     }

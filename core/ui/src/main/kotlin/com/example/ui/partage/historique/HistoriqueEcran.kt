@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.partage.composants.BoutonExport
+import com.example.ui.partage.composants.BoutonImprimer
 import com.example.data.model.Product
 import com.example.data.model.Restock
 import com.example.data.model.Retour
@@ -107,6 +108,7 @@ fun HistoriqueEcran(
     // Exporte l'onglet AFFICHÉ et la journée affichée, pas tout l'historique : c'est ce que le
     // gérant a sous les yeux, donc ce qu'il croit exporter.
     onExporter: (() -> Unit)? = null,
+    onImprimer: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val ventesDuJour = remember(ventes, jourAffiche) {
@@ -185,6 +187,10 @@ fun HistoriqueEcran(
             ) {
                 if (onExporter != null) {
                     BoutonExport(onClick = onExporter, langue = langue)
+                    Spacer(Modifier.size(4.dp))
+                }
+                if (onImprimer != null) {
+                    BoutonImprimer(onClick = onImprimer, langue = langue)
                     Spacer(Modifier.size(8.dp))
                 }
                 IconButton(

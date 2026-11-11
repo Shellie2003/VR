@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.ui.partage.composants.BoutonExport
+import com.example.ui.partage.composants.BoutonImprimer
 import com.example.data.model.CaisseSession
 import com.example.data.model.MouvementCaisse
 import com.example.util.FormatUtil
@@ -77,6 +78,7 @@ fun MouvementsCaisseEcran(
     langue: String,
     themeColor: Color,
     onExporter: (() -> Unit)? = null,
+    onImprimer: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val triees = remember(mouvements) { mouvements.sortedByDescending { it.date } }
@@ -173,12 +175,14 @@ fun MouvementsCaisseEcran(
             }
         }
 
-        if (onExporter != null && triees.isNotEmpty()) {
-            BoutonExport(
-                onClick = onExporter,
-                langue = langue,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+        if ((onExporter != null || onImprimer != null) && triees.isNotEmpty()) {
+            Row(
+                modifier = Modifier.padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (onExporter != null) BoutonExport(onClick = onExporter, langue = langue)
+                if (onImprimer != null) BoutonImprimer(onClick = onImprimer, langue = langue)
+            }
         }
 
         if (triees.isEmpty()) {

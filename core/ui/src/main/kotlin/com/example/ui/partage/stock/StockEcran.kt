@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.data.model.Product
 import com.example.ui.partage.composants.BoutonExport
+import com.example.ui.partage.composants.BoutonImprimer
 import com.example.util.CatalogueFiltre
 import com.example.util.ShopMode
 
@@ -76,6 +77,7 @@ fun StockEcran(
     // `null` = pas de bouton d'export. Ce module ne sait pas écrire de fichier : c'est la fenêtre
     // qui fournit l'action, et un bouton sans action se lirait comme une panne.
     onExporter: (() -> Unit)? = null,
+    onImprimer: (() -> Unit)? = null,
     // Même raison que dans `AccueilEcran` : sur un PC, un lecteur de code-barres USB se comporte
     // comme un clavier, donc le champ de recherche doit pouvoir recevoir le focus à la demande
     // (Ctrl+F) sans que l'utilisateur ait à cliquer dedans.
@@ -182,6 +184,9 @@ fun StockEcran(
             ) {
             if (onExporter != null) {
                 BoutonExport(onClick = onExporter, langue = langue)
+            }
+            if (onImprimer != null) {
+                BoutonImprimer(onClick = onImprimer, langue = langue)
             }
             FilterChip(
                 selected = stockFaibleSeulement,

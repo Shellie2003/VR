@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.data.model.Debt
 import com.example.ui.partage.composants.BoutonExport
+import com.example.ui.partage.composants.BoutonImprimer
 import com.example.util.FormatUtil
 import com.example.util.LanguageManager
 import com.example.util.RegroupementDettes
@@ -75,6 +76,7 @@ fun DettesEcran(
     langue: String,
     focusRecherche: FocusRequester? = null,
     onExporter: (() -> Unit)? = null,
+    onImprimer: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var detteOuverte by remember { mutableStateOf<Debt?>(null) }
@@ -126,12 +128,14 @@ fun DettesEcran(
             singleLine = true
         )
 
-        if (onExporter != null) {
-            BoutonExport(
-                onClick = onExporter,
-                langue = langue,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+        if (onExporter != null || onImprimer != null) {
+            Row(
+                modifier = Modifier.padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (onExporter != null) BoutonExport(onClick = onExporter, langue = langue)
+                if (onImprimer != null) BoutonImprimer(onClick = onImprimer, langue = langue)
+            }
         }
 
         Card(
