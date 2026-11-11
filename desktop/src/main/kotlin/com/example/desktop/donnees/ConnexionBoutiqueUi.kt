@@ -43,6 +43,11 @@ fun BandeauSourceDonnees(
     enChargement: Boolean,
     onConnecter: () -> Unit,
     onActualiser: () -> Unit,
+    /**
+     * L'âge de la dernière lecture, déjà mis en texte par `AgeLecture`. Vide tant que rien n'a
+     * été lu — sur le jeu de démonstration, annoncer un âge de lecture serait faux.
+     */
+    ageLecture: String = "",
     modifier: Modifier = Modifier
 ) {
     val relie = codeRelie != null
@@ -59,13 +64,24 @@ fun BandeauSourceDonnees(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = if (relie) texteRelie(langue, codeRelie!!) else texteDemonstration(langue),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (relie) MaterialTheme.colorScheme.onSurfaceVariant
-                else MaterialTheme.colorScheme.onSecondaryContainer,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (relie) texteRelie(langue, codeRelie!!) else texteDemonstration(langue),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (relie) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                // « Lu il y a 3 min » : le PC ne sait pas quand la boutique a changé, seulement
+                // quand IL a lu. Sans cette ligne, un écran figé depuis le matin a l'air juste —
+                // et c'est la pire forme de donnée périmée.
+                if (relie && ageLecture.isNotEmpty()) {
+                    Text(
+                        text = ageLecture,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
             if (enChargement) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp))
             } else {

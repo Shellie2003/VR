@@ -34,6 +34,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -65,6 +66,7 @@ import com.example.ui.partage.peremption.PeremptionEcran
 import com.example.ui.partage.rapports.RapportsEcran
 import com.example.ui.partage.stock.StockEcran
 import com.example.ui.partage.theme.VarotraTheme
+import com.example.util.AgeLecture
 import com.example.util.CalculMarge
 import com.example.util.CatalogueFiltre
 import com.example.util.DebtAllocation
@@ -76,6 +78,7 @@ import com.example.util.PanierCaisse
 import com.example.util.ShopMode
 import com.example.util.enDecimal
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -84,15 +87,22 @@ import java.util.Locale
 /**
  * Point d'entrée de la version de bureau.
  *
- * La fenêtre n'est plus le simple témoin de la chaîne de build : elle sert un vrai écran — le
- * catalogue — rendu par `:core:ui` et calculé par le code partagé avec Android (prix, mise en
- * forme, filtrage). Le thème vient lui aussi de la charte commune : les quatre couleurs qui étaient
- * recopiées ici à la main ont disparu, c'est la dette que le découpage devait lever.
+ * La fenêtre sert onze sections rendues par `:core:ui` et calculées par le code partagé avec
+ * Android : prix, mise en forme, filtrage, bornes de journée, marges, allocation de dettes. Le
+ * thème vient de la même charte, et rien du calcul métier n'est réécrit ici — c'est la dette que
+ * le découpage devait lever.
  *
- * Ce qui manque encore est nommé à l'écran plutôt que caché : sans base de données partagée (Room
- * KMP, délibérément remis à plus tard parce qu'il touche au fichier de base de chaque boutique en
- * service), la caisse, les dettes et les rapports n'ont rien à lire. Le catalogue affiche donc un
- * jeu de démonstration, et le dit.
+ * **Les données sont réelles** depuis la section 102 : la sauvegarde cloud de la boutique est lue
+ * avec le code de récupération que le gérant possède déjà, relue toutes les cinq minutes et au
+ * retour du focus, et le bandeau dit l'âge de la dernière lecture. Sans code relié, les écrans
+ * tournent sur un jeu de démonstration et l'annoncent.
+ *
+ * **Ce qui manque est nommé à l'écran plutôt que caché.** La lecture est le seul sens possible
+ * aujourd'hui : écrire demanderait une base partagée (Room KMP, délibérément remis à plus tard
+ * parce qu'il touche au fichier de base de chaque boutique en service), et renvoyer notre propre
+ * version de la sauvegarde écraserait celle du téléphone. D'où un bouton « Valider » désactivé
+ * **avec sa raison affichée** à la caisse, et l'absence du bouton de validation de
+ * réapprovisionnement dans le calculateur de marge, dont tout le calcul est en revanche réel.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() = application {
@@ -221,59 +231,127 @@ private fun FenetreVarotra(
     var messageConnexion by remember { mutableStateOf<String?>(null) }
     val porteeChargement = rememberCoroutineScope()
 
-    // Une seule fonction de chargement pour les trois appels (reconnexion automatique au
-    // démarrage, saisie du code, bouton « Actualiser ») : trois copies finiraient par ne plus
-    // traiter les mêmes cas d'échec, et c'est précisément ce que la section 56 a eu à corriger.
-    fun chargerBoutique(code: String, depuisDialogue: Boolean) {
-        porteeChargement.launch {
-            chargementEnCours = true
-            try {
-                when (val resultat = serviceDonnees.charger(code)) {
-                    is ResultatChargement.Succes -> {
-                        produits = resultat.donnees.produits
-                        dettes = resultat.donnees.dettes
-                        ventes = resultat.donnees.ventes
-                        retours = resultat.donnees.retours
-                        reappros = resultat.donnees.reappros
-                        mouvementsCaisse = resultat.donnees.mouvementsCaisse
-                        sessionsCaisse = resultat.donnees.sessionsCaisse
-                        lots = resultat.donnees.lots
-                        planEtagere = resultat.donnees.planEtagere
-                        codeRelie = resultat.codeNormalise
-                        messageConnexion = null
-                        dialogueConnexion = false
-                        // Le panier est vidé : ses lignes désignaient des produits du jeu de
-                        // démonstration, qui n'existent plus dans le catalogue chargé.
-                        panier = emptyList()
-                    }
-                    else -> {
-                        // Un échec de reconnexion AUTOMATIQUE au démarrage ne doit pas ouvrir une
-                        // fenêtre d'erreur devant quelqu'un qui n'a rien demandé : le bandeau dira
-                        // simplement « données de démonstration ». Un échec sur saisie explicite,
-                        // lui, doit s'expliquer.
-                        if (depuisDialogue) {
-                            messageConnexion = messageChargement(resultat, langue)
-                        }
+    // L'instant de la dernière lecture réussie. C'est ce qui permet au bandeau de dire l'âge des
+    // chiffres affichés — la donnée a elle-même l'âge du dernier envoi du téléphone (section 102),
+    // donc le PC ne peut annoncer que ce qu'il sait : quand il a lu.
+    var derniereLecture by remember { mutableStateOf<Long?>(null) }
+
+    // Une seule lecture à la fois, toutes causes confondues : relecture périodique, retour du
+    // focus sur la fenêtre, bouton « Actualiser », saisie du code. Sans ce verrou, deux requêtes
+    // pourraient se chevaucher et la plus lente écraserait la plus récente avec des chiffres
+    // plus vieux.
+    var lectureEnCours by remember { mutableStateOf(false) }
+
+    // Une seule fonction de chargement pour tous les appels (reconnexion automatique au démarrage,
+    // saisie du code, bouton « Actualiser », relecture périodique) : des copies finiraient par ne
+    // plus traiter les mêmes cas d'échec, et c'est précisément ce que la section 56 a eu à
+    // corriger. `silencieux` distingue la relecture de fond — elle n'affiche ni indicateur
+    // d'attente ni message d'échec, parce que personne ne l'a demandée.
+    suspend fun lireBoutique(code: String, depuisDialogue: Boolean, silencieux: Boolean) {
+        if (lectureEnCours) return
+        lectureEnCours = true
+        // L'indicateur d'attente remplace le bouton « Actualiser » dans le bandeau : le faire
+        // disparaître toutes les cinq minutes de lui-même volerait un clic en cours de route.
+        if (!silencieux) chargementEnCours = true
+        try {
+            when (val resultat = serviceDonnees.charger(code)) {
+                is ResultatChargement.Succes -> {
+                    // Le panier n'est vidé que si la boutique CHANGE : ses lignes appartiennent
+                    // alors à un autre catalogue. Une relecture de la même boutique ne doit pas
+                    // effacer ce que le gérant est en train d'assembler — et comme la règle est
+                    // déduite de la donnée et non du site d'appel, aucun appelant ne peut
+                    // l'oublier.
+                    if (resultat.codeNormalise != codeRelie) panier = emptyList()
+                    produits = resultat.donnees.produits
+                    dettes = resultat.donnees.dettes
+                    ventes = resultat.donnees.ventes
+                    retours = resultat.donnees.retours
+                    reappros = resultat.donnees.reappros
+                    mouvementsCaisse = resultat.donnees.mouvementsCaisse
+                    sessionsCaisse = resultat.donnees.sessionsCaisse
+                    lots = resultat.donnees.lots
+                    planEtagere = resultat.donnees.planEtagere
+                    codeRelie = resultat.codeNormalise
+                    derniereLecture = System.currentTimeMillis()
+                    messageConnexion = null
+                    dialogueConnexion = false
+                }
+                else -> {
+                    // Un échec de reconnexion AUTOMATIQUE au démarrage ne doit pas ouvrir une
+                    // fenêtre d'erreur devant quelqu'un qui n'a rien demandé : le bandeau dira
+                    // simplement « données de démonstration ». Un échec sur saisie explicite,
+                    // lui, doit s'expliquer.
+                    if (depuisDialogue) {
+                        messageConnexion = messageChargement(resultat, langue)
                     }
                 }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                if (depuisDialogue) {
-                    messageConnexion = messageChargement(ResultatChargement.EchecReseau, langue)
-                }
-            } finally {
-                // `finally` : sans lui, une coroutine interrompue laisserait l'indicateur tourner
-                // pour toujours et le bouton inaccessible — le défaut des sections 55 et 77.
-                chargementEnCours = false
             }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (depuisDialogue) {
+                messageConnexion = messageChargement(ResultatChargement.EchecReseau, langue)
+            }
+        } finally {
+            // `finally` : sans lui, une coroutine interrompue laisserait l'indicateur tourner
+            // pour toujours et le bouton inaccessible — le défaut des sections 55 et 77. Et le
+            // verrou de lecture resterait pris, donc plus rien ne se relirait jamais.
+            lectureEnCours = false
+            if (!silencieux) chargementEnCours = false
         }
+    }
+
+    fun chargerBoutique(code: String, depuisDialogue: Boolean) {
+        porteeChargement.launch { lireBoutique(code, depuisDialogue, silencieux = false) }
     }
 
     // Reconnexion silencieuse au lancement : le gérant ne doit saisir son code qu'UNE fois. Sans
     // cela, un logiciel de caisse redemanderait un code à chaque ouverture de boutique.
     LaunchedEffect(Unit) {
         serviceDonnees.codeEnregistre()?.let { chargerBoutique(it, depuisDialogue = false) }
+    }
+
+    // Relecture automatique, toutes les cinq minutes. Sans elle, un PC laissé ouvert toute la
+    // journée affiche la boutique telle qu'elle était au matin — et c'est la pire forme de donnée
+    // périmée, parce qu'elle a l'air juste : un gérant qui consulte son stock à 16 h sur un
+    // chiffre figé à 8 h commande ce qu'il a déjà, ou croit avoir ce qu'il a vendu.
+    //
+    // Séquentielle par construction : la lecture est attendue AVANT la prochaine attente, donc
+    // deux relectures périodiques ne peuvent pas se chevaucher même si le réseau est très lent.
+    // La boucle est liée à `codeRelie` : elle s'arrête d'elle-même si la boutique change, et
+    // disparaît avec la fenêtre.
+    val codeCourant = codeRelie
+    LaunchedEffect(codeCourant) {
+        if (codeCourant == null) return@LaunchedEffect
+        while (true) {
+            delay(AgeLecture.INTERVALLE_RELECTURE_MS)
+            lireBoutique(codeCourant, depuisDialogue = false, silencieux = true)
+        }
+    }
+
+    // Et au retour du focus sur la fenêtre : revenir à son PC est précisément le moment où l'on
+    // veut des chiffres frais, et attendre le prochain quart d'heure serait absurde. Le plancher
+    // de `doitRelire` est ce qui rend ce déclencheur sûr — une fenêtre peut gagner et perdre le
+    // focus plusieurs fois par seconde quand un clic passe par une autre application, et chaque
+    // va-et-vient paierait sinon une requête sur une connexion facturée au mégaoctet.
+    // Une horloge qui avance, sans quoi le bandeau resterait figé sur « Lu à l'instant » pour
+    // toujours — et mentirait d'autant plus qu'il resterait rassurant. Trente secondes suffisent
+    // pour un texte qui se compte en minutes ; cela ne coûte aucun réseau, seulement la
+    // recomposition d'une ligne de texte.
+    var maintenant by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000L)
+            maintenant = System.currentTimeMillis()
+        }
+    }
+
+    val fenetreActive = LocalWindowInfo.current.isWindowFocused
+    LaunchedEffect(fenetreActive, codeCourant) {
+        if (!fenetreActive || codeCourant == null) return@LaunchedEffect
+        if (AgeLecture.doitRelire(derniereLecture, System.currentTimeMillis())) {
+            lireBoutique(codeCourant, depuisDialogue = false, silencieux = true)
+        }
     }
 
     // L'export de la liste affichée. Le résultat est un état plutôt qu'un effet immédiat : le
@@ -353,7 +431,10 @@ private fun FenetreVarotra(
                     codeRelie = codeRelie,
                     enChargement = chargementEnCours,
                     onConnecter = { messageConnexion = null; dialogueConnexion = true },
-                    onActualiser = { codeRelie?.let { chargerBoutique(it, false) } }
+                    onActualiser = { codeRelie?.let { chargerBoutique(it, false) } },
+                    // `maintenant` est relu par l'horloge ci-dessus : le texte vieillit de
+                    // lui-même au lieu de rester figé sur l'instant de la lecture.
+                    ageLecture = AgeLecture.texte(derniereLecture, maintenant, langue)
                 )
             }
 
