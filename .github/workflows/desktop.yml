@@ -376,12 +376,30 @@ jobs:
             ne sont présents que si l'outil WiX était disponible sur la machine de construction ;
             l'archive portable, elle, est toujours produite.
 
-            Les six écrans sont là — Caisse, Catalogue, Stock, Dettes, Rapports, À propos —
-            calculés par le même code que l'application Android (prix, prix de gros, TVA, monnaie à
-            rendre, répartition des trosa, bénéfice). Les données affichées sont de
-            **démonstration** : la base de la boutique n'est pas encore partagée avec le téléphone,
-            ce que chaque écran dit explicitement, et la caisse ne peut donc pas encore enregistrer
-            une vente — son bouton « Valider » est désactivé avec sa raison affichée.
+            **Pour voir les données de votre boutique** : au premier lancement, le bandeau en haut
+            propose « Connecter ». Saisissez-y le **code de récupération** affiché dans les
+            Paramètres de l'application sur votre téléphone (celui de la sauvegarde cloud). Le code
+            n'est à saisir qu'une fois : il est mémorisé, et le logiciel se reconnecte seul aux
+            lancements suivants. Sans code, les écrans tournent sur un jeu de **démonstration** et
+            l'annoncent.
+
+            Onze écrans : Caisse, Catalogue, Stock, Historique (ventes et réapprovisionnements),
+            Dettes, Mouvements de caisse, Péremption, Plan d'étagères, Approvisionnement & Marge,
+            Rapports, À propos. Tous les calculs viennent du **même code que l'application
+            Android** — prix, prix de gros, TVA, monnaie à rendre, répartition des trosa, bénéfice,
+            marges, alertes de péremption : aucun chiffre n'est recalculé différemment ici.
+
+            **Propre au PC** : exportation Excel et **impression** de la liste affichée (stock,
+            historique, dettes, mouvements de caisse). À défaut d'imprimante, « Microsoft Print to
+            PDF » de Windows donne un fichier PDF. Les listes sont aussi relues automatiquement
+            toutes les cinq minutes, et le bandeau indique l'âge de la dernière lecture — un écran
+            laissé ouvert ne reste donc pas figé sans le dire.
+
+            **Ce que cette version ne fait pas encore : écrire.** Elle lit la sauvegarde de la
+            boutique, elle ne la modifie pas. La caisse calcule tout correctement mais ne peut pas
+            enregistrer une vente — son bouton « Valider » est désactivé **avec sa raison
+            affichée** — et les fiches produit, comptes et codes-barres restent à gérer depuis le
+            téléphone. Les données affichées ont l'âge du dernier envoi cloud de votre téléphone.
 
             **Mise à jour sans réinstallation** : à partir de cette version, « À propos » porte un
             bouton « Vérifier les mises à jour ». Le logiciel télécharge la nouvelle version,
