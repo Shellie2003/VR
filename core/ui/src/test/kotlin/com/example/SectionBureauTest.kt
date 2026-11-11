@@ -61,7 +61,8 @@ class SectionBureauTest {
         assertEquals(
             listOf(
                 "CAISSE", "CATALOGUE", "STOCK", "HISTORIQUE", "DETTES",
-                "MOUVEMENTS_CAISSE", "PEREMPTION", "ETAGERES", "RAPPORTS", "A_PROPOS"
+                "MOUVEMENTS_CAISSE", "PEREMPTION", "ETAGERES", "MARGE", "RAPPORTS",
+                "A_PROPOS"
             ),
             SectionBureau.entries.map { it.name }
         )

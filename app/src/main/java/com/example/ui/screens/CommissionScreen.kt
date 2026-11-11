@@ -34,7 +34,7 @@ import com.example.data.model.Product
 import com.example.data.model.Fournisseur
 import com.example.ui.viewmodel.InventoryViewModel
 import com.example.util.FormatUtil
-import com.example.util.RapportFinancier
+import com.example.util.CalculMarge
 import com.example.util.LanguageManager
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -512,55 +512,42 @@ fun CommissionScreen(
                         )
                     }
 
-                    // Profit Calculations Section (Auto-Calculated) - Defaults to 0.0 robustly
+                    // Tout le calcul vient de `CalculMarge` (:core:logic) : c'est le chiffre sur
+                    // lequel le gérant décide de ses prix de vente, et le calculateur du bureau
+                    // doit en appliquer EXACTEMENT le même. Les noms de variables locales sont
+                    // conservés, donc les trente affichages en aval ne changent pas.
                     val qVal = quantityStr.enDecimal() ?: 0.0
                     val itemsVal = itemsPerCartonStr.enDecimal() ?: 0.0
                     val totalCostVal = totalCostPriceStr.enDecimal() ?: 0.0
                     val sellPriceVal = unitSellingPriceStr.enDecimal() ?: 0.0
 
-                    val totalUnits = qVal * itemsVal
-                    val costPerCarton = if (qVal > 0.0) totalCostVal / qVal else 0.0
-                    val costPerUnit = if (totalUnits > 0.0) totalCostVal / totalUnits else 0.0
-                    val totalRevenue = totalUnits * sellPriceVal
-                    val totalProfit = totalRevenue - totalCostVal
-                    val profitPerCarton = if (qVal > 0.0) totalProfit / qVal else 0.0
-                    val profitPerUnit = if (totalUnits > 0.0) sellPriceVal - costPerUnit else 0.0
-                    // `RapportFinancier.tauxMarge` : cinquième copie de cette formule dans l'app,
-                    // et la dernière. Elle rend 0 sur un coût nul au lieu d'`Infinity`, ce que le
-                    // test de ce module épingle.
-                    val marginPct = RapportFinancier.tauxMarge(totalProfit, totalCostVal)
+                    val marge = CalculMarge.calculer(
+                        cartons = qVal,
+                        unitesParCarton = itemsVal,
+                        coutTotalAchat = totalCostVal,
+                        prixVenteUnitaire = sellPriceVal
+                    )
+                    val totalUnits = marge.totalUnites
+                    val costPerCarton = marge.coutParCarton
+                    val costPerUnit = marge.coutParUnite
+                    val totalRevenue = marge.recetteTotale
+                    val totalProfit = marge.beneficeTotal
+                    val profitPerCarton = marge.beneficeParCarton
+                    val profitPerUnit = marge.beneficeParUnite
+                    val marginPct = marge.tauxMarge
+                    val marginStatusText = CalculMarge.libelleSante(marge.sante, activeLang)
 
-                    // Dynamic Margin Health Badge values
-                    val isCalculationActive = totalCostVal > 0.0 && sellPriceVal > 0.0 && totalUnits > 0.0
-                    val marginStatusText = when {
-                        !isCalculationActive -> ""
-                        totalProfit < 0.0 -> when (activeLang) {
-                            "mg" -> "Fatiantoka ⚠️ (Mila ampiakarina ny vidiny)"
-                            "fr" -> "Perte ⚠️ (Augmentez le prix)"
-                            else -> "Loss ⚠️ (Increase price)"
-                        }
-                        totalProfit == 0.0 -> when (activeLang) {
-                            "mg" -> "Tsy misy tombony"
-                            "fr" -> "Marge nulle"
-                            else -> "Zero margin"
-                        }
-                        marginPct < RapportFinancier.SEUIL_MARGE_FAIBLE -> when (activeLang) {
-                            "mg" -> "Tombony kely (Marge faible) ⚠️"
-                            "fr" -> "Marge faible ⚠️"
-                            else -> "Low margin ⚠️"
-                        }
-                        else -> when (activeLang) {
-                            "mg" -> "Tombony tsara (Marge excellente) ✨"
-                            "fr" -> "Marge excellente ✨"
-                            else -> "Excellent margin ✨"
-                        }
-                    }
-
-                    val marginStatusColor = when {
-                        totalProfit < 0.0 -> MaterialTheme.colorScheme.error
-                        totalProfit == 0.0 -> MaterialTheme.colorScheme.onSurfaceVariant // Slate
-                        marginPct < RapportFinancier.SEUIL_MARGE_FAIBLE -> Color(0xFFF59E0B) // Amber/Yellow
-                        else -> Color(0xFF10B981) // Emerald Green
+                    // La COULEUR reste ici : `:core:logic` n'a pas de type `Color`, et deux mondes
+                    // Compose distincts ne peuvent pas partager celui de l'autre (section 84).
+                    // `INACTIVE` n'est là que pour rendre le `when` exhaustif : le badge n'est
+                    // dessiné que si son libellé n'est pas vide, et il ne l'est que quand le
+                    // calcul est actif — cette couleur-là n'est donc jamais lue.
+                    val marginStatusColor = when (marge.sante) {
+                        CalculMarge.SanteMarge.PERTE -> MaterialTheme.colorScheme.error
+                        CalculMarge.SanteMarge.NULLE,
+                        CalculMarge.SanteMarge.INACTIVE -> MaterialTheme.colorScheme.onSurfaceVariant
+                        CalculMarge.SanteMarge.FAIBLE -> Color(0xFFF59E0B) // Amber/Yellow
+                        CalculMarge.SanteMarge.EXCELLENTE -> Color(0xFF10B981) // Emerald Green
                     }
 
                     Card(

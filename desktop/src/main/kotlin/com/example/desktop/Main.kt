@@ -60,10 +60,12 @@ import com.example.ui.partage.dettes.DettesEcran
 import com.example.ui.partage.etagere.EtagereEcran
 import com.example.ui.partage.historique.HistoriqueEcran
 import com.example.ui.partage.historique.OngletHistorique
+import com.example.ui.partage.marge.CalculateurMargeEcran
 import com.example.ui.partage.peremption.PeremptionEcran
 import com.example.ui.partage.rapports.RapportsEcran
 import com.example.ui.partage.stock.StockEcran
 import com.example.ui.partage.theme.VarotraTheme
+import com.example.util.CalculMarge
 import com.example.util.CatalogueFiltre
 import com.example.util.DebtAllocation
 import com.example.util.FiltreHistorique
@@ -189,6 +191,15 @@ private fun FenetreVarotra(
     var ongletHistorique by remember { mutableStateOf(OngletHistorique.VENTES) }
     var jourHistorique by remember { mutableStateOf(System.currentTimeMillis()) }
     var rechercheHistorique by remember { mutableStateOf("") }
+
+    // Le calculateur de marge : quatre saisies, et un résultat entièrement dérivé. Les saisies
+    // sont des chaînes et non des nombres, exactement comme sur Android : un champ en cours de
+    // frappe n'est pas un nombre (« 12 », « 12, », « 12,5 »), et le convertir à chaque touche
+    // réécrirait sous les doigts du gérant ce qu'il est en train de taper.
+    var margeCartons by remember { mutableStateOf("") }
+    var margeUnitesParCarton by remember { mutableStateOf("") }
+    var margeCoutTotal by remember { mutableStateOf("") }
+    var margePrixVente by remember { mutableStateOf("") }
 
     // Un SEUL panier pour le catalogue et la caisse, et c'est le point important : le badge de
     // quantité de l'accueil et la ligne de la caisse montrent désormais le même panier, géré par
@@ -588,6 +599,38 @@ private fun FenetreVarotra(
                 )
 
                 SectionBureau.A_PROPOS -> SectionAPropos(version = version, langue = langue)
+
+                SectionBureau.MARGE -> {
+                    // Le calcul est mémorisé sur les quatre saisies : il ne coûte presque rien,
+                    // mais le refaire à chaque recomposition sans rapport (un survol, un
+                    // changement de thème) serait gratuit.
+                    val resultatMarge = remember(
+                        margeCartons, margeUnitesParCarton, margeCoutTotal, margePrixVente
+                    ) {
+                        // `enDecimal` et non `toDoubleOrNull` : c'est la lecture tolérante de la
+                        // section 49, qui accepte la virgule décimale d'un clavier français ou
+                        // malgache. Sans elle, « 12,5 » deviendrait zéro en silence.
+                        CalculMarge.calculer(
+                            cartons = margeCartons.enDecimal() ?: 0.0,
+                            unitesParCarton = margeUnitesParCarton.enDecimal() ?: 0.0,
+                            coutTotalAchat = margeCoutTotal.enDecimal() ?: 0.0,
+                            prixVenteUnitaire = margePrixVente.enDecimal() ?: 0.0
+                        )
+                    }
+                    CalculateurMargeEcran(
+                        cartons = margeCartons,
+                        onCartonsChange = { margeCartons = it },
+                        unitesParCarton = margeUnitesParCarton,
+                        onUnitesParCartonChange = { margeUnitesParCarton = it },
+                        coutTotalAchat = margeCoutTotal,
+                        onCoutTotalAchatChange = { margeCoutTotal = it },
+                        prixVenteUnitaire = margePrixVente,
+                        onPrixVenteUnitaireChange = { margePrixVente = it },
+                        resultat = resultatMarge,
+                        langue = langue,
+                        themeColor = MaterialTheme.colorScheme.primary
+                    )
+                }
 
                 SectionBureau.RAPPORTS -> Column(modifier = Modifier.fillMaxSize()) {
                     RapportsEcran(

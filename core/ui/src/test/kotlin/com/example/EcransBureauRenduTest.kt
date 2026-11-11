@@ -27,16 +27,18 @@ import com.example.ui.partage.dettes.DettesEcran
 import com.example.ui.partage.etagere.EtagereEcran
 import com.example.ui.partage.historique.HistoriqueEcran
 import com.example.ui.partage.historique.OngletHistorique
+import com.example.ui.partage.marge.CalculateurMargeEcran
 import com.example.ui.partage.peremption.PeremptionEcran
 import com.example.ui.partage.rapports.RapportsEcran
 import com.example.ui.partage.stock.StockEcran
 import com.example.ui.partage.theme.VarotraTheme
+import com.example.util.CalculMarge
 import com.example.util.ShopMode
 import org.junit.Rule
 import org.junit.Test
 
 /**
- * Le rendu réel des neuf écrans de bureau, **avec données et SURTOUT à vide**.
+ * Le rendu réel des dix écrans de bureau, **avec données et SURTOUT à vide**.
  *
  * **Pourquoi ces tests existent.** Jusqu'ici la CI ne faisait que *compiler* ces écrans. Or les
  * défauts qui restent après une compilation réussie sont précisément ceux qui plantent à
@@ -577,6 +579,68 @@ class EcransBureauRenduTest {
     fun `le plan d'etageres se rend sans aucune etagere`() {
         rendre(sombre = false) {
             EtagereEcran(plan = emptyList(), langue = "en")
+        }
+    }
+
+    // ---- Calculateur de marge ----
+
+    @Test
+    fun `le calculateur de marge se rend en clair et en sombre`() {
+        val resultat = CalculMarge.calculer(10.0, 24.0, 240_000.0, 15_000.0)
+        listOf(false, true).forEach { sombre ->
+            rendre(sombre) {
+                CalculateurMargeEcran(
+                    cartons = "10",
+                    onCartonsChange = {},
+                    unitesParCarton = "24",
+                    onUnitesParCartonChange = {},
+                    coutTotalAchat = "240000",
+                    onCoutTotalAchatChange = {},
+                    prixVenteUnitaire = "15000",
+                    onPrixVenteUnitaireChange = {},
+                    resultat = resultat,
+                    langue = "fr",
+                    themeColor = androidx.compose.ui.graphics.Color(0xFF012D1D),
+                    unite = "Sac"
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `le calculateur de marge se rend a vide et sur une perte`() {
+        // Le formulaire vide est l'état d'ouverture : tout y est à zéro et le badge est muet.
+        rendre(sombre = true) {
+            CalculateurMargeEcran(
+                cartons = "",
+                onCartonsChange = {},
+                unitesParCarton = "",
+                onUnitesParCartonChange = {},
+                coutTotalAchat = "",
+                onCoutTotalAchatChange = {},
+                prixVenteUnitaire = "",
+                onPrixVenteUnitaireChange = {},
+                resultat = CalculMarge.calculer(0.0, 0.0, 0.0, 0.0),
+                langue = "mg",
+                themeColor = androidx.compose.ui.graphics.Color(0xFF012D1D)
+            )
+        }
+        // La perte emprunte l'autre branche de couleur de CHAQUE ligne de bénéfice : sans ce
+        // rendu, le chemin rouge du panneau ne serait jamais composé par aucun test.
+        rendre(sombre = false) {
+            CalculateurMargeEcran(
+                cartons = "10",
+                onCartonsChange = {},
+                unitesParCarton = "24",
+                onUnitesParCartonChange = {},
+                coutTotalAchat = "240000",
+                onCoutTotalAchatChange = {},
+                prixVenteUnitaire = "900",
+                onPrixVenteUnitaireChange = {},
+                resultat = CalculMarge.calculer(10.0, 24.0, 240_000.0, 900.0),
+                langue = "en",
+                themeColor = androidx.compose.ui.graphics.Color(0xFF012D1D)
+            )
         }
     }
 }
