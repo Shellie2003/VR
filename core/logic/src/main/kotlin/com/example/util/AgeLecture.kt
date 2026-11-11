@@ -5,7 +5,7 @@ package com.example.util
  *
  * ## Pourquoi cette règle existe
  *
- * La version de bureau lit la sauvegarde de la boutique **une seule fois au lancement**. Un PC
+ * La version de bureau lisait la sauvegarde de la boutique **une seule fois au lancement**. Un PC
  * laissé ouvert toute la journée affichait donc la boutique telle qu'elle était au matin — et rien
  * à l'écran ne le disait. C'est la pire forme de donnée périmée : elle a l'air juste. Un gérant qui
  * consulte son stock à 16 h sur un chiffre figé à 8 h commande ce qu'il a déjà, ou croit avoir ce
