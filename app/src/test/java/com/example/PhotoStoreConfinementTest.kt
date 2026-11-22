@@ -126,6 +126,20 @@ class PhotoStoreConfinementTest {
     }
 
     @Test
+    fun `la sauvegarde locale ne peut pas etre lue par un chemin etranger de meme nom`() {
+        // Le cas réellement exploitable, et celui que le premier jet du correctif laissait ouvert :
+        // le chemin absolu est rejeté, mais le repli par NOM allait chercher le fichier à la racine
+        // de `filesDir` sans exiger le préfixe des photos. `database_safety_backup.json` y porte
+        // toute la base de la boutique — ventes, dettes, caisse — et partait donc encodée dans la
+        // charge de synchronisation suivante.
+        ecrire(File(context.filesDir, "database_safety_backup.json"), "{\"sales\":[]}")
+
+        assertNull(
+            PhotoStore.resoudre(context, "file:///data/user/0/com.autre.paquet/files/database_safety_backup.json")
+        )
+    }
+
+    @Test
     fun `un repertoire n'est jamais rendu comme photo`() {
         // `nomFichier` d'une référence terminée par `..` rend `".."`, et `File(dossier, "..")` est
         // un répertoire existant dont `length()` n'est pas nulle : `exists()` l'aurait accepté.

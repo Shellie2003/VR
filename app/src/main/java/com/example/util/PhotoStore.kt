@@ -90,12 +90,21 @@ object PhotoStore {
         // de récupération (et avec lui la sauvegarde cloud de la boutique) à tout le réseau.
         if (direct.isFile && direct.length() > 0 && estConfine(context, direct)) return direct
 
+        // Les deux replis passent par le MÊME confinement que le chemin absolu, et ce n'est pas
+        // une précaution de symétrie : sans lui, le repli historique acceptait n'importe quel nom
+        // à la racine de `filesDir`, donc `file://<n'importe où>/database_safety_backup.json`
+        // faisait lire la sauvegarde locale — toute la base de la boutique — et l'encoder dans la
+        // charge de synchronisation suivante. Une seule règle, appliquée aux trois branches.
         val nom = nomFichier(imageUrl) ?: return null
         val dansDossier = File(dossier(context), nom)
-        if (dansDossier.isFile && dansDossier.length() > 0) return dansDossier
+        if (dansDossier.isFile && dansDossier.length() > 0 && estConfine(context, dansDossier)) return dansDossier
 
         val historique = File(context.filesDir, nom)
-        return if (historique.isFile && historique.length() > 0) historique else null
+        return if (historique.isFile && historique.length() > 0 && estConfine(context, historique)) {
+            historique
+        } else {
+            null
+        }
     }
 
     /**
@@ -109,6 +118,11 @@ object PhotoStore {
      * photo venue d'un autre téléphone, dont le chemin absolu ne désigne rien ici. `resoudre`
      * retombe alors sur la recherche par nom de fichier, qui est précisément le rattrapage voulu
      * (section 46) et reste intacte.
+     *
+     * Appliqué aux TROIS branches de [resoudre], y compris aux deux replis par nom : limiter le
+     * confinement au chemin absolu laissait le repli historique accepter n'importe quel nom à la
+     * racine de `filesDir`, donc lire la sauvegarde locale. Le préfixe exigé ici est le même que
+     * celui sur lequel [toutes] s'appuie déjà pour reconnaître une photo d'une ancienne version.
      */
     private fun estConfine(context: Context, fichier: File): Boolean = runCatching {
         val canonique = fichier.canonicalPath
