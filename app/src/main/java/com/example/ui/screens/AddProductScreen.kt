@@ -1086,7 +1086,15 @@ fun AddProductScreen(
                             lowStockThresholdStr = it
                             thresholdError = it.enDecimal() == null || it.toDouble() < 0
                         },
-                        label = { Text("Low Stock Alert Seuil (Alerte)") },
+                        label = {
+                            Text(
+                                when (activeLang) {
+                                    "mg" -> "Fetran'ny tahiry kely"
+                                    "fr" -> "Seuil d'alerte de stock faible"
+                                    else -> "Low stock alert threshold"
+                                }
+                            )
+                        },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         isError = thresholdError,
                         modifier = Modifier

@@ -273,6 +273,7 @@ fun EtagereScreen(
                 else -> "Rename shelf"
             },
             valeurInitiale = etagere.nom,
+            activeLang = activeLang,
             onConfirm = { nom ->
                 viewModel.renommerEtagere(etagere, nom)
                 etagereARenommer = null
@@ -715,6 +716,7 @@ private fun CelluleNiveau(
 private fun RenommerDialog(
     titre: String,
     valeurInitiale: String,
+    activeLang: String,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -737,7 +739,9 @@ private fun RenommerDialog(
             ) { Text("OK", fontWeight = FontWeight.Bold) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Annuler") }
+            TextButton(onClick = onDismiss) {
+                Text(when (activeLang) { "mg" -> "Aoka"; "fr" -> "Annuler"; else -> "Cancel" })
+            }
         }
     )
 }

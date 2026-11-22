@@ -363,7 +363,7 @@ fun SplashScreen(t: (String) -> String) {
         }
 
         Text(
-            text = "Dévéloppée par AinaDigit",
+            text = "Développée par AinaDigit",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
             color = Color.White.copy(alpha = 0.7f),
