@@ -148,6 +148,17 @@ interface VenteDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertVente(vente: Vente): Long
 
+    /**
+     * Les `Vente` enregistrées à cet instant précis.
+     *
+     * `checkoutSale` recopie `Sale.timestamp` **verbatim** dans `Vente.dateVente`, donc l'instant
+     * est une correspondance exacte entre les deux journaux — pas une approximation. On rend une
+     * liste et on filtre le montant côté Kotlin : comparer un `REAL` par égalité en SQL se joue sur
+     * des bits de flottant, et ici l'appelant peut tolérer le centime.
+     */
+    @Query("SELECT * FROM ventes WHERE dateVente = :dateVente")
+    suspend fun getVentesAt(dateVente: Long): List<Vente>
+
     @Delete
     suspend fun deleteVente(vente: Vente)
 }

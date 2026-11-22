@@ -438,8 +438,31 @@ class InventoryRepository(
         }
     }
 
-    suspend fun deleteSale(sale: Sale) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    /**
+     * Supprime une vente de l'historique — **des DEUX journaux**.
+     *
+     * `checkoutSale` écrit chaque vente deux fois : dans `Sale` (l'historique affiché) et dans
+     * `Vente` (le modèle relationnel, seul à porter `modePaiement`). Cette fonction ne supprimait
+     * que la première, et `deleteVente` n'était appelée de nulle part. La ligne `Vente` survivait
+     * donc à l'annulation, et elle est précisément celle que compte la caisse : `soldeCaisse`
+     * (section 23) et `VenteDao.getCashSalesTotal` somment les `Vente` en ESPECES. Annuler une
+     * vente laissait donc le solde théorique créditer de l'argent qui n'est pas dans le tiroir —
+     * donc un **manquant** au comptage du soir, que `AnomalyDetector` (section 36) imputait à
+     * l'employé de permanence. Un faux chiffre et une fausse accusation.
+     *
+     * Les deux suppressions sont dans une seule transaction : un journal amputé et l'autre non
+     * serait pire que l'état d'avant, puisque plus rien ne permettrait de les recoller.
+     *
+     * `lignes_vente` et `ligne_vente_lots` partent avec la `Vente` par `ForeignKey.CASCADE`
+     * (section 10). Une vente restaurée depuis une sauvegarde n'a pas forcément de ligne `Vente`
+     * correspondante : on n'en trouve alors aucune et la suppression se limite à l'historique,
+     * exactement comme avant.
+     */
+    suspend fun deleteSale(sale: Sale) = database.withTransaction {
         saleDao.deleteSale(sale)
+        venteDao.getVentesAt(sale.timestamp)
+            .firstOrNull { kotlin.math.abs(it.montantTotal - sale.totalAmount) < 0.01 }
+            ?.let { venteDao.deleteVente(it) }
     }
 
     // C.1: partial or full return of a past sale — restores stock for the returned items and, for

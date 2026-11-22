@@ -1680,8 +1680,7 @@ class InventoryViewModel(
         }
 
         lancerProtege("l'enregistrement de la vente") {
-            try {
-                val soldItems = cartSnapshot.map {
+            val soldItems = cartSnapshot.map {
                     SoldItem(
                         productId = it.productId ?: 0,
                         name = it.name,
@@ -1728,10 +1727,21 @@ class InventoryViewModel(
                 // Trigger network database sync automatically
                 com.example.sync.SyncManager.triggerDatabaseSync()
                 triggerLocalSafetyBackup()
-            } catch (e: Throwable) {
-                e.printStackTrace()
-            }
         }
+        // `lancerProtege` existe précisément pour qu'un échec d'écriture soit CONSTATÉ (boîte de
+        // dialogue sur `erreurOperation`, section 48) et non aperçu dans un journal que personne
+        // ne lit. Un `catch (e: Throwable) { e.printStackTrace() }` enveloppait tout ce bloc et
+        // neutralisait ce mécanisme sur l'écriture la plus importante de l'application : la vente
+        // échouait, le panier se vidait, le reçu s'imprimait, le client repartait — et aucune vente
+        // n'existait. Retiré : l'exception remonte au gestionnaire, qui affiche l'échec, et le
+        // panier reste intact (il n'est vidé qu'APRÈS `checkoutSale`), donc la vente est
+        // re-tentable.
+        //
+        // Limite assumée : ce `return true` est hors de la coroutine, donc l'écran annonce le
+        // succès avant la fin de l'écriture. La corriger demanderait de rendre `checkoutCart`
+        // suspendue et de reprendre tous ses sites d'appel — à faire quand un rendu visuel réel
+        // permettra de vérifier le parcours de caisse. En l'état, l'échec est au moins visible et
+        // la vente récupérable, au lieu d'être silencieux.
         return true
     }
 
@@ -2787,7 +2797,17 @@ class InventoryViewModel(
                             imageUrl = incomingImageUrl,
                             unit = obj.optString("unit", "Pièce"),
                             barcode = obj.optString("barcode", ""),
-                            wholesalePrice = if (obj.has("wholesalePrice") && !obj.isNull("wholesalePrice")) obj.getDouble("wholesalePrice") else null,
+                            // `.takeIf { it > 0.0 }` : la sérialisation écrit `wholesalePrice ?: 0.0`,
+                            // donc un produit SANS tarif de gros arrive ici en `0.0` et non en
+                            // `null`. Sans ce filtre, la fusion ci-dessous prendrait ce zéro pour
+                            // une valeur et écraserait le tarif de gros local — à chaque démarrage,
+                            // puisque la sauvegarde locale est rejouée à chaque lancement. Seuil
+                            // aligné sur `PriceUtil.isWholesaleActive`, qui exige `> 0.0`.
+                            wholesalePrice = if (obj.has("wholesalePrice") && !obj.isNull("wholesalePrice")) {
+                                obj.getDouble("wholesalePrice").takeIf { it > 0.0 }
+                            } else {
+                                null
+                            },
                             sku = obj.optString("sku", ""),
                             lowStockThreshold = obj.optDouble("lowStockThreshold", 5.0),
                             prixAchatUniteBase = obj.optDouble("prixAchatUniteBase", 0.0),
@@ -2853,6 +2873,12 @@ class InventoryViewModel(
                             gerePeremption = prod.gerePeremption,
                             taxable = prod.taxable,
                             tauxTaxe = prod.tauxTaxe,
+                            // Absent de cette liste, donc jamais propagé à un produit DÉJÀ présent :
+                            // un tarif de gros saisi sur un poste n'arrivait pas sur les autres, qui
+                            // continuaient de facturer au prix de détail en mode Grossiste. Même
+                            // famille que les sections 32 et 79 — deux prix pour le même carton,
+                            // sans qu'aucun écran ne le signale.
+                            wholesalePrice = prod.wholesalePrice ?: existing.wholesalePrice,
                             // Indispensable en plus de la construction ci-dessus : `copy()` ne
                             // touche que les champs nommés, donc sans ces quatre lignes un produit
                             // DÉJÀ présent sur l'appareil ne recevrait jamais la molécule saisie sur
