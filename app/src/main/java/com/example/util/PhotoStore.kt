@@ -72,20 +72,50 @@ object PhotoStore {
      * Trois tentatives, dans cet ordre : le chemin absolu enregistré (cas courant), le nom du
      * fichier dans le dossier photos (cas d'une archive restaurée depuis un autre téléphone), puis
      * le nom du fichier à la racine de `filesDir` (photos prises par les versions précédentes).
+     *
+     * `isFile` et non `exists()` : `nomFichier` rend le dernier segment du chemin, donc `".."` pour
+     * une référence `file://.../photos/..`, et `File(dossier, "..")` est un RÉPERTOIRE existant dont
+     * `length()` n'est pas nulle. Un appelant recevrait alors un dossier là où il attend une photo.
      */
     fun resoudre(context: Context, imageUrl: String?): File? {
         if (!estLocale(imageUrl)) return null
         val chemin = imageUrl!!.removePrefix(PREFIXE_REFERENCE)
         val direct = File(chemin)
-        if (direct.exists() && direct.length() > 0) return direct
+        // Le chemin absolu n'est honoré que s'il DÉSIGNE RÉELLEMENT une de nos photos. Sans ce
+        // confinement, `imageUrl` était une primitive de lecture de fichier arbitraire dans le bac
+        // à sable de l'app : ce champ vient de la base, donc d'une charge de synchronisation ou
+        // d'une archive restaurée — deux sources qui ne sont pas de nous. Un produit portant
+        // `file:///data/data/<app>/shared_prefs/pos_app_prefs.xml` faisait encoder le fichier de
+        // préférences en base64 dans la charge de synchronisation suivante, donc diffusait le code
+        // de récupération (et avec lui la sauvegarde cloud de la boutique) à tout le réseau.
+        if (direct.isFile && direct.length() > 0 && estConfine(context, direct)) return direct
 
         val nom = nomFichier(imageUrl) ?: return null
         val dansDossier = File(dossier(context), nom)
-        if (dansDossier.exists() && dansDossier.length() > 0) return dansDossier
+        if (dansDossier.isFile && dansDossier.length() > 0) return dansDossier
 
         val historique = File(context.filesDir, nom)
-        return if (historique.exists() && historique.length() > 0) historique else null
+        return if (historique.isFile && historique.length() > 0) historique else null
     }
+
+    /**
+     * Vrai si [fichier] est bien l'une de nos photos : dans le dossier dédié, ou à la racine de
+     * `filesDir` sous le préfixe historique.
+     *
+     * Comparaison sur le chemin **canonique**, donc `..` et liens symboliques sont résolus avant
+     * le test — sans quoi `photos/../../shared_prefs/x.xml` passerait le filtre.
+     *
+     * Un chemin hors de ces deux emplacements n'est pas une erreur : c'est le cas courant d'une
+     * photo venue d'un autre téléphone, dont le chemin absolu ne désigne rien ici. `resoudre`
+     * retombe alors sur la recherche par nom de fichier, qui est précisément le rattrapage voulu
+     * (section 46) et reste intacte.
+     */
+    private fun estConfine(context: Context, fichier: File): Boolean = runCatching {
+        val canonique = fichier.canonicalPath
+        if (canonique.startsWith(dossier(context).canonicalPath + File.separator)) return@runCatching true
+        canonique.startsWith(context.filesDir.canonicalPath + File.separator) &&
+            fichier.name.startsWith(PREFIXE_FICHIER)
+    }.getOrDefault(false)
 
     /** Toutes les photos présentes sur l'appareil, dossier dédié + emplacement historique. */
     fun toutes(context: Context): List<File> {

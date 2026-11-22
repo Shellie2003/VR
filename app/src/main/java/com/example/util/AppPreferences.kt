@@ -200,6 +200,24 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_ACTIVATED, false)
         set(value) = prefs.edit().putBoolean(KEY_ACTIVATED, value).apply()
 
+    /**
+     * Mémorise s'il existe au moins un compte employé, pour que `estGerant` le sache **avant** que
+     * Room ait répondu.
+     *
+     * Sans elle, `allVendeurs.value` vaut `emptyList()` pendant les premières millisecondes de
+     * l'application, et « aucun compte » signifie « fonctionnalité inactive, tout est permis » :
+     * les droits gérant s'ouvraient donc tout seuls au démarrage — Paramètres sans PIN, suppression
+     * d'historique autorisée. C'est la même famille que le défaut de la section 63, par un autre
+     * mécanisme, et le correctif d'alors ne la couvrait pas.
+     *
+     * Lue depuis les préférences, la réponse est **immédiate et synchrone**, donc il n'existe
+     * aucune fenêtre. Réécrite à chaque émission de Room, elle se corrige d'elle-même après une
+     * restauration de sauvegarde.
+     */
+    var comptesEmployesExistent: Boolean
+        get() = prefs.getBoolean("key_comptes_employes_existent", false)
+        set(value) = prefs.edit().putBoolean("key_comptes_employes_existent", value).apply()
+
     var hasSeededNewCategories: Boolean
         get() = prefs.getBoolean("key_has_seeded_new_categories", false)
         set(value) = prefs.edit().putBoolean("key_has_seeded_new_categories", value).apply()

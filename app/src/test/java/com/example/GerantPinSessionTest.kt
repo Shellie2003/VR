@@ -150,6 +150,88 @@ class GerantPinSessionTest {
     }
 
     @Test
+    fun `aucun compte employe ne declenche jamais de demande de PIN`() {
+        // Garantie de compatibilité : l'épicier seul n'a aucun compte, et rien ne doit changer pour
+        // lui. Si ce test tombe, CHAQUE boutique sans employé se retrouve devant une invite de PIN
+        // qu'elle ne peut pas satisfaire — donc coupée de ses propres paramètres.
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        // État de départ posé explicitement : Robolectric ne garantit pas que les préférences
+        // soient remises à neuf entre deux méthodes de test, et sans cette ligne l'assertion
+        // dépendrait de l'ordre d'exécution.
+        AppPreferences(context).comptesEmployesExistent = false
+        val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        val viewModel = InventoryViewModel(buildRepository(db), context)
+
+        assertTrue("Sans aucun compte, les droits gérant restent ouverts", viewModel.estGerant)
+        assertFalse("Sans aucun compte, aucun PIN ne doit être demandé", viewModel.requiresGerantPinForSettings())
+
+        db.close()
+    }
+
+    @Test
+    fun `les droits gerant sont fermes au demarrage avant que Room ait emis la liste des comptes`() = runBlocking {
+        // Le trou que ce test ferme : `allVendeurs` est un `StateFlow` construit avec
+        // `stateIn(..., emptyList())`, donc sa valeur AVANT la première émission de Room est une
+        // liste vide — indiscernable d'une boutique sans aucun compte. Pendant cette fenêtre,
+        // `estGerant` répondait « oui » : il suffisait d'ouvrir les Paramètres assez vite au
+        // démarrage pour contourner le PIN gérant, et avec lui la configuration Firebase, les
+        // sauvegardes et la gestion des comptes eux-mêmes. Mon correctif de la section 63 traitait
+        // la cause « gérant mémorisé », pas celle-ci.
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        // Sans cette remise à zéro, l'assertion sur la mémorisation passerait sans rien prouver si
+        // une méthode précédente avait déjà écrit la préférence.
+        AppPreferences(context).comptesEmployesExistent = false
+        val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        val repository = buildRepository(db)
+        repository.insertVendeur(
+            Vendeur(nom = "Koto", pinHash = Vendeur.hashPin("1234"), role = Vendeur.ROLE_GERANT, actif = true)
+        )
+
+        // Première exécution de l'app : la liste des comptes se charge, ce qui mémorise leur
+        // existence dans les préférences de l'appareil.
+        val premiereExecution = InventoryViewModel(repository, context)
+        val collecteJobs = demarrerCollecteEtatVendeur(premiereExecution)
+        attendreVendeursCharges(premiereExecution)
+        assertTrue(
+            "La première exécution doit avoir mémorisé que des comptes existent",
+            AppPreferences(context).comptesEmployesExistent
+        )
+        collecteJobs.forEach { it.cancel() }
+
+        // Nouveau démarrage à froid : on interroge les droits IMMÉDIATEMENT, sans abonné et sans
+        // attendre Room — exactement ce que fait un gérant qui touche l'icône Paramètres dès que
+        // l'accueil s'affiche.
+        val demarrageAFroid = InventoryViewModel(repository, context)
+        assertTrue(
+            "Le test ne prouve rien si Room a déjà émis : on doit bien être dans la fenêtre d'avant première émission",
+            demarrageAFroid.allVendeurs.value.isEmpty()
+        )
+
+        assertFalse(
+            "Les droits gérant ne doivent pas être ouverts pendant la fenêtre d'avant première émission",
+            demarrageAFroid.estGerant
+        )
+        assertTrue(
+            "Le PIN gérant doit être exigé dès ce premier instant",
+            demarrageAFroid.requiresGerantPinForSettings()
+        )
+
+        // Et une fois les comptes réellement chargés, le PIN reste exigé puis fonctionne.
+        val jobs2 = demarrerCollecteEtatVendeur(demarrageAFroid)
+        attendreVendeursCharges(demarrageAFroid)
+        assertTrue(demarrageAFroid.requiresGerantPinForSettings())
+        assertNotNull(demarrageAFroid.verifyGerantPin("1234"))
+        assertTrue(demarrageAFroid.estGerant)
+
+        jobs2.forEach { it.cancel() }
+        db.close()
+    }
+
+    @Test
     fun `logoutVendeur retire les droits gerant de la session en cours`() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)

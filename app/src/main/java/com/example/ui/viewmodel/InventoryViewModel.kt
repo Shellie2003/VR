@@ -329,6 +329,9 @@ class InventoryViewModel(
     // B.3/E.2: opt-in employee accounts (PIN vendeur/gérant). Empty list = feature inactive, the
     // app behaves exactly as before with no login and no restriction anywhere.
     val allVendeurs: StateFlow<List<Vendeur>> = repository.allVendeurs
+        // La préférence est réécrite à CHAQUE émission : c'est elle que `estGerant` interroge au
+        // démarrage, avant que Room ait répondu. Voir `AppPreferences.comptesEmployesExistent`.
+        .onEach { appPreferences.comptesEmployesExistent = it.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // C.1: partial/full returns of past sales
@@ -539,8 +542,24 @@ class InventoryViewModel(
      * complète de l'app (voir `gerantSessionVerifiedThisLaunch`).
      */
     val estGerant: Boolean
-        get() = allVendeurs.value.isEmpty() ||
+        get() = aucunCompteEmploye ||
             (activeVendeur.value?.role == Vendeur.ROLE_GERANT && gerantSessionVerifiedThisLaunch)
+
+    /**
+     * Vrai seulement quand on SAIT qu'aucun compte employé n'existe — cas de l'épicier seul, où
+     * rien n'est restreint.
+     *
+     * `allVendeurs.value` ne suffit pas : il vaut `emptyList()` pendant les premières
+     * millisecondes, avant la première émission de Room. S'y fier ouvrait les droits gérant au
+     * démarrage, donc Paramètres sans PIN et suppression d'historique autorisée — exactement le
+     * symptôme « parfois le PIN n'est pas demandé » signalé par le gérant, dont la section 63
+     * n'avait corrigé qu'une des deux causes.
+     *
+     * La préférence répond immédiatement et sans fenêtre ; la liste réelle fait autorité dès
+     * qu'elle arrive. Les deux doivent dire « vide » pour que tout soit permis.
+     */
+    private val aucunCompteEmploye: Boolean
+        get() = !appPreferences.comptesEmployesExistent && allVendeurs.value.isEmpty()
 
     /**
      * Suppression d'un historique de transaction (vente, dette, retour, mouvement de caisse,
