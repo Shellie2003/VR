@@ -27,7 +27,14 @@ import java.util.concurrent.TimeUnit
  *   "expiration": 1790000000000,        // millis, 0 ou absent = licence sans échéance
  *   "epicerie": "Épicerie Koto",        // libellé affiché à l'activation
  *   "note": "payé le 12/03 - Mvola",
- *   "recoveryCode": "VRT-A3F9-K2M7-QP4X",  // copie du code de récupération des sauvegardes
+ *   // PAS de `recoveryCode` ici : voir SECURITE_FIREBASE.md. Le numéro de licence est l'ID
+ *   // d'installation à 6 chiffres, donc énumérable, et `/licences` est lisible par tous les
+ *   // clients (l'app doit pouvoir lire son propre nœud). Un code de récupération placé ici
+ *   // serait donc récupérable pour TOUTES les boutiques, et il donne accès à leur sauvegarde
+ *   // cloud complète. Les règles de Realtime Database descendent en cascade et ne peuvent pas
+ *   // être resserrées plus bas, donc aucune règle ne peut le masquer : il doit vivre hors du
+ *   // sous-arbre lisible, sous `/codes_recuperation/<numéro>` (`.read: false`), que la console
+ *   // du fournisseur lit toujours. L'application ne l'a jamais lu.
  *   "maxAppareils": 1,                  // information de gestion (le nombre vendu au client)
  *   "transferts": 0,                    // compteur tenu à la main : un client qui « perd » son
  *                                       // téléphone trois fois dans l'année se voit tout de suite
