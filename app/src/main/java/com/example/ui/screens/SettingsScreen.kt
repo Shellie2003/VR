@@ -1118,7 +1118,8 @@ fun SettingsScreen(
                             Icon(
                                 imageVector = Icons.Default.Security,
                                 contentDescription = null,
-                                tint = Color.White,
+                                // Sur un fond `error`, qui est une teinte CLAIRE en thème sombre.
+                                tint = MaterialTheme.colorScheme.onError,
                                 modifier = Modifier.size(22.dp)
                             )
                         }

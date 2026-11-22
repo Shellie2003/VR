@@ -412,7 +412,17 @@ private fun FenetreVarotra(
         }
     }
 
-    VarotraTheme(sombre = sombre) {
+    // L'accent de la marque est passé explicitement, et ce n'est pas cosmétique : sans lui,
+    // `colorScheme.primary` vaut la primaire du schéma sombre, soit une MENTHE TRÈS CLAIRE
+    // (`0xFFC1ECD4`). Or les écrans partagés reçoivent `colorScheme.primary` comme couleur de
+    // thème et y posent du blanc — exactement comme côté Android, où `themeColor` est toujours un
+    // accent sombre. En mode sombre, le bouton « Valider » de la caisse devenait donc du blanc sur
+    // menthe claire, soit environ 1,3:1. On aligne le bureau sur l'invariant d'Android : la
+    // primaire est toujours sombre, dans les deux thèmes.
+    VarotraTheme(
+        sombre = sombre,
+        primaireRemplacee = androidx.compose.ui.graphics.Color(com.example.util.VarotraPalette.LIGHT_PRIMARY)
+    ) {
         CoquilleBureau(
             nomApplication = DesktopBuildInfo.NOM_APPLICATION,
             sousTitre = when (langue) {

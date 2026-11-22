@@ -566,7 +566,9 @@ fun CalculatorScreen(
                                     shape = RoundedCornerShape(12.dp),
                                     colors = ButtonDefaults.elevatedButtonColors(
                                         containerColor = if (isTrosaMode) MaterialTheme.colorScheme.error else themeColor,
-                                        contentColor = Color.White
+                                        // `onError` sur la branche Trosa : en thème sombre `error`
+                                        // est un saumon CLAIR, donc le blanc n'y tenait pas (1,7:1).
+                                        contentColor = if (isTrosaMode) MaterialTheme.colorScheme.onError else Color.White
                                     ),
                                     elevation = ButtonDefaults.elevatedButtonElevation(defaultElevation = 2.dp),
                                     modifier = Modifier
@@ -1074,7 +1076,7 @@ fun CalculatorScreen(
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.elevatedButtonColors(
                                 containerColor = if (isTrosaMode) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = if (isTrosaMode) Color.White else MaterialTheme.colorScheme.onSecondaryContainer
+                                contentColor = if (isTrosaMode) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onSecondaryContainer
                             ),
                             elevation = ButtonDefaults.elevatedButtonElevation(defaultElevation = 1.5.dp),
                             modifier = Modifier
@@ -1160,7 +1162,7 @@ fun CalculatorScreen(
                                     badge = {
                                         Badge(
                                             containerColor = MaterialTheme.colorScheme.error,
-                                            contentColor = Color.White
+                                            contentColor = MaterialTheme.colorScheme.onError
                                         ) {
                                             Text(text = miscCartItems.size.toString(), fontSize = 9.sp)
                                         }

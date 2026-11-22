@@ -64,6 +64,17 @@ fun MyApplicationTheme(
     val colorScheme = if (primaryColorOverride != null) {
         baseScheme.copy(
             primary = primaryColorOverride,
+            // `onPrimary` DOIT être remplacé avec `primary`, sinon le couple est cassé en thème
+            // sombre. Le schéma sombre a été conçu pour une primaire CLAIRE (menthe `0xFFC1ECD4`),
+            // donc son `onPrimary` est du quasi-noir (`0xFF002114`). Or les quatre accents
+            // proposés au gérant sont tous SOMBRES (vert, orange brûlé, indigo, rose foncé) :
+            // laisser `onPrimary` en place donnait du quasi-noir sur un accent sombre, soit un
+            // rapport de contraste d'environ 1,1:1 — le libellé et l'icône disparaissent.
+            // Invisible depuis les sites d'appel, car c'est `contentColorFor(primary)` qui va
+            // chercher cette valeur : un bouton `containerColor = themeColor` SANS `contentColor`
+            // la reçoit sans que rien ne le dise. Le blanc convient aux quatre accents, et dans
+            // les deux thèmes, puisqu'ils sont tous sombres.
+            onPrimary = Color.White,
             primaryContainer = primaryColorOverride.copy(alpha = 0.15f)
         )
     } else {
