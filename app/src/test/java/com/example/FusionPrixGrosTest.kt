@@ -93,15 +93,38 @@ class FusionPrixGrosTest {
         wholesalePrice = prixGros
     )
 
-    private suspend fun attendreProduit(depot: InventoryRepository): Product? {
-        var trouve = depot.getProductByBarcode(codeBarre)
-        repeat(30) {
-            if (trouve == null) {
-                delay(100)
-                trouve = depot.getProductByBarcode(codeBarre)
-            }
+    /**
+     * Injecte un produit **témoin**, absent de la base cible, dans le JSON à restaurer.
+     *
+     * Sans lui, ces tests ne prouvaient rien : le produit dont on veut vérifier le tarif de gros
+     * existe DÉJÀ sur l'appareil cible, donc l'attendre le rend instantanément — avec sa valeur
+     * d'AVANT la fusion, `syncFullDatabaseSync` étant lancée sans être attendue. C'est exactement
+     * la boucle d'attente vide corrigée dans `BackupRestoreDuplicationTest` (section 111), et je
+     * l'ai commise ici dans le même lot. Le témoin donne un signe POSITIF : son apparition prouve
+     * que la fusion est allée jusqu'au bout.
+     */
+    private fun avecTemoin(json: String, codeTemoin: String): String {
+        val racine = org.json.JSONObject(json)
+        // `products` est un vrai tableau JSON, pas une chaîne (section 85).
+        val produits = racine.getJSONArray("products")
+        produits.put(
+            org.json.JSONObject()
+                .put("name", "Temoin $codeTemoin")
+                .put("price", 1.0)
+                .put("category", "Alimentation")
+                .put("stock", 1.0)
+                .put("barcode", codeTemoin)
+        )
+        racine.put("products", produits)
+        return racine.toString()
+    }
+
+    private suspend fun attendreFusion(depot: InventoryRepository, codeTemoin: String) {
+        repeat(60) {
+            if (depot.getProductByBarcode(codeTemoin) != null) return
+            delay(50)
         }
-        return trouve
+        throw AssertionError("La fusion n'a jamais abouti : le produit témoin $codeTemoin est absent")
     }
 
     @Test
@@ -111,7 +134,10 @@ class FusionPrixGrosTest {
         val dbSource = nouvelleBase()
         val depotSource = depot(dbSource)
         depotSource.insertProduct(carton(prixGros = 9000.0))
-        val sauvegarde = InventoryViewModel(depotSource, context).getFullDatabaseJsonSync()
+        val sauvegarde = avecTemoin(
+            InventoryViewModel(depotSource, context).getFullDatabaseJsonSync(),
+            "TEMOIN-GROS-1"
+        )
 
         val dbCible = nouvelleBase()
         val depotCible = depot(dbCible)
@@ -119,8 +145,9 @@ class FusionPrixGrosTest {
         val vmCible = InventoryViewModel(depotCible, context)
 
         vmCible.syncFullDatabaseSync(sauvegarde)
+        attendreFusion(depotCible, "TEMOIN-GROS-1")
 
-        val fusionne = attendreProduit(depotCible)
+        val fusionne = depotCible.getProductByBarcode(codeBarre)
         assertNotNull(fusionne)
         assertEquals(
             "Le tarif de gros doit traverser la fusion, sinon les deux postes facturent différemment",
@@ -140,11 +167,12 @@ class FusionPrixGrosTest {
         val dbSource = nouvelleBase()
         val depotSource = depot(dbSource)
         depotSource.insertProduct(carton(prixGros = null))
-        val sauvegarde = InventoryViewModel(depotSource, context).getFullDatabaseJsonSync()
+        val brute = InventoryViewModel(depotSource, context).getFullDatabaseJsonSync()
         assertTrue(
             "La sauvegarde doit bien écrire un zéro, sinon le test ne reproduit pas le piège",
-            sauvegarde.contains("\"wholesalePrice\":0")
+            brute.contains("\"wholesalePrice\":0")
         )
+        val sauvegarde = avecTemoin(brute, "TEMOIN-GROS-2")
 
         val dbCible = nouvelleBase()
         val depotCible = depot(dbCible)
@@ -152,8 +180,12 @@ class FusionPrixGrosTest {
         val vmCible = InventoryViewModel(depotCible, context)
 
         vmCible.syncFullDatabaseSync(sauvegarde)
+        // Ici le témoin est INDISPENSABLE : la valeur attendue (9000) est aussi la valeur de
+        // départ, donc toute attente portant sur elle sortirait avant la fusion et le test
+        // passerait sans jamais l'exercer.
+        attendreFusion(depotCible, "TEMOIN-GROS-2")
 
-        val fusionne = attendreProduit(depotCible)
+        val fusionne = depotCible.getProductByBarcode(codeBarre)
         assertNotNull(fusionne)
         assertEquals(
             "Un zéro venu d'un poste sans tarif de gros ne doit jamais écraser le tarif local",

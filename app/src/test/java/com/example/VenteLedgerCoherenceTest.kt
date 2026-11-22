@@ -190,10 +190,13 @@ class VenteLedgerCoherenceTest {
         assertEquals(1, vm.cart.value.size)
         vm.consommerErreurOperation()
 
-        // Base fermée : l'écriture ne peut plus aboutir. C'est le seul moyen de provoquer un échec
-        // réel d'écriture dans un test, et la cause importe peu — ce qui est vérifié ici, c'est que
-        // l'échec devient VISIBLE.
-        db.close()
+        // Injection de l'échec : on SUPPRIME la table des ventes. `db.close()` ne marche pas pour
+        // cela — Room rouvre tranquillement une base en mémoire (vide, recréée au schéma), donc
+        // l'écriture RÉUSSIT et il n'y a aucune erreur à signaler. Supprimer la table fait échouer
+        // `insertSale` de façon déterministe, la transaction est annulée, et c'est bien le chemin
+        // d'échec réel qu'on veut éprouver. La cause importe peu : ce qui est vérifié ici, c'est
+        // que l'échec devient VISIBLE pour le vendeur.
+        db.openHelper.writableDatabase.execSQL("DROP TABLE sales")
         vm.checkoutCart()
 
         var message = vm.erreurOperation.value
@@ -213,5 +216,6 @@ class VenteLedgerCoherenceTest {
             "Le panier doit rester intact pour que la vente soit re-tentable",
             vm.cart.value.isEmpty()
         )
+        db.close()
     }
 }

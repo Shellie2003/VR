@@ -460,9 +460,9 @@ class InventoryRepository(
      */
     suspend fun deleteSale(sale: Sale) = database.withTransaction {
         saleDao.deleteSale(sale)
-        venteDao.getVentesAt(sale.timestamp)
+        val venteLiee = venteDao.getVentesAt(sale.timestamp)
             .firstOrNull { kotlin.math.abs(it.montantTotal - sale.totalAmount) < 0.01 }
-            ?.let { venteDao.deleteVente(it) }
+        if (venteLiee != null) venteDao.deleteVente(venteLiee)
     }
 
     // C.1: partial or full return of a past sale — restores stock for the returned items and, for

@@ -42,7 +42,7 @@ class BackupRestoreDuplicationTest {
     // son init block qui peut semer des produits d'exemple) — un dispatcher de test sans Looper réel
     // les rend déterministes plutôt que dépendantes d'un pompage explicite de la file Robolectric.
     /**
-     * Injecte un produit **témoin**, absent de la base, dans le JSON à restaurer.
+     * Injecte une **vente témoin**, absente de la base, dans le JSON à restaurer.
      *
      * Les deux boucles d'attente d'origine attendaient que le nombre de ventes vaille 1 — soit
      * exactement ce que l'assertion vérifie ensuite, et aussi l'état de DÉPART. Comme
@@ -50,35 +50,41 @@ class BackupRestoreDuplicationTest {
      * avant la moindre écriture : le test passait **sans avoir exercé la restauration**, donc sans
      * pouvoir voir revenir la duplication qu'il est censé garder.
      *
-     * L'apparition du témoin prouve que la fusion est allée jusqu'au bout. On attend un signe
-     * POSITIF, et non l'absence d'un défaut.
+     * Le témoin est une VENTE et non un produit, et ce détail est porteur : la fusion traite les
+     * produits AVANT les ventes, donc un témoin produit prouverait seulement que la fusion a
+     * commencé. Il est ajouté à la FIN du tableau, qui est parcouru dans l'ordre, donc son
+     * apparition prouve que toutes les ventes précédentes ont déjà été traitées.
+     *
+     * Son horodatage est volontairement très ancien et éloigné de celui de la vraie vente : la
+     * correspondance des ventes se fait sur l'instant, à la minute près.
      */
-    private fun avecTemoin(json: String, codeBarre: String): String {
+    private fun avecVenteTemoin(json: String, horodatage: Long): String {
         val racine = org.json.JSONObject(json)
-        // `products` est un vrai tableau JSON, pas une chaîne (voir section 85) : le relire avec
+        // `sales` est un vrai tableau JSON, pas une chaîne (section 85) : le relire avec
         // `optString` puis le réécrire casserait la désérialisation, et le test réussirait alors
         // sans rien exercer du tout.
-        val produits = racine.getJSONArray("products")
-        produits.put(
+        val ventes = racine.getJSONArray("sales")
+        val article = org.json.JSONObject()
+            .put("productId", 999)
+            .put("name", "Temoin")
+            .put("quantity", 1.0)
+            .put("price", 7.0)
+        ventes.put(
             org.json.JSONObject()
-                .put("name", "Temoin $codeBarre")
-                .put("price", 1.0)
-                .put("category", "Alimentation")
-                .put("stock", 1.0)
-                .put("barcode", codeBarre)
+                .put("timestamp", horodatage)
+                .put("totalAmount", 7.0)
+                .put("items", org.json.JSONArray().put(article))
         )
-        racine.put("products", produits)
+        racine.put("sales", ventes)
         return racine.toString()
     }
 
-    private suspend fun attendreRestauration(repository: InventoryRepository, codeBarre: String) {
+    private suspend fun attendreVenteTemoin(repository: InventoryRepository, horodatage: Long) {
         repeat(60) {
-            if (repository.getProductByBarcode(codeBarre) != null) return
+            if (repository.allSales.first().any { it.timestamp == horodatage }) return
             delay(50)
         }
-        throw AssertionError(
-            "La restauration n'a jamais abouti : le produit témoin $codeBarre n'est pas arrivé en base"
-        )
+        throw AssertionError("La restauration n'a jamais abouti : la vente témoin $horodatage est absente")
     }
 
     @Before
@@ -147,26 +153,44 @@ class BackupRestoreDuplicationTest {
 
         // 2. Simulate exactly what happens on every app restart when a local safety backup file
         // exists: export the current state, then "restore" that same JSON back in.
-        val backupJson = avecTemoin(viewModel.getFullDatabaseJsonSync(), "TEMOIN-1")
+        val temoin1 = 1_600_000_000_000L
+        val backupJson = avecVenteTemoin(viewModel.getFullDatabaseJsonSync(), temoin1)
         viewModel.syncFullDatabaseSync(backupJson)
 
-        // `syncFullDatabaseSync` est lancée sans être attendue : on attend que le témoin arrive,
-        // ce qui prouve que la fusion a tourné, AVANT d'affirmer qu'elle n'a rien dupliqué.
-        attendreRestauration(repository, "TEMOIN-1")
+        // `syncFullDatabaseSync` est lancée sans être attendue : on attend que la vente témoin
+        // arrive, ce qui prouve que la fusion des ventes a tourné, AVANT d'affirmer qu'elle n'a
+        // rien dupliqué.
+        attendreVenteTemoin(repository, temoin1)
 
         val sales = repository.allSales.first()
-        assertEquals("Restoring the same backup must not duplicate the sale", 1, sales.size)
-        assertEquals(2000.0, sales.first().totalAmount, 0.0)
+        assertEquals(
+            "Restoring the same backup must not duplicate the sale",
+            1,
+            sales.count { it.timestamp == sale.timestamp }
+        )
+        assertEquals("Seules la vente d'origine et le témoin doivent exister", 2, sales.size)
+        assertEquals(2000.0, sales.first { it.timestamp == sale.timestamp }.totalAmount, 0.0)
 
         // 3. A second restore pass (e.g. a second app restart) must still be a no-op.
         // Témoin différent : celui de la première passe existe désormais en base, donc il ne
-        // prouverait plus rien sur cette seconde restauration.
-        val secondBackupJson = avecTemoin(viewModel.getFullDatabaseJsonSync(), "TEMOIN-2")
+        // prouverait plus rien sur cette seconde restauration. Écarté de plus d'une minute du
+        // premier, la correspondance des ventes se faisant sur l'instant.
+        val temoin2 = 1_600_000_200_000L
+        val secondBackupJson = avecVenteTemoin(viewModel.getFullDatabaseJsonSync(), temoin2)
         viewModel.syncFullDatabaseSync(secondBackupJson)
-        attendreRestauration(repository, "TEMOIN-2")
+        attendreVenteTemoin(repository, temoin2)
 
         val salesAfterSecondRestore = repository.allSales.first()
-        assertEquals("A second restore must still not duplicate the sale", 1, salesAfterSecondRestore.size)
+        assertEquals(
+            "A second restore must still not duplicate the sale",
+            1,
+            salesAfterSecondRestore.count { it.timestamp == sale.timestamp }
+        )
+        assertEquals(
+            "La seconde passe n'ajoute que son propre témoin",
+            3,
+            salesAfterSecondRestore.size
+        )
 
         db.close()
     }
