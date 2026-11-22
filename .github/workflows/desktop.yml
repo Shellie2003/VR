@@ -363,6 +363,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('bureau-v{0}', env.VERSION) }}
+          # Sans `target_commitish`, GitHub crée l'étiquette sur la branche PAR DÉFAUT du dépôt,
+          # quelle que soit la branche qui a construit les fichiers : une pré-version d'essai bâtie
+          # depuis la branche de travail recevait donc une étiquette pointant sur la tête de `main`.
+          # Les fichiers joints étaient les bons, mais le code que l'étiquette désigne, non — donc
+          # impossible de savoir plus tard ce qui a réellement été livré à l'essai.
+          target_commitish: ${{ github.sha }}
           name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('Varotra bureau {0} (essai)', env.VERSION) }}
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
           body: |

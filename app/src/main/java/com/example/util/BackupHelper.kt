@@ -20,12 +20,45 @@ object BackupHelper {
     const val DOSSIER_PUBLIC = "Varotra"
     const val MIME_ARCHIVE = "application/zip"
 
+    private const val BACKUP_TEMP_NAME = "$BACKUP_FILE_NAME.tmp"
+
+    /**
+     * Écrit la sauvegarde de sécurité locale — **sans jamais laisser le fichier à moitié écrit**.
+     *
+     * `writeText` tronque le fichier AVANT d'écrire : si le processus meurt entre les deux, il ne
+     * reste qu'un JSON coupé. Et ce n'est pas un cas d'école ici, c'est le cas PRÉVU —
+     * `CrashReporter` (section 47) appelle cette sauvegarde depuis le gestionnaire d'exception
+     * fatale, donc précisément quand le processus est en train de mourir. Pire, un fichier tronqué
+     * fait quand même répondre `hasBackup` (il dépasse 20 octets), donc l'application croit avoir
+     * un filet alors qu'il est inexploitable — et ce filet est ce qui rejoue les données au
+     * démarrage suivant (section 45), la dernière défense avant la sauvegarde cloud.
+     *
+     * On écrit donc dans un fichier temporaire, on force son écriture sur le disque, puis on le
+     * renomme : `rename(2)` est atomique dans un même dossier, donc le fichier visible est soit
+     * l'ancienne sauvegarde complète, soit la nouvelle, jamais un mélange des deux. `fd.sync()`
+     * fait la différence entre « à l'épreuve de la mort du processus » et « à l'épreuve d'une
+     * coupure de courant » ; depuis la section 40 l'écriture est regroupée (une fois toutes les
+     * trois secondes au plus), donc son coût est négligeable.
+     */
     fun saveBackup(context: Context, json: String) {
+        val cible = File(context.filesDir, BACKUP_FILE_NAME)
+        val temporaire = File(context.filesDir, BACKUP_TEMP_NAME)
         try {
-            val file = File(context.filesDir, BACKUP_FILE_NAME)
-            file.writeText(json)
+            java.io.FileOutputStream(temporaire).use { sortie ->
+                sortie.write(json.toByteArray(Charsets.UTF_8))
+                sortie.flush()
+                sortie.fd.sync()
+            }
+            if (!temporaire.renameTo(cible)) {
+                // Repli : perdre la sauvegarde entière serait pire que de rouvrir la fenêtre de
+                // troncature le temps d'une écriture.
+                Log.w("BackupHelper", "Renommage de la sauvegarde impossible, écriture directe")
+                cible.writeText(json)
+                temporaire.delete()
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("BackupHelper", "Échec d'écriture de la sauvegarde locale", e)
+            temporaire.delete()
         }
     }
 
@@ -34,7 +67,7 @@ object BackupHelper {
             val file = File(context.filesDir, BACKUP_FILE_NAME)
             if (file.exists()) file.readText() else null
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("BackupHelper", "Échec de lecture de la sauvegarde locale", e)
             null
         }
     }
