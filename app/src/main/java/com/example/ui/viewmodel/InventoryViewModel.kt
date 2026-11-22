@@ -1002,6 +1002,18 @@ class InventoryViewModel(
         // mutations dont l'écriture disque était encore en attente.
         com.example.util.CrashReporter.actionUrgence = { sauvegardeUrgenceSync() }
 
+        // Remet `comptesEmployesExistent` d'aplomb à chaque lancement, indépendamment de toute
+        // interface. Le `.onEach` posé sur `allVendeurs` la tient à jour PENDANT la session, mais
+        // il ne tourne que tant qu'un écran collecte ce flux (`WhileSubscribed`) — aujourd'hui la
+        // barre supérieure, pour son icône de vendeur. Cette lecture d'amorçage retire cette
+        // dépendance cachée, et le scénario qu'elle évite n'est pas théorique : si un remaniement
+        // retirait ce collecteur, supprimer le DERNIER compte ne remettrait plus la préférence à
+        // zéro, et une boutique sans aucun gérant se verrait exiger un PIN gérant qu'elle ne peut
+        // pas satisfaire — donc coupée de ses propres paramètres pour toujours.
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
+            appPreferences.comptesEmployesExistent = repository.allVendeurs.first().isNotEmpty()
+        }
+
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO + coroutineExceptionHandler) {
             repository.hasProducts().take(1).collect { hasProducts ->
                 val hasBackupFile = com.example.util.BackupHelper.hasBackup(context)

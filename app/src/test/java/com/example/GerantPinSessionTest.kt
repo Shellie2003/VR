@@ -171,6 +171,42 @@ class GerantPinSessionTest {
     }
 
     @Test
+    fun `l'existence de comptes est memorisee sans qu'aucun ecran ne collecte la liste`() = runBlocking {
+        // Le `.onEach` posé sur `allVendeurs` ne tourne que tant qu'un écran collecte ce flux
+        // (`WhileSubscribed`) — aujourd'hui la barre supérieure. Ce test n'ouvre DÉLIBÉRÉMENT aucun
+        // collecteur : il vérifie la lecture d'amorçage du bloc `init`, qui retire cette dépendance
+        // cachée. Sans elle, un remaniement retirant l'icône de vendeur ferait que supprimer le
+        // dernier compte ne remettrait plus la préférence à zéro — et une boutique sans gérant
+        // resterait enfermée hors de ses propres paramètres.
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        AppPreferences(context).comptesEmployesExistent = false
+        val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        val repository = buildRepository(db)
+        repository.insertVendeur(
+            Vendeur(nom = "Koto", pinHash = Vendeur.hashPin("1234"), role = Vendeur.ROLE_GERANT, actif = true)
+        )
+
+        InventoryViewModel(repository, context)
+
+        val prefs = AppPreferences(context)
+        var memorise = prefs.comptesEmployesExistent
+        repeat(60) {
+            if (!memorise) {
+                delay(50)
+                memorise = prefs.comptesEmployesExistent
+            }
+        }
+        assertTrue(
+            "La préférence doit être écrite par le démarrage, sans dépendre d'un écran",
+            memorise
+        )
+
+        db.close()
+    }
+
+    @Test
     fun `les droits gerant sont fermes au demarrage avant que Room ait emis la liste des comptes`() = runBlocking {
         // Le trou que ce test ferme : `allVendeurs` est un `StateFlow` construit avec
         // `stateIn(..., emptyList())`, donc sa valeur AVANT la première émission de Room est une
