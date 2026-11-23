@@ -323,13 +323,13 @@ fun AddProductScreen(
                     
                     android.widget.Toast.makeText(
                         context,
-                        if (activeLang == "mg") "Entana hita tamin'ny OFF! Ampidiro ny vidiny." else "Produit trouvé sur OFF! Saisissez le prix.",
+                        when (activeLang) { "mg" -> "Entana hita tamin'ny OFF! Ampidiro ny vidiny."; "fr" -> "Produit trouvé sur OFF! Saisissez le prix."; else -> "Product found on OFF! Enter the price." },
                         android.widget.Toast.LENGTH_LONG
                     ).show()
                 } else {
                     android.widget.Toast.makeText(
                         context,
-                        if (activeLang == "mg") "Tsy hita tamin'ny OFF" else "Produit non trouvé sur OFF",
+                        when (activeLang) { "mg" -> "Tsy hita tamin'ny OFF"; "fr" -> "Produit non trouvé sur OFF"; else -> "Product not found on OFF" },
                         android.widget.Toast.LENGTH_SHORT
                     ).show()
                 }
@@ -337,7 +337,7 @@ fun AddProductScreen(
                 e.printStackTrace()
                 android.widget.Toast.makeText(
                     context,
-                    if (activeLang == "mg") "Nisy olana teo amin'ny fifandraisana" else "Erreur de connexion OFF",
+                    when (activeLang) { "mg" -> "Nisy olana teo amin'ny fifandraisana"; "fr" -> "Erreur de connexion OFF"; else -> "OFF connection error" },
                     android.widget.Toast.LENGTH_SHORT
                 ).show()
             } finally {
@@ -1188,7 +1188,7 @@ fun AddProductScreen(
                                 Text(barcodeSupportText)
                                 if (barcode.isNotBlank()) {
                                     Text(
-                                        text = if (activeLang == "mg") "Tsindrio ny fitaratra handinihana ity kaody ity tamin'ny OFF" else "Cliquez sur la loupe pour rechercher ce code sur OFF",
+                                        text = when (activeLang) { "mg" -> "Tsindrio ny fitaratra handinihana ity kaody ity tamin'ny OFF"; "fr" -> "Cliquez sur la loupe pour rechercher ce code sur OFF"; else -> "Tap the magnifier to look this code up on OFF" },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.SemiBold,
@@ -1749,8 +1749,11 @@ fun AddProductScreen(
                         onValueChange = { offSearchQuery = it },
                         placeholder = { 
                             Text(
-                                if (activeLang == "mg") "Tadiavo eto ny entana..." 
-                                else "Saisissez un nom de produit ou mot-clé..."
+                                when (activeLang) {
+                                    "mg" -> "Tadiavo eto ny entana..."
+                                    "fr" -> "Saisissez un nom de produit ou mot-clé..."
+                                    else -> "Enter a product name or keyword..."
+                                }
                             )
                         },
                         trailingIcon = {
@@ -1783,12 +1786,12 @@ fun AddProductScreen(
                         )
                         Column {
                             Text(
-                                text = if (activeLang == "mg") "Madagasikara ihany" else "Madagascar uniquement",
+                                text = when (activeLang) { "mg" -> "Madagasikara ihany"; "fr" -> "Madagascar uniquement"; else -> "Madagascar only" },
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = if (activeLang == "mg") "Sivana ho an'ny vokatra misy eto an-toerana" else "Filtrer les produits disponibles localement",
+                                text = when (activeLang) { "mg" -> "Sivana ho an'ny vokatra misy eto an-toerana"; "fr" -> "Filtrer les produits disponibles localement"; else -> "Filter to products available locally" },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1817,11 +1820,11 @@ fun AddProductScreen(
                                         }
                                         offSearchResults = response.products ?: emptyList()
                                         if (offSearchResults.isEmpty()) {
-                                            offSearchError = if (activeLang == "mg") "Tsy nahitana vokatra" else "Aucun produit trouvé"
+                                            offSearchError = when (activeLang) { "mg" -> "Tsy nahitana vokatra"; "fr" -> "Aucun produit trouvé"; else -> "No product found" }
                                         }
                                     } catch (e: Exception) {
                                         e.printStackTrace()
-                                        offSearchError = if (activeLang == "mg") "Nisy olana teo amin'ny fifandraisana" else "Erreur de connexion"
+                                        offSearchError = when (activeLang) { "mg" -> "Nisy olana teo amin'ny fifandraisana"; "fr" -> "Erreur de connexion"; else -> "Connection error" }
                                     } finally {
                                         offSearchLoading = false
                                     }
@@ -1833,7 +1836,7 @@ fun AddProductScreen(
                     ) {
                         Icon(Icons.Default.Search, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (activeLang == "mg") "Mikaroka" else "Rechercher")
+                        Text(when (activeLang) { "mg" -> "Mikaroka"; "fr" -> "Rechercher"; else -> "Search" })
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -1866,7 +1869,7 @@ fun AddProductScreen(
                                     modifier = Modifier.size(48.dp)
                                 )
                                 Text(
-                                    text = if (activeLang == "mg") "Tsy misy vokatra voasafidy" else "Entrez un mot-clé pour lancer la recherche",
+                                    text = when (activeLang) { "mg" -> "Tsy misy vokatra voasafidy"; "fr" -> "Entrez un mot-clé pour lancer la recherche"; else -> "Enter a keyword to start searching" },
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -1892,8 +1895,11 @@ fun AddProductScreen(
                                                 
                                                 android.widget.Toast.makeText(
                                                     context,
-                                                    if (activeLang == "mg") "Entana tafiditra! Vidiny sisa no ampidirina." 
-                                                    else "Détails du produit importés ! Saisissez le prix.",
+                                                    when (activeLang) {
+                                                        "mg" -> "Entana tafiditra! Vidiny sisa no ampidirina."
+                                                        "fr" -> "Détails du produit importés ! Saisissez le prix."
+                                                        else -> "Product details imported! Enter the price."
+                                                    },
                                                     android.widget.Toast.LENGTH_LONG
                                                 ).show()
                                             },
@@ -2037,7 +2043,7 @@ fun AddProductScreen(
                                 tint = MaterialTheme.colorScheme.secondary
                             )
                             Text(
-                                text = if (activeLang == "mg") "Modely vokatra efa misy" else "Modèles de produits",
+                                text = when (activeLang) { "mg" -> "Modely vokatra efa misy"; "fr" -> "Modèles de produits"; else -> "Product templates" },
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.secondary
@@ -2054,7 +2060,7 @@ fun AddProductScreen(
                     OutlinedTextField(
                         value = queryText,
                         onValueChange = { queryText = it },
-                        placeholder = { Text(if (activeLang == "mg") "Hikaroka modely..." else "Rechercher un modèle...") },
+                        placeholder = { Text(when (activeLang) { "mg" -> "Hikaroka modely..."; "fr" -> "Rechercher un modèle..."; else -> "Search a template..." }) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true,
@@ -2094,7 +2100,7 @@ fun AddProductScreen(
                         if (templatesList.isEmpty()) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = if (activeLang == "mg") "Tsy misy modely hita" else "Aucun modèle trouvé",
+                                    text = when (activeLang) { "mg" -> "Tsy misy modely hita"; "fr" -> "Aucun modèle trouvé"; else -> "No template found" },
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -2119,8 +2125,11 @@ fun AddProductScreen(
                                             
                                             android.widget.Toast.makeText(
                                                 context,
-                                                if (activeLang == "mg") "Modely voafantina! Ampidiro ny vidiny sy ny tahiry." 
-                                                else "Modèle sélectionné ! Remplissez le prix et le stock.",
+                                                when (activeLang) {
+                                                    "mg" -> "Modely voafantina! Ampidiro ny vidiny sy ny tahiry."
+                                                    "fr" -> "Modèle sélectionné ! Remplissez le prix et le stock."
+                                                    else -> "Template selected! Fill in the price and stock."
+                                                },
                                                 android.widget.Toast.LENGTH_LONG
                                             ).show()
                                         },

@@ -229,7 +229,7 @@ fun BarcodeListScreen(
                                     color = themeColor
                                 )
                                 Text(
-                                    text = "${printAllSubtitle} (${productsWithBarcode.size} ${if (activeLang == "mg") "entana" else "articles"})",
+                                    text = "${printAllSubtitle} (${productsWithBarcode.size} ${when (activeLang) { "mg" -> "entana"; "fr" -> "articles"; else -> "items" }})",
                                     fontSize = 11.sp,
                                     color = secondaryTextColor
                                 )
@@ -393,7 +393,7 @@ fun BarcodeListScreen(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = category.ifBlank { if (activeLang == "mg") "Tsy voasokajy" else "Non classifié" }.uppercase(),
+                                        text = category.ifBlank { when (activeLang) { "mg" -> "Tsy voasokajy"; "fr" -> "Non classifié"; else -> "Uncategorised" } }.uppercase(),
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = themeColor,

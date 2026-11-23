@@ -238,10 +238,10 @@ fun SyncScreen(
                     Column {
                         Text(
                             text = when (connectionStatus) {
-                                "Disconnected" -> if (activeLang == "mg") "Tsy misy fifandraisana" else "Déconnecté"
-                                "Hosting (Server)" -> if (activeLang == "mg") "Mandefa Server (Gérant)" else "Serveur actif (Gérant)"
-                                "Connected (Client)" -> if (activeLang == "mg") "Mifandray (Client Vendeur)" else "Connecté au serveur (Vendeur)"
-                                "Connecting" -> if (activeLang == "mg") "Eo am-pifandraisana..." else "Connexion en cours..."
+                                "Disconnected" -> when (activeLang) { "mg" -> "Tsy misy fifandraisana"; "fr" -> "Déconnecté"; else -> "Disconnected" }
+                                "Hosting (Server)" -> when (activeLang) { "mg" -> "Mandefa Server (Gérant)"; "fr" -> "Serveur actif (Gérant)"; else -> "Server active (Manager)" }
+                                "Connected (Client)" -> when (activeLang) { "mg" -> "Mifandray (Client Vendeur)"; "fr" -> "Connecté au serveur (Vendeur)"; else -> "Connected to server (Seller)" }
+                                "Connecting" -> when (activeLang) { "mg" -> "Eo am-pifandraisana..."; "fr" -> "Connexion en cours..."; else -> "Connecting..." }
                                 else -> connectionStatus
                             },
                             fontWeight = FontWeight.Bold,
@@ -250,9 +250,9 @@ fun SyncScreen(
                         )
                         Text(
                             text = if (isServerMode) {
-                                if (activeLang == "mg") "Fitaovana mandray varotra hafa" else "Votre appareil sert de base de données"
+                                when (activeLang) { "mg" -> "Fitaovana mandray varotra hafa"; "fr" -> "Votre appareil sert de base de données"; else -> "This device acts as the database" }
                             } else {
-                                if (activeLang == "mg") "Mampita varotra amin'ny Server" else "Envoie vos ventes au gérant en temps réel"
+                                when (activeLang) { "mg" -> "Mampita varotra amin'ny Server"; "fr" -> "Envoie vos ventes au gérant en temps réel"; else -> "Sends your sales to the manager in real time" }
                             },
                             fontSize = 11.sp,
                             color = secondaryTextColor
@@ -311,10 +311,10 @@ fun SyncScreen(
                                 modifier = Modifier.size(48.dp)
                             )
                             Text(
-                                text = if (activeLang == "mg") {
-                                    "Ity finday ity no ho Server (Gérant). Ny fitaovana hafa rehetra dia hifandray eto mba hampitahana ny tahiry mivantana."
-                                } else {
-                                    "Cet appareil sera le Serveur Principal (Gérant). Les terminaux vendeurs s'y connecteront directement."
+                                text = when (activeLang) {
+                                    "mg" -> "Ity finday ity no ho Server (Gérant). Ny fitaovana hafa rehetra dia hifandray eto mba hampitahana ny tahiry mivantana."
+                                    "fr" -> "Cet appareil sera le Serveur Principal (Gérant). Les terminaux vendeurs s'y connecteront directement."
+                                    else -> "This device will be the main Server (Manager). Seller terminals will connect directly to it."
                                 },
                                 fontSize = 13.sp,
                                 color = mainTextColor,
@@ -342,7 +342,7 @@ fun SyncScreen(
                                             action = "android.settings.TETHER_SETTINGS"
                                         }
                                         context.startActivity(intent)
-                                        viewModel.addSyncLog(if (activeLang == "mg") "Manokatra fampifandraisana Hotspot..." else "Ouverture des paramètres du Point d'accès...")
+                                        viewModel.addSyncLog(when (activeLang) { "mg" -> "Manokatra fampifandraisana Hotspot..."; "fr" -> "Ouverture des paramètres du Point d'accès..."; else -> "Opening hotspot settings..." })
                                     } catch (e: Exception) {
                                         try {
                                             val intent = Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)
@@ -361,7 +361,7 @@ fun SyncScreen(
                                 Icon(Icons.Default.WifiTethering, contentDescription = null, tint = themeColor)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (activeLang == "mg") "Hampandeha Point d'accès (Hotspot)" else "Activer le Point d'accès (Hotspot)",
+                                    text = when (activeLang) { "mg" -> "Hampandeha Point d'accès (Hotspot)"; "fr" -> "Activer le Point d'accès (Hotspot)"; else -> "Turn on the hotspot" },
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -387,10 +387,10 @@ fun SyncScreen(
                                 modifier = Modifier.size(48.dp)
                             )
                             Text(
-                                text = if (activeLang == "mg") {
-                                    "Ity finday ity no CLIENT (Vendeur). Tsindrio ny bokotra etsy ambany mba hizaha ny kaody QR eo amin'ny findain'ny gérant."
-                                } else {
-                                    "Cet appareil sera le Client (Vendeur). Cliquez pour scanner le code QR affiché sur le téléphone du gérant."
+                                text = when (activeLang) {
+                                    "mg" -> "Ity finday ity no CLIENT (Vendeur). Tsindrio ny bokotra etsy ambany mba hizaha ny kaody QR eo amin'ny findain'ny gérant."
+                                    "fr" -> "Cet appareil sera le Client (Vendeur). Cliquez pour scanner le code QR affiché sur le téléphone du gérant."
+                                    else -> "This device will be the Client (Seller). Tap to scan the QR code shown on the manager's phone."
                                 },
                                 fontSize = 13.sp,
                                 color = mainTextColor,
@@ -413,7 +413,7 @@ fun SyncScreen(
                                     try {
                                         val intent = Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)
                                         context.startActivity(intent)
-                                        viewModel.addSyncLog(if (activeLang == "mg") "Manokatra fampifandraisana Wi-Fi..." else "Ouverture des paramètres Wi-Fi...")
+                                        viewModel.addSyncLog(when (activeLang) { "mg" -> "Manokatra fampifandraisana Wi-Fi..."; "fr" -> "Ouverture des paramètres Wi-Fi..."; else -> "Opening Wi-Fi settings..." })
                                     } catch (e: Exception) {
                                         try {
                                             val intent = Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)
@@ -432,7 +432,7 @@ fun SyncScreen(
                                 Icon(Icons.Default.Wifi, contentDescription = null, tint = themeColor)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (activeLang == "mg") "Hikaroka réseau Wi-Fi" else "Rechercher un réseau Wi-Fi",
+                                    text = when (activeLang) { "mg" -> "Hikaroka réseau Wi-Fi"; "fr" -> "Rechercher un réseau Wi-Fi"; else -> "Find a Wi-Fi network" },
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -457,7 +457,7 @@ fun SyncScreen(
                             val ipAddr = serverIp ?: "127.0.0.1"
 
                             Text(
-                                text = if (activeLang == "mg") "Kaody QR ho an'ny fitaovana hafa" else "Code QR de connexion",
+                                text = when (activeLang) { "mg" -> "Kaody QR ho an'ny fitaovana hafa"; "fr" -> "Code QR de connexion"; else -> "Connection QR code" },
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp,
                                 color = mainTextColor
@@ -502,10 +502,10 @@ fun SyncScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (activeLang == "mg") {
-                                        "Fitaovana mifandray mivantana: $clientsCount"
-                                    } else {
-                                        "Terminaux connectés : $clientsCount"
+                                    text = when (activeLang) {
+                                        "mg" -> "Fitaovana mifandray mivantana: $clientsCount"
+                                        "fr" -> "Terminaux connectés : $clientsCount"
+                                        else -> "Connected terminals: $clientsCount"
                                     },
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
@@ -524,7 +524,7 @@ fun SyncScreen(
                                 Icon(Icons.Default.Sync, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (activeLang == "mg") "Ampitoviana mivantana ny tahiry" else "Forcer la synchronisation",
+                                    text = when (activeLang) { "mg" -> "Ampitoviana mivantana ny tahiry"; "fr" -> "Forcer la synchronisation"; else -> "Force sync now" },
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -569,10 +569,10 @@ fun SyncScreen(
                             )
 
                             Text(
-                                text = if (activeLang == "mg") {
-                                    "Mifandray tsara amin'ny Server!"
-                                } else {
-                                    "Mise en réseau réussie !"
+                                text = when (activeLang) {
+                                    "mg" -> "Mifandray tsara amin'ny Server!"
+                                    "fr" -> "Mise en réseau réussie !"
+                                    else -> "Connected to the server!"
                                 },
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp,
@@ -596,7 +596,7 @@ fun SyncScreen(
                                 Icon(Icons.Default.Sync, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (activeLang == "mg") "Ampitoviana mivantana ny tahiry" else "Forcer la synchronisation",
+                                    text = when (activeLang) { "mg" -> "Ampitoviana mivantana ny tahiry"; "fr" -> "Forcer la synchronisation"; else -> "Force sync now" },
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -657,7 +657,7 @@ fun SyncScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (activeLang == "mg") "Tsy misy fandraisana mbola mandeha" else "Aucune activité",
+                            text = when (activeLang) { "mg" -> "Tsy misy fandraisana mbola mandeha"; "fr" -> "Aucune activité"; else -> "No activity yet" },
                             color = Color(0xFF64748B),
                             fontFamily = FontFamily.Monospace,
                             fontSize = 12.sp

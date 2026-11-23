@@ -344,7 +344,7 @@ fun CommissionScreen(
                                 modifier = Modifier.fillMaxWidth(0.7f)
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text(if (activeLang == "mg") "Tsy misy" else "Aucun / Sans fournisseur") },
+                                    text = { Text(when (activeLang) { "mg" -> "Tsy misy"; "fr" -> "Aucun / Sans fournisseur"; else -> "None / No supplier" }) },
                                     onClick = {
                                         selectedFournisseurId = null
                                         showSupplierDropdown = false
@@ -899,7 +899,7 @@ fun CommissionScreen(
                                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            text = if (activeLang == "mg") "Hamatsy" else "Approvisionner",
+                                            text = when (activeLang) { "mg" -> "Hamatsy"; "fr" -> "Approvisionner"; else -> "Restock" },
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -970,7 +970,7 @@ fun CommissionScreen(
                         OutlinedTextField(
                             value = newSupplierName,
                             onValueChange = { newSupplierName = it },
-                            label = { Text(if (activeLang == "mg") "Anaran'ny mpamatsy" else "Nom du fournisseur") },
+                            label = { Text(when (activeLang) { "mg" -> "Anaran'ny mpamatsy"; "fr" -> "Nom du fournisseur"; else -> "Supplier name" }) },
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -978,7 +978,7 @@ fun CommissionScreen(
                         OutlinedTextField(
                             value = newSupplierContact,
                             onValueChange = { newSupplierContact = it },
-                            label = { Text(if (activeLang == "mg") "Contact" else "Télephone / Contact") },
+                            label = { Text(when (activeLang) { "mg" -> "Contact"; "fr" -> "Télephone / Contact"; else -> "Phone / Contact" }) },
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -986,7 +986,7 @@ fun CommissionScreen(
                         OutlinedTextField(
                             value = newSupplierAddress,
                             onValueChange = { newSupplierAddress = it },
-                            label = { Text(if (activeLang == "mg") "Adrany" else "Adresse") },
+                            label = { Text(when (activeLang) { "mg" -> "Adrany"; "fr" -> "Adresse"; else -> "Address" }) },
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -1010,12 +1010,12 @@ fun CommissionScreen(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = themeColor)
                     ) {
-                        Text(if (activeLang == "mg") "Tehirizina" else "Enregistrer")
+                        Text(when (activeLang) { "mg" -> "Tehirizina"; "fr" -> "Enregistrer"; else -> "Save" })
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showAddSupplierDialog = false }) {
-                        Text(if (activeLang == "mg") "Hanafoana" else "Annuler")
+                        Text(when (activeLang) { "mg" -> "Hanafoana"; "fr" -> "Annuler"; else -> "Cancel" })
                     }
                 }
             )
