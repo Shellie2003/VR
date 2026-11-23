@@ -32,9 +32,9 @@ import java.util.concurrent.TimeUnit
  *   // clients (l'app doit pouvoir lire son propre nœud). Un code de récupération placé ici
  *   // serait donc récupérable pour TOUTES les boutiques, et il donne accès à leur sauvegarde
  *   // cloud complète. Les règles de Realtime Database descendent en cascade et ne peuvent pas
- *   // être resserrées plus bas, donc aucune règle ne peut le masquer : il doit vivre hors du
- *   // sous-arbre lisible, sous `/codes_recuperation/<numéro>` (`.read: false`), que la console
- *   // du fournisseur lit toujours. L'application ne l'a jamais lu.
+ *   // être resserrées plus bas, donc aucune règle ne peut le masquer : il doit vivre hors de
+ *   // CETTE BASE, dans le fichier de gestion du fournisseur (export JSON du nœud `licences`),
+ *   // et non sous un autre nœud du même projet. L'application ne l'a jamais lu.
  *   "maxAppareils": 1,                  // information de gestion (le nombre vendu au client)
  *   "transferts": 0,                    // compteur tenu à la main : un client qui « perd » son
  *                                       // téléphone trois fois dans l'année se voit tout de suite
