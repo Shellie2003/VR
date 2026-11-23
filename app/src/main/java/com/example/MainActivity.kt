@@ -1603,6 +1603,7 @@ fun BottomNavBarSection(
     onTabSelected: (ScreenTab) -> Unit
 ) {
     val activeLang by viewModel.language.collectAsState()
+    val themeColor by viewModel.themeColor.collectAsState()
     val t = { key: String -> LanguageManager.translate(key, activeLang) }
 
     val navTabs = listOf(
@@ -1618,10 +1619,14 @@ fun BottomNavBarSection(
             .fillMaxWidth()
             .navigationBarsPadding(),
         tonalElevation = 1.dp,
-        color = Color.White
+        // Cette barre n'avait AUCUNE branche de thème : une bande blanche de 68dp restait sous
+        // chaque écran d'un corps sombre. Ce n'est pas une illisibilité mais « le mode sombre n'est
+        // pas appliqué » — exactement ce que la section 57 décrivait pour SalesHistoryScreen, et ce
+        // fichier n'a jamais été dans le périmètre de l'audit (il est hors de `ui/screens/`).
+        color = MaterialTheme.colorScheme.surface
     ) {
         Column {
-            HorizontalDivider(color = Color(0xFFF1F5F9))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1658,7 +1663,12 @@ fun BottomNavBarSection(
                         }
                     } else {
                         val isSelected = currentTab == tabItem.tab
-                        val iconColor = if (isSelected) Color(0xFF13503C) else Color(0xFF94A3B8)
+                        // `0xFF13503C` était figé, donc un gérant qui choisit « Sariaka » (orange)
+                        // ou « Manga » (bleu) gardait une barre verte. Pire, ce vert n'était MÊME
+                        // PAS l'accent par défaut réellement appliqué (`0xFF012D1D`) : la pastille
+                        // du sélecteur de thème annonçait une couleur que l'application n'utilisait
+                        // nulle part. `themeColor` est la seule source de l'accent (AGENTS §2).
+                        val iconColor = if (isSelected) themeColor else MaterialTheme.colorScheme.onSurfaceVariant
 
                         Column(
                             modifier = Modifier
