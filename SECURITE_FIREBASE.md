@@ -1,6 +1,17 @@
-# Sécurité Firebase — action à faire dans la console
+# Sécurité Firebase — règles à publier et action à faire dans la console
 
 Document destiné au **fournisseur** (pas au gérant). Il ne contient aucun secret.
+
+> **Il y a DEUX bases Firebase, avec des règles opposées.** Les échanger serait pire que de ne rien
+> faire : les règles des sauvegardes posées sur les licences rendraient les licences **écrivables**
+> (n'importe qui s'auto-active gratuitement) ; celles des licences posées sur les sauvegardes
+> rendraient `/backups` lisible **en entier** (un seul `GET /backups.json` ramène les données de
+> tous les clients). Avant de publier, vérifier l'URL affichée en haut de la page *Rules* : elle
+> doit correspondre à la constante du code — `LicenceManager.CENTRAL_DATABASE_URL` pour les
+> licences, `FirebaseBackupManager.CENTRAL_BACKUP_DATABASE_URL` pour les sauvegardes.
+>
+> Les sections 1 à 5 concernent la base des **licences**. La section 6 concerne celle des
+> **sauvegardes**.
 
 ---
 
@@ -87,3 +98,45 @@ propre nœud. C'est un chantier à part, qui touche l'activation de tous les app
 
 Rappel de la limite de fond, inchangée : le verrouillage est fait par l'application, donc un APK
 recompilé le contourne. L'objectif est la fraude ordinaire, pas le rétro-ingénieur.
+
+---
+
+## 6. L'autre base — les SAUVEGARDES
+
+Règles à publier (base `FirebaseBackupManager.CENTRAL_BACKUP_DATABASE_URL`) :
+
+```json
+{
+  "rules": {
+    "backups": {
+      "$token": {
+        ".read": true,
+        ".write": true
+      }
+    }
+  }
+}
+```
+
+**Le niveau est tout.** L'autorisation est donnée **sous `$token`**, jamais sur `backups`
+lui-même. Ceci serait une fuite totale :
+
+```
+"backups": { ".read": true, ".write": true }
+```
+
+Un seul `GET /backups.json` renverrait alors la base complète de chaque boutique — ventes,
+dettes, caisse, catalogue. Avec `$token`, il faut connaître le code de récupération de la boutique
+(60 bits d'entropie, voir `RecoveryCode`) pour atteindre un nœud, et rien ne permet de lister les
+autres.
+
+Contrairement aux licences, cette base **doit** rester écrivable par les clients : c'est
+l'application qui y dépose la sauvegarde (`PUT` sur `/backups/<code>.json`, voir
+`FirebaseBackupManager.uploadBackup`).
+
+### Piège à vérifier sur les deux bases : le mode test
+
+Si une base est encore sur les règles par défaut de sa création, elles ressemblent à
+`".read": "now < 1762...000"`. Elles **expirent à une date**, et ce jour-là les sauvegardes de
+tous les clients s'arrêtent — ou les activations échouent — sans aucun message. Les règles données
+ici n'expirent pas.
