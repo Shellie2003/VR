@@ -311,7 +311,7 @@ fun DebtsScreen(
                             amountError = it.enDecimal() == null || it.toDouble() <= 0
                         },
                         label = { Text(t("debt_amount")) },
-                        prefix = { Text("Ar ") },
+                        suffix = { Text("Ar") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         isError = amountError,
                         modifier = Modifier.fillMaxWidth()
@@ -464,7 +464,7 @@ fun DebtsScreen(
                             repayError = it.enDecimal() == null || it.toDouble() <= 0 || it.toDouble() > debt.balance
                         },
                         label = { Text(t("repay_amount_label")) },
-                        prefix = { Text("Ar ") },
+                        suffix = { Text("Ar") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         isError = repayError,
                         supportingText = { if (repayError) Text("Sora-bola diso", color = MaterialTheme.colorScheme.error) },
@@ -1245,7 +1245,7 @@ fun GroupRepayDialog(
                             }
                         )
                     },
-                    prefix = { Text("Ar ") },
+                    suffix = { Text("Ar") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     isError = erreur,
                     supportingText = { if (erreur) Text("Sora-bola diso", color = MaterialTheme.colorScheme.error) },

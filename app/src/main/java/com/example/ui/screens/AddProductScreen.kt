@@ -895,7 +895,7 @@ fun AddProductScreen(
                                 else -> "Reference Purchase Price"
                             }
                         ) },
-                        prefix = { Text("Ar ") },
+                        suffix = { Text("Ar") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         isError = prixAchatError,
                         modifier = Modifier.fillMaxWidth(),
@@ -910,7 +910,7 @@ fun AddProductScreen(
                             priceError = it.enDecimal() == null || it.toDouble() <= 0
                         },
                         label = { Text(t("unit_price")) },
-                        prefix = { Text("Ar ") },
+                        suffix = { Text("Ar") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         isError = priceError,
                         modifier = Modifier
@@ -933,7 +933,7 @@ fun AddProductScreen(
                                 else -> "Wholesale Price"
                             }
                         ) },
-                        prefix = { Text("Ar ") },
+                        suffix = { Text("Ar") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         isError = wholesalePriceError,
                         supportingText = { Text("Ampiasaina amin'ny fomba 'Grossiste'") },

@@ -199,7 +199,7 @@ fun LigneVenteHistorique(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = "Ar ${FormatUtil.formatPrice(vente.totalAmount)}",
+                        text = "${FormatUtil.formatPrice(vente.totalAmount)} Ar",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.onSurface
@@ -283,7 +283,7 @@ fun LigneVenteHistorique(
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "Ar ${FormatUtil.formatPrice(article.price * article.quantity)}",
+                                text = "${FormatUtil.formatPrice(article.price * article.quantity)} Ar",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,

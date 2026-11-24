@@ -81,7 +81,8 @@ fun HomeScreen(
                 miseAJourDisponible = miseAJourDisponible,
                 onSearchQueryChange = { viewModel.searchQuery.value = it },
                 onNavigateToSettings = onNavigateToSettings,
-                onNavigateToList = onNavigateToList
+                onNavigateToList = onNavigateToList,
+                activeLang = activeLang
             )
 
             // Prominent empty state redirect
@@ -214,7 +215,8 @@ fun HomeScreen(
                     miseAJourDisponible = miseAJourDisponible,
                     onSearchQueryChange = { viewModel.searchQuery.value = it },
                     onNavigateToSettings = onNavigateToSettings,
-                    onNavigateToList = onNavigateToList
+                    onNavigateToList = onNavigateToList,
+                    activeLang = activeLang
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -237,7 +239,8 @@ private fun HomeHeaderContent(
     miseAJourDisponible: Boolean,
     onSearchQueryChange: (String) -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToList: () -> Unit
+    onNavigateToList: () -> Unit,
+    activeLang: String
 ) {
     Row(
         modifier = Modifier
@@ -314,7 +317,7 @@ private fun HomeHeaderContent(
         onValueChange = onSearchQueryChange,
         placeholder = {
             Text(
-                text = "Hitady Entana...",
+                text = when (activeLang) { "mg" -> "Hitady Entana..."; "fr" -> "Rechercher un produit..."; else -> "Search a product..." },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 14.sp
             )
@@ -361,7 +364,7 @@ private fun HomeHeaderContent(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
-            text = "Entana farany nampidirina",
+            text = when (activeLang) { "mg" -> "Entana farany nampidirina"; "fr" -> "Produits récemment ajoutés"; else -> "Recently added products" },
             style = MaterialTheme.typography.titleMedium.copy(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -375,7 +378,7 @@ private fun HomeHeaderContent(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                text = "Izy rehetra",
+                text = when (activeLang) { "mg" -> "Izy rehetra"; "fr" -> "Voir tout"; else -> "See all" },
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFFF57C00)
@@ -546,7 +549,7 @@ private fun ProductGridCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = "Ar ${FormatUtil.formatPrice(displayedPrice)}",
+                        text = "${FormatUtil.formatPrice(displayedPrice)} Ar",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Black,
                         color = if (isWholesaleActive) themeColor else MaterialTheme.colorScheme.onSurface

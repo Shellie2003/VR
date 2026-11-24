@@ -345,7 +345,7 @@ fun CaisseEcran(
                 }) {
                     Text(
                         when (langue) {
-                            "mg" -> "Hofafana"
+                            "mg" -> "Hamafa"
                             "fr" -> "Vider"
                             else -> "Clear"
                         }

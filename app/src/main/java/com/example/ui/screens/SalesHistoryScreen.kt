@@ -443,9 +443,9 @@ fun SalesHistoryScreen(
 
                         Text(
                             text = if (activeTab == "sales") {
-                                "Ar ${FormatUtil.formatPrice(todayRevenue)}"
+                                "${FormatUtil.formatPrice(todayRevenue)} Ar"
                             } else {
-                                "Ar ${FormatUtil.formatPrice(todayRestockCost)}"
+                                "${FormatUtil.formatPrice(todayRestockCost)} Ar"
                             },
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Black,
@@ -1146,7 +1146,7 @@ fun SaleListItem(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = "Ar ${FormatUtil.formatPrice(sale.totalAmount)}",
+                        text = "${FormatUtil.formatPrice(sale.totalAmount)} Ar",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.onSurface
@@ -1254,7 +1254,7 @@ fun SaleListItem(
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "Ar ${FormatUtil.formatPrice(soldItem.price * soldItem.quantity)}",
+                                text = "${FormatUtil.formatPrice(soldItem.price * soldItem.quantity)} Ar",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
@@ -1352,7 +1352,7 @@ fun RestockListItem(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = "Ar ${FormatUtil.formatPrice(restock.totalCostPrice)}",
+                        text = "${FormatUtil.formatPrice(restock.totalCostPrice)} Ar",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.onSurface
@@ -1419,9 +1419,9 @@ fun RestockListItem(
                     val coutUnitaire = com.example.util.FiltreHistorique.coutUnitaireReappro(restock)
                     DetailRow(
                         label = "Vidiny nividianana (Singany)",
-                        value = coutUnitaire?.let { "Ar ${FormatUtil.formatPrice(it)}" } ?: "—"
+                        value = coutUnitaire?.let { "${FormatUtil.formatPrice(it)} Ar" } ?: "—"
                     )
-                    DetailRow(label = "Vidiny hivarotana", value = "Ar ${FormatUtil.formatPrice(restock.unitSellingPrice)}")
+                    DetailRow(label = "Vidiny hivarotana", value = "${FormatUtil.formatPrice(restock.unitSellingPrice)} Ar")
                     DetailRow(label = "Mpamatsy", value = restock.supplierName ?: "Tsy misy")
                 }
             }
@@ -1498,7 +1498,7 @@ fun StatsDialog(
                         "fr" -> "Chiffre d'Affaires"
                         else -> "Turnover"
                     },
-                    value = "Ar ${FormatUtil.formatPrice(totalRevenue)}",
+                    value = "${FormatUtil.formatPrice(totalRevenue)} Ar",
                     themeColor = themeColor,
                     isBoldValue = true
                 )
@@ -1509,7 +1509,7 @@ fun StatsDialog(
                         "fr" -> "Coût d'achat total"
                         else -> "Total Purchase Cost"
                     },
-                    value = "Ar ${FormatUtil.formatPrice(totalPurchaseCost)}",
+                    value = "${FormatUtil.formatPrice(totalPurchaseCost)} Ar",
                     themeColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
@@ -1521,7 +1521,7 @@ fun StatsDialog(
                         "fr" -> "Bénéfice net"
                         else -> "Net Profit"
                     },
-                    value = "Ar ${FormatUtil.formatPrice(totalProfit)}",
+                    value = "${FormatUtil.formatPrice(totalProfit)} Ar",
                     themeColor = if (totalProfit >= 0.0) Color(0xFF10B981) else MaterialTheme.colorScheme.error,
                     isBoldValue = true
                 )

@@ -61,6 +61,7 @@ fun EnteteAccueil(
     couleurTheme: Color,
     recherche: String,
     onRechercheChange: (String) -> Unit,
+    placeholderRecherche: String,
     titreSection: String,
     libelleVoirTout: String,
     onVoirTout: () -> Unit,
@@ -135,7 +136,7 @@ fun EnteteAccueil(
         onValueChange = onRechercheChange,
         placeholder = {
             Text(
-                text = "Hitady Entana...",
+                text = placeholderRecherche,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 14.sp
             )

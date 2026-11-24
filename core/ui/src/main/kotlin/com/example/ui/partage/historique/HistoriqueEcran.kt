@@ -307,9 +307,9 @@ fun HistoriqueEcran(
                     }
                 },
                 valeur = if (onglet == OngletHistorique.VENTES) {
-                    "Ar ${FormatUtil.formatPrice(recette)}"
+                    "${FormatUtil.formatPrice(recette)} Ar"
                 } else {
-                    "Ar ${FormatUtil.formatPrice(coutReappros)}"
+                    "${FormatUtil.formatPrice(coutReappros)} Ar"
                 },
                 couleurValeur = themeColor,
                 legende = if (onglet == OngletHistorique.VENTES) {

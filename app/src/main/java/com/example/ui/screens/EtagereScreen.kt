@@ -314,7 +314,7 @@ fun EtagereScreen(
                 ) {
                     Text(
                         text = when (activeLang) {
-                            "mg" -> "Hofafana"
+                            "mg" -> "Hamafa"
                             "fr" -> "Supprimer"
                             else -> "Delete"
                         },
@@ -326,7 +326,7 @@ fun EtagereScreen(
                 TextButton(onClick = { etagereASupprimer = null }) {
                     Text(
                         text = when (activeLang) {
-                            "mg" -> "Aoka"
+                            "mg" -> "Hanafoana"
                             "fr" -> "Annuler"
                             else -> "Cancel"
                         }
@@ -479,7 +479,7 @@ private fun ColonneEtagere(
                     DropdownMenuItem(
                         text = {
                             Text(
-                                text = when (activeLang) { "mg" -> "Hofafana"; "fr" -> "Supprimer"; else -> "Delete" },
+                                text = when (activeLang) { "mg" -> "Hamafa"; "fr" -> "Supprimer"; else -> "Delete" },
                                 color = MaterialTheme.colorScheme.error
                             )
                         },
@@ -740,7 +740,7 @@ private fun RenommerDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(when (activeLang) { "mg" -> "Aoka"; "fr" -> "Annuler"; else -> "Cancel" })
+                Text(when (activeLang) { "mg" -> "Hanafoana"; "fr" -> "Annuler"; else -> "Cancel" })
             }
         }
     )
@@ -1124,14 +1124,14 @@ private fun NiveauDetailDialog(
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
                     Text(
-                        text = when (activeLang) { "mg" -> "Hofafana"; "fr" -> "Supprimer"; else -> "Delete" },
+                        text = when (activeLang) { "mg" -> "Hamafa"; "fr" -> "Supprimer"; else -> "Delete" },
                         fontWeight = FontWeight.Bold
                     )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { confirmerSuppression = false }) {
-                    Text(when (activeLang) { "mg" -> "Aoka"; "fr" -> "Annuler"; else -> "Cancel" })
+                    Text(when (activeLang) { "mg" -> "Hanafoana"; "fr" -> "Annuler"; else -> "Cancel" })
                 }
             }
         )

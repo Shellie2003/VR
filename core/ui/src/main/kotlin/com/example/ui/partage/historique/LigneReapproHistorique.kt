@@ -138,7 +138,7 @@ fun LigneReapproHistorique(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = "Ar ${FormatUtil.formatPrice(reappro.totalCostPrice)}",
+                        text = "${FormatUtil.formatPrice(reappro.totalCostPrice)} Ar",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Black,
                         color = MaterialTheme.colorScheme.onSurface
@@ -197,7 +197,7 @@ fun LigneReapproHistorique(
                             "fr" -> "Coût d'achat (unité)"
                             else -> "Purchase cost (unit)"
                         },
-                        valeur = coutUnitaire?.let { "Ar ${FormatUtil.formatPrice(it)}" } ?: "—"
+                        valeur = coutUnitaire?.let { "${FormatUtil.formatPrice(it)} Ar" } ?: "—"
                     )
                     LigneDetail(
                         libelle = when (langue) {
@@ -205,7 +205,7 @@ fun LigneReapproHistorique(
                             "fr" -> "Prix de vente"
                             else -> "Selling price"
                         },
-                        valeur = "Ar ${FormatUtil.formatPrice(reappro.unitSellingPrice)}"
+                        valeur = "${FormatUtil.formatPrice(reappro.unitSellingPrice)} Ar"
                     )
                     LigneDetail(
                         libelle = when (langue) {

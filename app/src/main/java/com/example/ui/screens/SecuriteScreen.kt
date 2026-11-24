@@ -121,7 +121,7 @@ fun SecuriteScreen(
                     ) {
                         Text(
                             text = when (activeLang) {
-                                "mg" -> "Hofafana"
+                                "mg" -> "Hamafa"
                                 "fr" -> "Purger"
                                 else -> "Purge"
                             },
@@ -133,7 +133,7 @@ fun SecuriteScreen(
                     TextButton(onClick = { confirmerPurge = false }) {
                         Text(
                             text = when (activeLang) {
-                                "mg" -> "Aoka"
+                                "mg" -> "Hanafoana"
                                 "fr" -> "Annuler"
                                 else -> "Cancel"
                             }

@@ -264,7 +264,7 @@ fun DialogueReglementGroupe(
                             }
                         )
                     },
-                    prefix = { Text("Ar ") },
+                    suffix = { Text("Ar") },
                     isError = erreur,
                     supportingText = {
                         if (erreur) {

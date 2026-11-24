@@ -207,7 +207,7 @@ fun CarteProduitGrille(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = "Ar ${FormatUtil.formatPrice(prixAffiche)}",
+                        text = "${FormatUtil.formatPrice(prixAffiche)} Ar",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Black,
                         color = if (enGros) couleurTheme else MaterialTheme.colorScheme.onSurface

@@ -355,7 +355,7 @@ fun CaisseMouvementsScreen(
                             amountError = it.enDecimal() == null || (it.enDecimal() ?: 0.0) <= 0.0
                         },
                         label = { Text(amountLabel) },
-                        prefix = { Text("Ar ") },
+                        suffix = { Text("Ar") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         isError = amountError,
                         modifier = Modifier.fillMaxWidth().testTag("caisse_amount_input")
@@ -446,7 +446,7 @@ fun CaisseMouvementsScreen(
                     value = openAmountStr,
                     onValueChange = { openAmountStr = it },
                     label = { Text(openAmountLabel) },
-                    prefix = { Text("Ar ") },
+                    suffix = { Text("Ar") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     isError = openAmountErr,
                     modifier = Modifier.fillMaxWidth().testTag("caisse_open_amount_input")
@@ -498,7 +498,7 @@ fun CaisseMouvementsScreen(
                         value = closeAmountStr,
                         onValueChange = { closeAmountStr = it },
                         label = { Text(closeAmountLabel) },
-                        prefix = { Text("Ar ") },
+                        suffix = { Text("Ar") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         isError = closeAmountErr,
                         modifier = Modifier.fillMaxWidth().testTag("caisse_close_amount_input")

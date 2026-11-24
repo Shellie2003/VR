@@ -93,6 +93,11 @@ fun AccueilEcran(
             couleurTheme = couleurTheme,
             recherche = recherche,
             onRechercheChange = onRechercheChange,
+            placeholderRecherche = when (langue) {
+                "mg" -> "Hitady Entana..."
+                "fr" -> "Rechercher un produit..."
+                else -> "Search a product..."
+            },
             titreSection = when (langue) {
                 // Le malgache est EXACTEMENT la chaîne d'Android ; les deux autres langues sont
                 // ajoutées parce qu'AGENTS.md section 3 l'exige, là où l'écran Android laisse cette
